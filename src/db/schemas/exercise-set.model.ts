@@ -12,7 +12,11 @@ const schema = new mongoose.Schema(
             enum: ['mix', 'mcq', 'trueFalse', 'short', 'openEnded'],
             required: true,
         },
-        difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
+        difficulty: {
+            type: String,
+            enum: ['mix', 'easy', 'medium', 'hard'],
+            default: 'medium',
+        },
         count: { type: Number, required: true },
     },
     { timestamps: true }

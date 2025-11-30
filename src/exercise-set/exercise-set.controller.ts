@@ -18,7 +18,7 @@ export class ExerciseSetController {
     constructor(private exerciseSetService: ExerciseSetService) {}
 
     @Post('create/:sourceId')
-    async create(
+    async createByExerciseSetId(
         @Param('sourceId') sourceId: string,
         @Body() createExerciseSetDto: CreateExerciseSetDto
     ): Promise<ResponseBase> {

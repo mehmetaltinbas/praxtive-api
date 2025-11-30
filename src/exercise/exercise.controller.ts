@@ -14,11 +14,21 @@ import { ExerciseService } from './exercise.service';
 import ResponseBase from '../shared/interfaces/response-base.interface';
 import { ReadAllExercisesResponse } from './types/response/read-all-exercises.response';
 import { AuthGuard } from 'src/auth/auth.guard';
+import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
 
 @Controller('exercise')
 @UseGuards(AuthGuard)
 export class ExerciseController {
     constructor(private exerciseService: ExerciseService) {}
+
+    @Post('create-by-exercise-set-id/:exerciseSetId')
+    async createByExerciseSetId(
+        @Param('exerciseSetId') exerciseSetId: string,
+        @Body() createExerciseDto: CreateExerciseDto
+    ): Promise<ResponseBase> {
+        const response = await this.exerciseService.create(exerciseSetId, createExerciseDto);
+        return response;
+    }
 
     @Get('read-all')
     async readAll(): Promise<ResponseBase> {

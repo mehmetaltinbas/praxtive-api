@@ -85,7 +85,6 @@ export class PdfTextExtractor implements TextExtractor {
                 documentNode.content.push(currentBlock);
             }
         }
-        console.log(JSON.stringify(documentNode, null, 2));
 
         return JSON.stringify(documentNode);
     }

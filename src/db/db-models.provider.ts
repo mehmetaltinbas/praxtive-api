@@ -1,9 +1,12 @@
 import { Mongoose } from 'mongoose';
-import { UserModel } from './schemas/user.model';
-import { SourceModel } from './schemas/source.model';
-import { ProcessedSourceModel } from './schemas/processed-source.model';
+import { CreditTransactionModel } from 'src/db/schemas/credit-transaction.model';
+import { PlanModel } from 'src/db/schemas/plan.model';
+import { SubscriptionModel } from 'src/db/schemas/subscription.model';
 import { ExerciseSetModel } from './schemas/exercise-set.model';
 import { ExerciseModel } from './schemas/exercise.model';
+import { ProcessedSourceModel } from './schemas/processed-source.model';
+import { SourceModel } from './schemas/source.model';
+import { UserModel } from './schemas/user.model';
 
 let models: Record<string, Mongoose['Model']>;
 
@@ -13,6 +16,9 @@ export const dbModelsProvider = {
         console.log('creating models...');
         models = {
             User: UserModel,
+            Plan: PlanModel,
+            Subscription: SubscriptionModel,
+            CreditTransaction: CreditTransactionModel,
             Source: SourceModel,
             ProcessedSource: ProcessedSourceModel,
             ExerciseSet: ExerciseSetModel,

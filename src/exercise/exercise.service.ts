@@ -8,7 +8,6 @@ import { CreateExerciseDto } from './types/dto/create-exercise.dto';
 import { OpenaiService } from '../openai/openai.service';
 import { SourceService } from '../source/source.service';
 import { ProcessedSourceService } from '../processed-source/processed-source.service';
-import { countWords } from '../shared/utilities/count-words.utility';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 
 @Injectable()
@@ -26,14 +25,75 @@ export class ExerciseService {
         exerciseSetId: string,
         createExerciseDto: CreateExerciseDto
     ): Promise<ResponseBase> {
-        const createdExercise = await this.db.Exercise.create({
-            exerciseSetId,
-            ...createExerciseDto,
-        });
+        const associatedExerciseSet = (await this.exerciseSetService.readById(exerciseSetId))
+            .exerciseSet;
+        if (!associatedExerciseSet) {
+            return { isSuccess: false, message: 'no associated exercise set found' };
+        }
+
+        let createdExercise: ExerciseDocument | undefined = undefined;
+        if (createExerciseDto.type === 'mcq') {
+            createdExercise = await this.db.Exercise.create({
+                exerciseSetId,
+                type: createExerciseDto.type,
+                difficulty: createExerciseDto.difficulty,
+                prompt: createExerciseDto.prompt,
+                choices: createExerciseDto.choices,
+                correctChoiceIndex: createExerciseDto.correctChoiceIndex,
+            });
+        } else if (createExerciseDto.type === 'trueFalse') {
+            createdExercise = await this.db.Exercise.create({
+                exerciseSetId,
+                type: createExerciseDto.type,
+                difficulty: createExerciseDto.difficulty,
+                prompt: createExerciseDto.prompt,
+                correctChoiceIndex: createExerciseDto.correctChoiceIndex,
+            });
+        } else if (
+            createExerciseDto.type === 'openEnded' ||
+            createExerciseDto.type === 'short'
+        ) {
+            createdExercise = await this.db.Exercise.create({
+                exerciseSetId,
+                type: createExerciseDto.type,
+                difficulty: createExerciseDto.difficulty,
+                prompt: createExerciseDto.prompt,
+                solution: createExerciseDto.solution,
+            });
+        }
+
         if (!createdExercise) {
             return { isSuccess: false, message: "exercise couldn't created" };
         }
-        return { isSuccess: true, message: 'exercises created' };
+
+        if (createExerciseDto.type === associatedExerciseSet.type) {
+            const exerciseSetUpdateResponse = await this.exerciseSetService.updateById(
+                associatedExerciseSet._id,
+                { count: associatedExerciseSet.count + 1 }
+            );
+            if (!exerciseSetUpdateResponse.isSuccess) {
+                return {
+                    isSuccess: false,
+                    message: `exercise created but exercise count of exercise set couldn't updated, the update response message: ${exerciseSetUpdateResponse.message}`,
+                };
+            }
+        } else if (createExerciseDto.type !== associatedExerciseSet.type) {
+            const exerciseSetUpdateResponse = await this.exerciseSetService.updateById(
+                associatedExerciseSet._id,
+                {
+                    type: 'mix',
+                    count: associatedExerciseSet.count + 1,
+                }
+            );
+            if (!exerciseSetUpdateResponse.isSuccess) {
+                return {
+                    isSuccess: false,
+                    message: `exercise created but exercise count of exercise set couldn't updated, the update response message: ${exerciseSetUpdateResponse.message}`,
+                };
+            }
+        }
+
+        return { isSuccess: true, message: 'exercise created' };
     }
 
     async readAll(): Promise<ReadAllExercisesResponse> {
@@ -93,7 +153,7 @@ export class ExerciseService {
         if (!exerciseSetUpdateResponse.isSuccess) {
             return {
                 isSuccess: false,
-                message: `exercise deleted by exercise count of associated exercise set couldn't updated,
+                message: `exercise deleted but exercise count of associated exercise set couldn't updated,
                 the update response message: ${exerciseSetUpdateResponse.message}`,
             };
         }

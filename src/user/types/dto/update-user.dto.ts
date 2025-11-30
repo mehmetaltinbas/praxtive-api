@@ -1,9 +1,12 @@
-import { IsEmail, IsNotEmpty, IsOptional } from 'class-validator';
+import { IsOptional } from 'class-validator';
 
 export class UpdateUserDto {
     @IsOptional()
-    readonly userName: string | undefined;
+    readonly userName?: string;
 
     @IsOptional()
-    readonly password: string | undefined;
+    readonly password?: string;
+
+    @IsOptional()
+    readonly creditBalance?: number;
 }

@@ -2,6 +2,7 @@ services:
     dev-db:
         image: mongo:latest
         container_name: extralyz-dev-db
+        command: ["--replSet", "rs0", "--bind_ip_all"]
         ports:
           - "10000:27017"
         volumes:
@@ -10,6 +11,7 @@ services:
     test-db:
         image: mongo:latest
         container_name: extralyz-test-db
+        command: ["--replSet", "rs0", "--bind_ip_all"]
         ports:
           - "10010:27017"
         tmpfs:

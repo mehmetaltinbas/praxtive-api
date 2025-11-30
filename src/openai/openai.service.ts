@@ -39,27 +39,23 @@ export class OpenaiService {
                 - Comprehensiveness: ${generateAbstractiveSummaryDto.comprehensionLevel}
                 - Length: ${generateAbstractiveSummaryDto.length}
                 Output format:
-                type TextMark = "bold" | "italic"; // allowed marks
-                type NodeType = "header" | "sub-header" | "body-text"; // node types
-                interface TextNode { // a text block
-                    type: NodeType; // header, sub-header, or body-text
-                    text: string; // the actual text
-                    marks?: TextMark[]; // optional formatting
+                interface DocumentNode { content: BlockNode[] }
+                interface BlockNode { content: InlineNode[] }
+                interface InlineNode { text: string; styles: Styles }
+                interface Styles { 
+                    fontSize: number; // in pt
+                    bold: boolean; 
+                    italic: boolean 
                 }
-                interface DocNode { // document root
-                    type: "doc";
-                    content: TextNode[];
-                }
-                const example: DocNode = {
-                    type: "doc",
+                const example: DocumentNode = { // example json
                     content: [
-                        { type: "header", text: "My Blog Post", marks: ["bold"] },
-                        { type: "sub-header", text: "Introduction" },
-                        { type: "body-text", text: "This is the first paragraph.", marks: ["italic"] },
+                        { content: [ { text: "beginning of the document", styles: { fontSize: 16; bold: true; italic: false } }, ]},
+                        { content: [ { text: " ", styles: { fontSize: 25; bold: true; italic: false } }, ]}, // for empty lines and spacing between lines you can use a block node like this
+                        { content: [ { text: "keep going", styles: { fontSize: 11; bold: false; italic: true } }, { text: "just dont give up man", styles: { fontSize: 10; bold: false; italic: false } } ]},
                     ],
                 };
                 
-                Return only valid JSON in serialized form. Do not include extra text or formatting.`;
+                Return only valid JSON in SERIALIZED FORM. Do not include extra text or formatting. DO NOT INCLUDE 'json' in the beginning of json, just return the JSON in SERIALIZED FORM that is it!!!!!!`;
         const completion = await this.openaiClient.chat.completions.create({
             model: this.model,
             messages: [

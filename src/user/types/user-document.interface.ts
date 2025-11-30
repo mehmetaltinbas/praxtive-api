@@ -5,4 +5,5 @@ export interface UserDocument extends MongooseDocument {
     userName: string;
     email: string;
     passwordHash: string;
+    creditBalance: number;
 }
