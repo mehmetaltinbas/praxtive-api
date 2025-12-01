@@ -1,5 +1,5 @@
 // eslint-disable-next-line no-redeclare
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from 'src/auth/auth.guard';
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import User from 'src/shared/custom-decorators/user.decorator';
@@ -21,6 +21,12 @@ export class SubscriptionController {
             user.sub,
             createSubscriptionDto
         );
+        return response;
+    }
+
+    @Get('cancel')
+    async cancel(@User() user: JwtPayload): Promise<ResponseBase> {
+        const response = await this.subscriptionService.cancel(user.sub);
         return response;
     }
 }

@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import mongoose, { Model } from 'mongoose';
 import { CreditTransactionType } from 'src/billing/enums/credit-transaction-type.enum';
 import { CreditTransactionService } from 'src/credit-transaction/credit-transaction.service';
+import { PlanName } from 'src/plan/enums/plan-name.enum';
 import { PlanService } from 'src/plan/plan.service';
 import ResponseBase from 'src/shared/interfaces/response-base.interface';
 import { SubscriptionStatus } from 'src/subscription/enum/subscription-status.enum';
@@ -22,12 +23,21 @@ export class SubscriptionService {
 
     // @Cron('0 0 5 * * *')
     @Cron(CronExpression.EVERY_DAY_AT_3PM)
-    private async checkSubscriptions(): Promise<void> {
+    private async renewSubscriptions(): Promise<void> {
+        console.log('checking subscriptions....');
         const subscriptions = await this.db.Subscription.find({
             nextBillingDate: { $lte: new Date() },
-            status: SubscriptionStatus.ACTIVE,
-        }).populate('plan');
-        const renewings = subscriptions.map((subscription, index) =>
+            status: { $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELED] },
+        })
+            .populate('user')
+            .populate('plan');
+        const activeSubscriptions = subscriptions.filter(
+            (subscription) => subscription.status === SubscriptionStatus.ACTIVE
+        );
+        const canceledSubscriptions = subscriptions.filter(
+            (subscription) => subscription.status === SubscriptionStatus.CANCELED
+        );
+        const renewings = activeSubscriptions.map((subscription, index) =>
             this.grantMonthlyCredits(
                 subscription.user._id,
                 subscription._id,
@@ -35,6 +45,10 @@ export class SubscriptionService {
             )
         );
         await Promise.all(renewings);
+        const expirations = canceledSubscriptions.map((subscription) =>
+            this.expire(subscription)
+        );
+        await Promise.all(expirations);
     }
 
     private async grantMonthlyCredits(
@@ -43,9 +57,26 @@ export class SubscriptionService {
         monthlyCredits: number,
         session?: mongoose.mongo.ClientSession
     ): Promise<ResponseBase> {
-        // console.log(`userId: ${userId}, monthlyCredits: ${monthlyCredits}`);
+        console.log(`subscriptionId ,userId: ${userId}, monthlyCredits: ${monthlyCredits}`);
+        const subscription = await this.db.Subscription.findOne({
+            _id: subscriptionId,
+            user: userId,
+        })
+            .populate('user')
+            .populate('plan')
+            .session(session ?? null);
+        if (subscription?.status !== SubscriptionStatus.ACTIVE) {
+            return {
+                isSuccess: false,
+                message: "subscription isn't active, can't grant monthly credits",
+            };
+        }
+        const availableCreditSpace =
+            subscription.plan.maximumCredits - subscription.user.creditBalance;
+        const creditsToGrant =
+            availableCreditSpace <= monthlyCredits ? availableCreditSpace : monthlyCredits;
         const updateUserDto: UpdateUserDto = {
-            creditBalance: monthlyCredits,
+            creditBalance: subscription.user.creditBalance + creditsToGrant,
         };
         const updateUserResponse = await this.userService.updateById(
             userId,
@@ -60,7 +91,7 @@ export class SubscriptionService {
             userId,
             {
                 type: CreditTransactionType.MONTHLY,
-                amount: monthlyCredits,
+                amount: creditsToGrant,
             },
             session
         );
@@ -88,6 +119,45 @@ export class SubscriptionService {
             return { isSuccess: false, message: 'subscription update failure' };
         }
         return { isSuccess: true, message: 'monthly credits granted' };
+    }
+
+    private async expire(
+        subscription: SubscriptionDocument
+    ): Promise<ResponseBase> {
+        const readFreePlanResponse = await this.planService.readByName(PlanName.FREE);
+        if (!readFreePlanResponse.isSuccess || !readFreePlanResponse.plan) {
+            return readFreePlanResponse;
+        }
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        try {
+            if (readFreePlanResponse.plan.maximumCredits < subscription.user.creditBalance) {
+                const updateUserDto: UpdateUserDto = {
+                    creditBalance: readFreePlanResponse.plan.maximumCredits,
+                };
+                const updateUserResponse = await this.userService.updateById(
+                    subscription.user._id,
+                    updateUserDto,
+                    session
+                );
+                if (!updateUserResponse.isSuccess) {
+                    await session.abortTransaction();
+                    return updateUserResponse;
+                }
+            }
+            subscription.status = SubscriptionStatus.EXPIRED;
+            await subscription.save({ session });
+            await session.commitTransaction();
+            return { isSuccess: true, message: 'subscription expired' };
+        } catch (error) {
+            await session.abortTransaction();
+            return {
+                isSuccess: false,
+                message: `transaction failed, error: ${JSON.stringify(error, null, 2)}`,
+            };
+        } finally {
+            await session.endSession();
+        }
     }
 
     async create(
@@ -150,7 +220,18 @@ export class SubscriptionService {
         return { isSuccess: true, message: 'subscription created' };
     }
 
-    async cancel(): Promise<ResponseBase> {
+    async cancel(userId: string): Promise<ResponseBase> {
+        const activeSubscription = await this.db.Subscription.findOne({
+            user: userId,
+            status: SubscriptionStatus.ACTIVE,
+        });
+        if (!activeSubscription) {
+            return { isSuccess: false, message: 'no subscription found to cancel' };
+        }
+
+        activeSubscription.status = SubscriptionStatus.CANCELED;
+        activeSubscription.isNew = false;
+        await activeSubscription.save();
         return { isSuccess: true, message: 'subscription canceled' };
     }
 }

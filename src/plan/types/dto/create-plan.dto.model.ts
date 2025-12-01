@@ -10,4 +10,7 @@ export class CreatePlanDto {
 
     @IsNotEmpty()
     readonly monthlyCredits!: number;
+
+    @IsNotEmpty()
+    readonly maximumCredits!: number;
 }

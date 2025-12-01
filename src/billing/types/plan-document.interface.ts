@@ -6,4 +6,5 @@ export interface PlanDocument extends MongooseDocument {
     name: PlanName;
     monthlyPrice: number;
     monthlyCredits: number;
+    maximumCredits: number;
 }

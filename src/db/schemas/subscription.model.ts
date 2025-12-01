@@ -5,7 +5,10 @@ const schema = new mongoose.Schema(
         user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         plan: { type: mongoose.Schema.Types.ObjectId, ref: 'Plan', required: true },
         nextBillingDate: { type: Date, required: true },
-        status: { type: String, enum: ['active', 'canceled', 'expired'] },
+        status: {
+            type: String,
+            enum: ['active', 'canceled', 'expired'],
+        },
     },
     { timestamps: true }
 );
