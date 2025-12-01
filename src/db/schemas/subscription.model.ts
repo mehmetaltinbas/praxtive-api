@@ -9,6 +9,7 @@ const schema = new mongoose.Schema(
             type: String,
             enum: ['active', 'canceled', 'expired'],
         },
+        canceledAt: { type: Date }
     },
     { timestamps: true }
 );

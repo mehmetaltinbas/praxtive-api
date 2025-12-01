@@ -121,9 +121,7 @@ export class SubscriptionService {
         return { isSuccess: true, message: 'monthly credits granted' };
     }
 
-    private async expire(
-        subscription: SubscriptionDocument
-    ): Promise<ResponseBase> {
+    private async expire(subscription: SubscriptionDocument): Promise<ResponseBase> {
         const readFreePlanResponse = await this.planService.readByName(PlanName.FREE);
         if (!readFreePlanResponse.isSuccess || !readFreePlanResponse.plan) {
             return readFreePlanResponse;
@@ -230,6 +228,7 @@ export class SubscriptionService {
         }
 
         activeSubscription.status = SubscriptionStatus.CANCELED;
+        activeSubscription.canceledAt = new Date();
         activeSubscription.isNew = false;
         await activeSubscription.save();
         return { isSuccess: true, message: 'subscription canceled' };
