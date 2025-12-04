@@ -1,7 +1,7 @@
 import { IsNotEmpty } from 'class-validator';
 import { PlanName } from 'src/plan/enums/plan-name.enum';
 
-export class CreateSubscriptionDto {
+export class UpgradeSubscriptionDto {
     @IsNotEmpty()
-    readonly planName!: PlanName;
+    readonly newPlanName!: PlanName;
 }

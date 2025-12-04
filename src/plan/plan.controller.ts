@@ -1,5 +1,6 @@
 // eslint-disable-next-line no-redeclare
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { PlanName } from 'src/plan/enums/plan-name.enum';
 import { PlanService } from 'src/plan/plan.service';
 import { CreatePlanDto } from 'src/plan/types/dto/create-plan.dto.model';
 import { ReadSinglePlanResponse } from 'src/plan/types/response/read-single-plan.response';
@@ -17,7 +18,7 @@ export class PlanController {
     // }
 
     @Get('read-by-name/:planName')
-    async readByName(@Param('planName') planName: string): Promise<ReadSinglePlanResponse> {
+    async readByName(@Param('planName') planName: PlanName): Promise<ReadSinglePlanResponse> {
         console.log(planName);
         const response = await this.planService.readByName(planName);
         return response;

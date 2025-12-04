@@ -6,6 +6,8 @@ import User from 'src/shared/custom-decorators/user.decorator';
 import ResponseBase from 'src/shared/interfaces/response-base.interface';
 import { SubscriptionService } from 'src/subscription/subscription.service';
 import { CreateSubscriptionDto } from 'src/subscription/types/dto/create-subscription.dto';
+import { DowngradeSubscriptionDto } from 'src/subscription/types/dto/downgrade-subscription.dto';
+import { UpgradeSubscriptionDto } from 'src/subscription/types/dto/upgrade-subscription.dto';
 
 @Controller('subscription')
 @UseGuards(AuthGuard)
@@ -24,9 +26,57 @@ export class SubscriptionController {
         return response;
     }
 
+    // @Post('create-and-grant-monthly-credits')
+    // async createAndGrantMonthlyCredits(
+    //     @User() user: JwtPayload,
+    //     @Body() createSubscriptionDto: CreateSubscriptionDto
+    // ): Promise<ResponseBase> {
+    //     const response = await this.subscriptionService.createAndGrantMonthlyCredits(
+    //         user.sub,
+    //         createSubscriptionDto
+    //     );
+    //     return response;
+    // }
+
     @Get('cancel')
     async cancel(@User() user: JwtPayload): Promise<ResponseBase> {
         const response = await this.subscriptionService.cancel(user.sub);
+        return response;
+    }
+
+    @Post('check-price-to-pay-on-upgrade')
+    async checkPriceToPayOnUpgrade(
+        @User() user: JwtPayload,
+        @Body() upgradeSubscriptionDto: UpgradeSubscriptionDto
+    ): Promise<ResponseBase> {
+        const response = await this.subscriptionService.checkPriceToPayOnUpgrade(
+            user.sub,
+            upgradeSubscriptionDto
+        );
+        return response;
+    }
+
+    @Post('upgrade')
+    async upgrade(
+        @User() user: JwtPayload,
+        @Body() upgradeSubscriptionDto: UpgradeSubscriptionDto
+    ): Promise<ResponseBase> {
+        const response = await this.subscriptionService.upgrade(
+            user.sub,
+            upgradeSubscriptionDto
+        );
+        return response;
+    }
+
+    @Post('downgrade')
+    async downgrade(
+        @User() user: JwtPayload,
+        @Body() downgradeSubscriptionDto: DowngradeSubscriptionDto
+    ): Promise<ResponseBase> {
+        const response = await this.subscriptionService.downgrade(
+            user.sub,
+            downgradeSubscriptionDto
+        );
         return response;
     }
 }

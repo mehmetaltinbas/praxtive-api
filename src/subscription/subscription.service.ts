@@ -8,6 +8,9 @@ import { PlanService } from 'src/plan/plan.service';
 import ResponseBase from 'src/shared/interfaces/response-base.interface';
 import { SubscriptionStatus } from 'src/subscription/enum/subscription-status.enum';
 import { CreateSubscriptionDto } from 'src/subscription/types/dto/create-subscription.dto';
+import { DowngradeSubscriptionDto } from 'src/subscription/types/dto/downgrade-subscription.dto';
+import { UpgradeSubscriptionDto } from 'src/subscription/types/dto/upgrade-subscription.dto';
+import { CheckPriceToPayOnUpgradeSubscriptionResponse } from 'src/subscription/types/response/check-price-to-pay-on-upgrade-subscription.response';
 import { SubscriptionDocument } from 'src/subscription/types/subscription-document.interface';
 import { UpdateUserDto } from 'src/user/types/dto/update-user.dto';
 import { UserService } from 'src/user/user.service';
@@ -22,8 +25,8 @@ export class SubscriptionService {
     ) {}
 
     // @Cron('0 0 5 * * *')
-    @Cron(CronExpression.EVERY_DAY_AT_3PM)
-    private async renewSubscriptions(): Promise<void> {
+    @Cron(CronExpression.EVERY_30_SECONDS)
+    private async processSubscriptions(): Promise<void> {
         console.log('checking subscriptions....');
         const subscriptions = await this.db.Subscription.find({
             nextBillingDate: { $lte: new Date() },
@@ -31,46 +34,49 @@ export class SubscriptionService {
         })
             .populate('user')
             .populate('plan');
+
         const activeSubscriptions = subscriptions.filter(
             (subscription) => subscription.status === SubscriptionStatus.ACTIVE
         );
         const canceledSubscriptions = subscriptions.filter(
             (subscription) => subscription.status === SubscriptionStatus.CANCELED
         );
+
         const renewings = activeSubscriptions.map((subscription, index) =>
             this.grantMonthlyCredits(
                 subscription.user._id,
-                subscription._id,
                 subscription.plan.monthlyCredits
             )
         );
         await Promise.all(renewings);
+
         const expirations = canceledSubscriptions.map((subscription) =>
-            this.expire(subscription)
+            this.expireAndCreateFreePlanSubscription(subscription)
         );
-        await Promise.all(expirations);
+        const expirationResponses = await Promise.all(expirations);
+        console.log(expirationResponses);
     }
 
     private async grantMonthlyCredits(
         userId: string,
-        subscriptionId: string,
         monthlyCredits: number,
         session?: mongoose.mongo.ClientSession
     ): Promise<ResponseBase> {
-        console.log(`subscriptionId ,userId: ${userId}, monthlyCredits: ${monthlyCredits}`);
+        // console.log(`subscriptionId: ${subscriptionId}, userId: ${userId}, monthlyCredits: ${monthlyCredits}`);
         const subscription = await this.db.Subscription.findOne({
-            _id: subscriptionId,
             user: userId,
+            status: SubscriptionStatus.ACTIVE,
         })
             .populate('user')
             .populate('plan')
             .session(session ?? null);
-        if (subscription?.status !== SubscriptionStatus.ACTIVE) {
+        if (!subscription) {
             return {
                 isSuccess: false,
-                message: "subscription isn't active, can't grant monthly credits",
+                message: "user doesn't have an active subscription",
             };
         }
+
         const availableCreditSpace =
             subscription.plan.maximumCredits - subscription.user.creditBalance;
         const creditsToGrant =
@@ -104,7 +110,7 @@ export class SubscriptionService {
         nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
         const updatedSubscription = await this.db.Subscription.findOneAndUpdate(
             {
-                _id: subscriptionId,
+                _id: subscription._id,
                 user: userId,
             },
             {
@@ -121,11 +127,75 @@ export class SubscriptionService {
         return { isSuccess: true, message: 'monthly credits granted' };
     }
 
-    private async expire(subscription: SubscriptionDocument): Promise<ResponseBase> {
+    async create(
+        userId: string,
+        createSubscriptionDto: CreateSubscriptionDto,
+        session?: mongoose.mongo.ClientSession
+    ): Promise<ResponseBase> {
+        const activeSubscription = await this.db.Subscription.findOne({
+            user: userId,
+            status: SubscriptionStatus.ACTIVE,
+        });
+        if (activeSubscription) {
+            return { isSuccess: false, message: 'user already has a subscription' };
+        }
+
+        const readSinglePlanResponse = await this.planService.readByName(
+            createSubscriptionDto.planName
+        );
+        if (!readSinglePlanResponse.isSuccess || !readSinglePlanResponse.plan) {
+            return readSinglePlanResponse;
+        }
+
+        const [subscription] = await this.db.Subscription.create(
+            [
+                {
+                    user: userId,
+                    plan: readSinglePlanResponse.plan._id,
+                    nextBillingDate: new Date(),
+                    status: SubscriptionStatus.ACTIVE,
+                },
+            ],
+            { session }
+        );
+        if (!subscription) {
+            return { isSuccess: false, message: "subscription couldn't created" };
+        }
+
+        return { isSuccess: true, message: 'subscription created' };
+    }
+
+    // async createAndGrantMonthlyCredits(
+    //     userId: string,
+    //     createSubscriptionDto: CreateSubscriptionDto
+    // ): Promise<ResponseBase> {
+
+    // }
+
+    async cancel(userId: string): Promise<ResponseBase> {
+        const activeSubscription = await this.db.Subscription.findOne({
+            user: userId,
+            status: SubscriptionStatus.ACTIVE,
+        });
+        if (!activeSubscription) {
+            return { isSuccess: false, message: 'no subscription found to cancel' };
+        }
+
+        activeSubscription.status = SubscriptionStatus.CANCELED;
+        activeSubscription.canceledAt = new Date();
+        activeSubscription.isNew = false;
+        await activeSubscription.save();
+        return { isSuccess: true, message: 'subscription canceled' };
+    }
+
+    private async expireAndCreateFreePlanSubscription(
+        subscription: SubscriptionDocument
+    ): Promise<ResponseBase> {
         const readFreePlanResponse = await this.planService.readByName(PlanName.FREE);
         if (!readFreePlanResponse.isSuccess || !readFreePlanResponse.plan) {
             return readFreePlanResponse;
         }
+
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
@@ -143,8 +213,32 @@ export class SubscriptionService {
                     return updateUserResponse;
                 }
             }
+
             subscription.status = SubscriptionStatus.EXPIRED;
             await subscription.save({ session });
+
+            const createSubscriptionResponse = await this.create(
+                subscription.user._id,
+                {
+                    planName: PlanName.FREE,
+                },
+                session
+            );
+            if (!createSubscriptionResponse.isSuccess) {
+                await session.abortTransaction();
+                return createSubscriptionResponse;
+            }
+
+            const grantMonthlyCreditsResponse = await this.grantMonthlyCredits(
+                subscription.user._id,
+                readFreePlanResponse.plan.monthlyCredits,
+                session
+            );
+            if (!grantMonthlyCreditsResponse.isSuccess) {
+                await session.abortTransaction();
+                return grantMonthlyCreditsResponse;
+            }
+
             await session.commitTransaction();
             return { isSuccess: true, message: 'subscription expired' };
         } catch (error) {
@@ -158,79 +252,170 @@ export class SubscriptionService {
         }
     }
 
-    async create(
+    async checkPriceToPayOnUpgrade(
         userId: string,
-        createSubscriptionDto: CreateSubscriptionDto
+        upgradeSubscriptionDto: UpgradeSubscriptionDto
+    ): Promise<CheckPriceToPayOnUpgradeSubscriptionResponse> {
+        const activeSubscription = await this.db.Subscription.findOne({
+            user: userId,
+            status: SubscriptionStatus.ACTIVE,
+        })
+            .populate('user')
+            .populate('plan');
+        if (!activeSubscription) {
+            return { isSuccess: false, message: "user doesn't have an active subscription" };
+        }
+
+        const readNewPlanResponse = await this.planService.readByName(
+            upgradeSubscriptionDto.newPlanName
+        );
+        if (!readNewPlanResponse.isSuccess || !readNewPlanResponse.plan) {
+            return readNewPlanResponse;
+        }
+
+        const higherPlanVerificationResponse = await this.planService.verifyHigher(
+            activeSubscription.plan.name,
+            readNewPlanResponse.plan.name
+        );
+        if (!higherPlanVerificationResponse.isSuccess) {
+            return higherPlanVerificationResponse;
+        }
+
+        const diffMs = activeSubscription.nextBillingDate.getTime() - new Date().getTime();
+        const remainingDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const unusedPrice = activeSubscription.plan.monthlyPrice * (remainingDays / 30);
+        const priceToPay = Number(
+            (readNewPlanResponse.plan.monthlyPrice - unusedPrice).toFixed(2)
+        );
+
+        return {
+            isSuccess: true,
+            message: 'price to pay successfully calculated',
+            priceToPay,
+        };
+    }
+
+    async upgrade(
+        userId: string,
+        upgradeSubscriptionDto: UpgradeSubscriptionDto
     ): Promise<ResponseBase> {
         const activeSubscription = await this.db.Subscription.findOne({
             user: userId,
             status: SubscriptionStatus.ACTIVE,
-        });
-        if (activeSubscription) {
-            return { isSuccess: false, message: 'user already has a subscription' };
+        })
+            .populate('user')
+            .populate('plan');
+        if (!activeSubscription) {
+            return { isSuccess: false, message: "user doesn't have an active subscription" };
         }
 
-        const readSinglePlanResponse = await this.planService.readByName(
-            createSubscriptionDto.chosenPlanName
+        const readNewPlanResponse = await this.planService.readByName(
+            upgradeSubscriptionDto.newPlanName
         );
-        if (!readSinglePlanResponse.isSuccess || !readSinglePlanResponse.plan) {
-            return readSinglePlanResponse;
+        if (!readNewPlanResponse.isSuccess || !readNewPlanResponse.plan) {
+            return readNewPlanResponse;
         }
+
+        const higherPlanVerificationResponse = await this.planService.verifyHigher(
+            activeSubscription.plan.name,
+            readNewPlanResponse.plan.name
+        );
+        if (!higherPlanVerificationResponse.isSuccess) {
+            return higherPlanVerificationResponse;
+        }
+
+        const diffMs = activeSubscription.nextBillingDate.getTime() - new Date().getTime();
+        const remainingDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const unusedPrice = activeSubscription.plan.monthlyPrice * (remainingDays / 30);
+        const priceToPay = Number(
+            (readNewPlanResponse.plan.monthlyPrice - unusedPrice).toFixed(2)
+        );
+        // payment processing
 
         const session = await mongoose.startSession();
         session.startTransaction();
         try {
-            const [subscription] = await this.db.Subscription.create(
-                [
-                    {
-                        user: userId,
-                        plan: readSinglePlanResponse.plan._id,
-                        nextBillingDate: new Date(),
-                        status: SubscriptionStatus.ACTIVE,
-                    },
-                ],
+            const nextBillingDate = new Date();
+            nextBillingDate.setMonth(new Date().getMonth() + 1);
+            activeSubscription.nextBillingDate = nextBillingDate;
+            await this.db.Subscription.findOneAndUpdate(
+                {
+                    user: userId,
+                    status: SubscriptionStatus.ACTIVE,
+                },
+                {
+                    plan: readNewPlanResponse.plan._id,
+                    nextBillingDate,
+                },
                 { session }
             );
-            if (!subscription) {
-                return { isSuccess: false, message: "subscription couldn't created" };
-            }
 
-            const response = await this.grantMonthlyCredits(
+            const creditsToGrant =
+                activeSubscription.user.creditBalance +
+                    readNewPlanResponse.plan.monthlyCredits >
+                readNewPlanResponse.plan.monthlyCredits
+                    ? readNewPlanResponse.plan.monthlyCredits -
+                      activeSubscription.user.creditBalance
+                    : readNewPlanResponse.plan.monthlyCredits;
+            const updateUserResponse = await this.userService.updateById(
                 userId,
-                subscription._id,
-                readSinglePlanResponse.plan.monthlyCredits,
+                {
+                    creditBalance: activeSubscription.user.creditBalance + creditsToGrant,
+                },
                 session
             );
-            if (!response.isSuccess) {
+            if (!updateUserResponse.isSuccess) {
                 await session.abortTransaction();
-                return response;
+                return updateUserResponse;
             }
+
+            const createCreditTransactionResponse = await this.creditTransactionService.create(
+                userId,
+                {
+                    type: CreditTransactionType.PLAN_UPGRADE,
+                    amount: creditsToGrant,
+                },
+                session
+            );
+            if (!createCreditTransactionResponse.isSuccess) {
+                await session.abortTransaction();
+                return createCreditTransactionResponse;
+            }
+
             await session.commitTransaction();
+            return { isSuccess: true, message: 'subscription upgrade successful' };
         } catch (error) {
             await session.abortTransaction();
             return {
                 isSuccess: false,
-                message: `transaction failed, error: ${JSON.stringify(error, null, 2)}`,
+                message: `internal server error, ${JSON.stringify(error, null, 2)}`,
             };
         } finally {
             await session.endSession();
         }
-        return { isSuccess: true, message: 'subscription created' };
     }
 
-    async cancel(userId: string): Promise<ResponseBase> {
+    async downgrade(
+        userId: string,
+        downgradeSubscriptionDto: DowngradeSubscriptionDto
+    ): Promise<ResponseBase> {
         const activeSubscription = await this.db.Subscription.findOne({
             user: userId,
             status: SubscriptionStatus.ACTIVE,
-        });
+        })
+            .populate('user')
+            .populate('plan');
         if (!activeSubscription) {
-            return { isSuccess: false, message: 'no subscription found to cancel' };
+            return { isSuccess: false, message: "user doesn't have an active subscription" };
         }
 
-        activeSubscription.status = SubscriptionStatus.CANCELED;
-        activeSubscription.canceledAt = new Date();
-        activeSubscription.isNew = false;
-        await activeSubscription.save();
-        return { isSuccess: true, message: 'subscription canceled' };
+        const readNewPlanResponse = await this.planService.readByName(
+            downgradeSubscriptionDto.newPlanName
+        );
+        if (!readNewPlanResponse.isSuccess || !readNewPlanResponse.plan) {
+            return readNewPlanResponse;
+        }
+
+        return { isSuccess: true, message: 'successfully downgraded' };
     }
 }
