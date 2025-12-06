@@ -14,33 +14,15 @@ import { UpgradeSubscriptionDto } from 'src/subscription/types/dto/upgrade-subsc
 export class SubscriptionController {
     constructor(private subscriptionService: SubscriptionService) {}
 
-    @Post('create')
-    async create(
+    @Post('upgrade')
+    async upgrade(
         @User() user: JwtPayload,
-        @Body() createSubscriptionDto: CreateSubscriptionDto
+        @Body() upgradeSubscriptionDto: UpgradeSubscriptionDto
     ): Promise<ResponseBase> {
-        const response = await this.subscriptionService.create(
+        const response = await this.subscriptionService.upgrade(
             user.sub,
-            createSubscriptionDto
+            upgradeSubscriptionDto
         );
-        return response;
-    }
-
-    // @Post('create-and-grant-monthly-credits')
-    // async createAndGrantMonthlyCredits(
-    //     @User() user: JwtPayload,
-    //     @Body() createSubscriptionDto: CreateSubscriptionDto
-    // ): Promise<ResponseBase> {
-    //     const response = await this.subscriptionService.createAndGrantMonthlyCredits(
-    //         user.sub,
-    //         createSubscriptionDto
-    //     );
-    //     return response;
-    // }
-
-    @Get('cancel')
-    async cancel(@User() user: JwtPayload): Promise<ResponseBase> {
-        const response = await this.subscriptionService.cancel(user.sub);
         return response;
     }
 
@@ -50,18 +32,6 @@ export class SubscriptionController {
         @Body() upgradeSubscriptionDto: UpgradeSubscriptionDto
     ): Promise<ResponseBase> {
         const response = await this.subscriptionService.checkPriceToPayOnUpgrade(
-            user.sub,
-            upgradeSubscriptionDto
-        );
-        return response;
-    }
-
-    @Post('upgrade')
-    async upgrade(
-        @User() user: JwtPayload,
-        @Body() upgradeSubscriptionDto: UpgradeSubscriptionDto
-    ): Promise<ResponseBase> {
-        const response = await this.subscriptionService.upgrade(
             user.sub,
             upgradeSubscriptionDto
         );
