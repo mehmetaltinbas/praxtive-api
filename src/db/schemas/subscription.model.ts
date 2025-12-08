@@ -7,9 +7,11 @@ const schema = new mongoose.Schema(
         nextBillingDate: { type: Date, required: true },
         status: {
             type: String,
-            enum: ['active', 'canceled', 'expired'],
+            enum: ['active', 'canceled', 'expired', 'pendingActivate', 'upgradedFrom'],
         },
-        canceledAt: { type: Date }
+        startedAt: { type: Date },
+        canceledAt: { type: Date },
+        endedAt: { type: Date },
     },
     { timestamps: true }
 );

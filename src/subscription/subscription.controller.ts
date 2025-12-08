@@ -5,14 +5,21 @@ import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import User from 'src/shared/custom-decorators/user.decorator';
 import ResponseBase from 'src/shared/interfaces/response-base.interface';
 import { SubscriptionService } from 'src/subscription/subscription.service';
-import { CreateSubscriptionDto } from 'src/subscription/types/dto/create-subscription.dto';
 import { DowngradeSubscriptionDto } from 'src/subscription/types/dto/downgrade-subscription.dto';
 import { UpgradeSubscriptionDto } from 'src/subscription/types/dto/upgrade-subscription.dto';
+import { CheckPriceToPayOnUpgradeSubscriptionResponse } from 'src/subscription/types/response/check-price-to-pay-on-upgrade-subscription.response';
 
 @Controller('subscription')
 @UseGuards(AuthGuard)
 export class SubscriptionController {
     constructor(private subscriptionService: SubscriptionService) {}
+
+    @Get('test')
+    async test(): Promise<any> {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const response = await this.subscriptionService.test();
+        return response;
+    }
 
     @Post('upgrade')
     async upgrade(
@@ -30,7 +37,7 @@ export class SubscriptionController {
     async checkPriceToPayOnUpgrade(
         @User() user: JwtPayload,
         @Body() upgradeSubscriptionDto: UpgradeSubscriptionDto
-    ): Promise<ResponseBase> {
+    ): Promise<CheckPriceToPayOnUpgradeSubscriptionResponse> {
         const response = await this.subscriptionService.checkPriceToPayOnUpgrade(
             user.sub,
             upgradeSubscriptionDto
@@ -47,6 +54,12 @@ export class SubscriptionController {
             user.sub,
             downgradeSubscriptionDto
         );
+        return response;
+    }
+
+    @Post('cancel-downgrade')
+    async cancelDowngrade(@User() user: JwtPayload): Promise<ResponseBase> {
+        const response = await this.subscriptionService.cancelDowngrade(user.sub);
         return response;
     }
 }

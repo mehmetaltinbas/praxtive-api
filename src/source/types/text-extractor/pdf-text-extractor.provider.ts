@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { TextExtractor } from 'src/source/text-extractor/types/text-extractor.interface';
 import type { TextItem, TextMarkedContent } from 'pdfjs-dist/types/src/display/api';
-import { DocumentNode } from 'src/source/types/document-node.interface';
+import { PdfjsFontFaceObject } from 'src/source/types/text-extractor/types/pdfjs-font-face-object.interface';
+import { TextExtractor } from 'src/source/types/text-extractor/types/text-extractor.interface';
 import { BlockNode } from 'src/source/types/block-node.interface';
-import { PdfjsFontFaceObject } from 'src/source/text-extractor/types/pdfjs-font-face-object.interface';
+import { DocumentNode } from 'src/source/types/document-node.interface';
 import { InlineNode } from 'src/source/types/inline-node.interface';
 
 @Injectable()

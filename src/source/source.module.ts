@@ -1,9 +1,9 @@
-import { forwardRef, Module } from '@nestjs/common';
-import { SourceService } from './source.service';
-import { SourceController } from './source.controller';
-import { TextExtractorModule } from './text-extractor/text-extractor.module';
+import { Module } from '@nestjs/common';
 import { OpenaiModule } from '../openai/openai.module';
 import { ProcessedSourceModule } from '../processed-source/processed-source.module';
+import { SourceController } from './source.controller';
+import { SourceService } from './source.service';
+import { TextExtractorModule } from 'src/source/types/text-extractor/text-extractor.module';
 
 @Module({
     imports: [TextExtractorModule, OpenaiModule, ProcessedSourceModule],

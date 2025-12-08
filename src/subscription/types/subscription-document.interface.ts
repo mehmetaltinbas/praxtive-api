@@ -9,5 +9,7 @@ export interface SubscriptionDocument extends MongooseDocument {
     plan: PlanDocument;
     nextBillingDate: Date;
     status: SubscriptionStatus;
-    canceledAt: Date;
+    startedAt?: Date;
+    canceledAt?: Date;
+    endedAt?: Date;
 }

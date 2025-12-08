@@ -4,7 +4,7 @@ import { UpdateSourceDto } from './types/dto/update-source.dto';
 import { Model } from 'mongoose';
 import { SourceDocument } from './types/source-document.interface';
 import { Express } from 'express';
-import { TextExtractorService } from './text-extractor/text-extractor.service';
+import { TextExtractorService } from 'src/source/types/text-extractor/text-extractor.service';
 import { OpenaiService } from '../openai/openai.service';
 import { ProcessedSourceService } from '../processed-source/processed-source.service';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
