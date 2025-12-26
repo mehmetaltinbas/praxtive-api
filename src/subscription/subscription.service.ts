@@ -334,8 +334,6 @@ export class SubscriptionService {
         return { isSuccess: true, message: 'successfully canceled downgrade' };
     }
 
-
-
     // HELPERS ↓
 
     private async processDowngrades(userId: string): Promise<ResponseBase> {
