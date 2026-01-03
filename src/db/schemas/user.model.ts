@@ -15,10 +15,10 @@ const schema = new mongoose.Schema(
 schema.post('findOneAndDelete', async function (document: UserDocument) {
     if (document) {
         const associatedSourceDocuments = await SourceModel.find({ userId: document._id });
-        const promises = associatedSourceDocuments.map((sourceDocument) => {
-            return SourceModel.findByIdAndDelete(sourceDocument._id);
-        });
-        await Promise.all(promises);
+
+        await Promise.all(
+            associatedSourceDocuments.map((sourceDocument) => SourceModel.findByIdAndDelete(sourceDocument._id))
+        );
     }
 });
 

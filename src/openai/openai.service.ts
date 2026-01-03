@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import { GenerateExercisesResponse, OpenaiCompletionResponse } from './types/openai-responses';
-import { ExerciseDocument } from '../exercise/types/exercise-document.interface';
-import { EvaluateExerciseAnswerResponse } from 'src/openai/types/response/evaluate-exercise-answer.response';
 import { GenerateAbstractiveSummaryDto } from 'src/openai/types/dto/generate-abstractive-summary.dto';
+import { EvaluateExerciseAnswerResponse } from 'src/openai/types/response/evaluate-exercise-answer.response';
+import { ExerciseDocument } from '../exercise/types/exercise-document.interface';
+import { GenerateExercisesResponse, OpenaiCompletionResponse } from './types/openai-responses';
 
 @Injectable()
 export class OpenaiService {
@@ -17,6 +17,49 @@ export class OpenaiService {
         this.openaiClient = new OpenAI({
             apiKey: this.openaiApiKey,
         });
+    }
+
+    async test(): Promise<OpenaiCompletionResponse> {
+        const prompt = `Give flight status for TK123.`;
+        const schema = {
+            name: 'flight_status',
+            schema: {
+                type: 'object',
+                properties: {
+                    flightNumber: { type: 'string' },
+                    status: {
+                        type: 'string',
+                        enum: ['scheduled', 'delayed', 'departed'],
+                    },
+                    delayMinutes: { type: 'number' },
+                },
+                required: ['flightNumber', 'status', 'delayMinutes'],
+                additionalProperties: false,
+            },
+        };
+        const response = await this.openaiClient.responses.create({
+            model: this.model,
+            input: [
+                {
+                    role: 'system',
+                    content: 'Return only valid JSON matching the schema.',
+                },
+                {
+                    role: 'user',
+                    content: prompt,
+                },
+            ],
+            text: {
+                format: { type: 'json_schema', name: 'schema', schema },
+            },
+        });
+        const result = response as object;
+        console.log(result);
+        return {
+            isSuccess: true,
+            message: 'success',
+            completion: JSON.stringify(result),
+        };
     }
 
     async generateAbstractiveSummary(
@@ -102,9 +145,7 @@ export class OpenaiService {
             ],
         });
 
-        const exercises = JSON.parse(
-            completion.choices[0].message.content!
-        ) as ExerciseDocument[];
+        const exercises = JSON.parse(completion.choices[0].message.content!) as ExerciseDocument[];
         exercises.forEach((exercise) => {
             exercise.type = type;
             exercise.difficulty = difficulty;

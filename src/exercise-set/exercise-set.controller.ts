@@ -1,25 +1,31 @@
 // eslint-disable-next-line no-redeclare
 import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { ExerciseSetService } from './exercise-set.service';
-import { AuthGuard } from '../auth/auth.guard';
-import ResponseBase from '../shared/interfaces/response-base.interface';
-import { CreateExerciseSetDto } from './types/dto/create-exercise-set.dto';
-import { ReadAllExerciseSetsResponse } from './types/response/read-all-exercise-sets.response';
-import User from '../shared/custom-decorators/user.decorator';
-import JwtPayload from '../auth/types/jwt-payload.interface';
-import { ReadAllExerciseSetsGroupedBySourcesResponse } from './types/response/read-all-exercise-sets-grouped-by-sources.response';
-import { ReadSingleExerciseSetResponse } from './types/response/read-single-exercise-set.response';
-import { EvaluateAnswersResponse } from 'src/exercise-set/types/response/evaluate-answers.response';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
+import { EvaluateAnswersResponse } from 'src/exercise-set/types/response/evaluate-answers.response';
+import { AuthGuard } from '../auth/auth.guard';
+import JwtPayload from '../auth/types/jwt-payload.interface';
+import User from '../shared/custom-decorators/user.decorator';
+import ResponseBase from '../shared/interfaces/response-base.interface';
+import { ExerciseSetService } from './exercise-set.service';
+import { CreateExerciseSetDto } from './types/dto/create-exercise-set.dto';
+import { ReadAllExerciseSetsGroupedBySourcesResponse } from './types/response/read-all-exercise-sets-grouped-by-sources.response';
+import { ReadAllExerciseSetsResponse } from './types/response/read-all-exercise-sets.response';
+import { ReadSingleExerciseSetResponse } from './types/response/read-single-exercise-set.response';
 
 @Controller('exercise-set')
 @UseGuards(AuthGuard)
 export class ExerciseSetController {
     constructor(private exerciseSetService: ExerciseSetService) {}
 
+    @Post('create')
+    async createIndependent(@Body() createExerciseSetDto: CreateExerciseSetDto): Promise<ResponseBase> {
+        const response = await this.exerciseSetService.create(undefined, createExerciseSetDto);
+        return response;
+    }
+
     @Post('create/:sourceId')
-    async createByExerciseSetId(
-        @Param('sourceId') sourceId: string,
+    async createBySourceId(
+        @Param('sourceId') sourceId: string | undefined,
         @Body() createExerciseSetDto: CreateExerciseSetDto
     ): Promise<ResponseBase> {
         const response = await this.exerciseSetService.create(sourceId, createExerciseSetDto);
@@ -42,9 +48,7 @@ export class ExerciseSetController {
     async readAllByUserIdGroupedBySources(
         @User() user: JwtPayload
     ): Promise<ReadAllExerciseSetsGroupedBySourcesResponse> {
-        const response = await this.exerciseSetService.readAllByUserIdGroupedBySources(
-            user.sub
-        );
+        const response = await this.exerciseSetService.readAllByUserIdGroupedBySources(user.sub);
         return response;
     }
 
@@ -55,9 +59,7 @@ export class ExerciseSetController {
     }
 
     @Post('evaluate-answers')
-    async evaluateAnswers(
-        @Body() evaluateAnswersDto: EvaluateAnswersDto
-    ): Promise<EvaluateAnswersResponse> {
+    async evaluateAnswers(@Body() evaluateAnswersDto: EvaluateAnswersDto): Promise<EvaluateAnswersResponse> {
         const response = this.exerciseSetService.evaluateAnswers(evaluateAnswersDto);
         return response;
     }

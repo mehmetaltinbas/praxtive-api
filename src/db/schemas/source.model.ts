@@ -18,17 +18,19 @@ schema.post('findOneAndDelete', async function (document: SourceDocument) {
         const associatedProcessedSourceDocuments = await ProcessedSourceModel.find({
             sourceId: document._id,
         });
-        const promises = associatedProcessedSourceDocuments.map((processedSourceDocument) => {
-            return ProcessedSourceModel.findByIdAndDelete(processedSourceDocument._id);
-        });
-        await Promise.all(promises);
+
         const associatedExerciseSetDocuments = await ExerciseSetModel.find({
             sourceId: document._id,
         });
-        const restPromises = associatedExerciseSetDocuments.map((exerciseSetDocument) => {
-            return ExerciseSetModel.findByIdAndDelete(exerciseSetDocument._id);
-        });
-        await Promise.all(restPromises);
+
+        await Promise.all([
+            ...associatedProcessedSourceDocuments.map((processedSourceDocument) =>
+                ProcessedSourceModel.findByIdAndDelete(processedSourceDocument._id)
+            ),
+            ...associatedExerciseSetDocuments.map((exerciseSetDocument) =>
+                ExerciseSetModel.findByIdAndDelete(exerciseSetDocument._id)
+            ),
+        ]);
     }
 });
 

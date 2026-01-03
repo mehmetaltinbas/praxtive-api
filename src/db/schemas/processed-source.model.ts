@@ -16,10 +16,12 @@ schema.post('findOneAndDelete', async function (document: ProcessedSourceDocumen
         const associatedExerciseSetDocuments = await ExerciseSetModel.find({
             sourceId: document._id,
         });
-        const promises = associatedExerciseSetDocuments.map((exerciseSetDocument) => {
-            return ExerciseSetModel.findByIdAndDelete(exerciseSetDocument._id);
-        });
-        await Promise.all(promises);
+
+        await Promise.all(
+            associatedExerciseSetDocuments.map((exerciseSetDocument) =>
+                ExerciseSetModel.findByIdAndDelete(exerciseSetDocument._id)
+            )
+        );
     }
 });
 

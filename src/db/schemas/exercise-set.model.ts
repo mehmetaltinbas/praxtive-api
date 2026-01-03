@@ -1,11 +1,11 @@
 import * as mongoose from 'mongoose';
-import { ExerciseSetDocument } from 'src/exercise-set/types/exercise-set-document.interface';
 import { ExerciseModel } from 'src/db/schemas/exercise.model';
+import { ExerciseSetDocument } from 'src/exercise-set/types/exercise-set-document.interface';
 
 const schema = new mongoose.Schema(
     {
-        sourceType: { type: String, enum: ['Source', 'ProcessedSource'], required: true },
-        sourceId: { type: mongoose.Schema.Types.ObjectId, required: true },
+        sourceType: { type: String, enum: ['source', 'processedSource', 'independent'], required: true },
+        sourceId: { type: mongoose.Schema.Types.ObjectId },
         title: { type: String },
         type: {
             type: String,
@@ -27,10 +27,10 @@ schema.post('findOneAndDelete', async function (document: ExerciseSetDocument) {
         const associatedExerciseDocuments = await ExerciseModel.find({
             exerciseSetId: document._id,
         });
-        const promises = associatedExerciseDocuments.map((exerciseDocument) => {
-            return ExerciseModel.findByIdAndDelete(exerciseDocument._id);
-        });
-        await Promise.all(promises);
+
+        await Promise.all(
+            associatedExerciseDocuments.map((exerciseDocument) => ExerciseModel.findByIdAndDelete(exerciseDocument._id))
+        );
     }
 });
 
