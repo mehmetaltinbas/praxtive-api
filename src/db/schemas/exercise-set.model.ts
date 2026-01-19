@@ -4,6 +4,7 @@ import { ExerciseSetDocument } from 'src/exercise-set/types/exercise-set-documen
 
 const schema = new mongoose.Schema(
     {
+        userId: { type: mongoose.Schema.Types.ObjectId },
         sourceType: { type: String, enum: ['source', 'processedSource', 'independent'], required: true },
         sourceId: { type: mongoose.Schema.Types.ObjectId },
         title: { type: String },

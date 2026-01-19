@@ -1,8 +1,10 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { Model } from 'mongoose';
+import { FilterQuery, Model } from 'mongoose';
+import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
 import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
 import { ExerciseSetTypeStrategyResolverProvider } from 'src/exercise-set/strategies/type/exercise-set-type-strategy-resolver.provider';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
+import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
 import { UpdateExerciseSetDto } from 'src/exercise-set/types/dto/update-exercise-set.dto';
 import {
     EvaluateAnswersResponse,
@@ -30,10 +32,15 @@ export class ExerciseSetService {
         private openaiService: OpenaiService,
         private sourceService: SourceService,
         private processedSourceService: ProcessedSourceService,
-        private exerciseSetTypeStrategyResolverProvider: ExerciseSetTypeStrategyResolverProvider
+        private exerciseSetTypeStrategyResolverProvider: ExerciseSetTypeStrategyResolverProvider,
+        private exerciseSetReadAllFilterCompositeProvider: ExerciseSetReadAllFilterCompositeProvider
     ) {}
 
-    async create(sourceId: string | undefined, createExerciseSetDto: CreateExerciseSetDto): Promise<ResponseBase> {
+    async create(
+        userId: string,
+        sourceId: string | undefined,
+        createExerciseSetDto: CreateExerciseSetDto
+    ): Promise<ResponseBase> {
         let sourceText;
         let sourceType;
 
@@ -73,6 +80,7 @@ export class ExerciseSetService {
                 }
 
                 const exerciseSet = await this.db.ExerciseSet.create({
+                    userId,
                     sourceType,
                     sourceId,
                     type: createExerciseSetDto.type,
@@ -101,6 +109,7 @@ export class ExerciseSetService {
 
             case ExerciseSetSourceType.INDEPENDENT: {
                 const exerciseSet = await this.db.ExerciseSet.create({
+                    userId,
                     sourceType,
                     type: createExerciseSetDto.type,
                     difficulty: createExerciseSetDto.difficulty,
@@ -117,28 +126,40 @@ export class ExerciseSetService {
         };
     }
 
-    async readAllByUserId(userId: string): Promise<ReadAllExerciseSetsResponse> {
+    async readAllByUserId(
+        userId: string,
+        readMultipleExerciseSetsFilterCriteriaDto: ReadMultipleExerciseSetsFilterCriteriaDto
+    ): Promise<ReadAllExerciseSetsResponse> {
+        const filter: FilterQuery<ExerciseSetDocument> = {
+            userId,
+        };
+
         const response = await this.sourceService.readAllByUserId(userId);
-        if (!response.sources || response.sources.length === 0) {
-            return {
-                isSuccess: false,
-                message: 'No sources associated with the given userId, thus no exercise sets can exist',
-            };
-        }
-        const sourceIds = response.sources.map((s) => s._id);
+        if (
+            readMultipleExerciseSetsFilterCriteriaDto.sourceType !== ExerciseSetSourceType.INDEPENDENT &&
+            response.sources &&
+            response.sources.length !== 0
+        ) {
+            const sourceIds = response.sources.map((s) => s._id);
 
-        const processedSourcesResponses = await Promise.all(
-            response.sources.map((source) => this.processedSourceService.readAllBySourceId(source._id))
-        );
-        for (const res of processedSourcesResponses) {
-            if (res.processedSources) {
-                sourceIds.push(...res.processedSources.map((ps) => ps._id));
+            const processedSourcesResponses = await Promise.all(
+                response.sources.map((source) => this.processedSourceService.readAllBySourceId(source._id))
+            );
+
+            for (const res of processedSourcesResponses) {
+                if (res.processedSources) {
+                    sourceIds.push(...res.processedSources.map((ps) => ps._id));
+                }
             }
+
+            filter.sourceId = { $in: sourceIds };
         }
 
-        const exerciseSets = await this.db.ExerciseSet.find({
-            sourceId: { $in: sourceIds },
-        });
+        const refinedFilter = this.exerciseSetReadAllFilterCompositeProvider.filter(
+            readMultipleExerciseSetsFilterCriteriaDto,
+            filter
+        );
+        const exerciseSets = await this.db.ExerciseSet.find(refinedFilter);
 
         if (exerciseSets.length === 0) {
             return { isSuccess: false, message: 'No exercises found' };

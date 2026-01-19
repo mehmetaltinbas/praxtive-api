@@ -1,6 +1,7 @@
 // eslint-disable-next-line no-redeclare
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
+import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
 import { EvaluateAnswersResponse } from 'src/exercise-set/types/response/evaluate-answers.response';
 import { AuthGuard } from '../auth/auth.guard';
 import JwtPayload from '../auth/types/jwt-payload.interface';
@@ -18,17 +19,21 @@ export class ExerciseSetController {
     constructor(private exerciseSetService: ExerciseSetService) {}
 
     @Post('create')
-    async createIndependent(@Body() createExerciseSetDto: CreateExerciseSetDto): Promise<ResponseBase> {
-        const response = await this.exerciseSetService.create(undefined, createExerciseSetDto);
+    async createIndependent(
+        @User() user: JwtPayload,
+        @Body() createExerciseSetDto: CreateExerciseSetDto
+    ): Promise<ResponseBase> {
+        const response = await this.exerciseSetService.create(user.sub, undefined, createExerciseSetDto);
         return response;
     }
 
     @Post('create/:sourceId')
     async createBySourceId(
+        @User() user: JwtPayload,
         @Param('sourceId') sourceId: string | undefined,
         @Body() createExerciseSetDto: CreateExerciseSetDto
     ): Promise<ResponseBase> {
-        const response = await this.exerciseSetService.create(sourceId, createExerciseSetDto);
+        const response = await this.exerciseSetService.create(user.sub, sourceId, createExerciseSetDto);
         return response;
     }
 
@@ -39,8 +44,14 @@ export class ExerciseSetController {
     }
 
     @Get('read-all-by-user-id')
-    async readAllByUserId(@User() user: JwtPayload): Promise<ReadAllExerciseSetsResponse> {
-        const response = await this.exerciseSetService.readAllByUserId(user.sub);
+    async readAllByUserId(
+        @User() user: JwtPayload,
+        @Query() readMultipleExerciseSetsFilterCriteriaDto: ReadMultipleExerciseSetsFilterCriteriaDto
+    ): Promise<ReadAllExerciseSetsResponse> {
+        const response = await this.exerciseSetService.readAllByUserId(
+            user.sub,
+            readMultipleExerciseSetsFilterCriteriaDto
+        );
         return response;
     }
 

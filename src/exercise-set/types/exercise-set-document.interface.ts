@@ -3,6 +3,7 @@ import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-sourc
 
 export interface ExerciseSetDocument extends MongooseDocument {
     _id: string;
+    userId: string;
     sourceType: ExerciseSetSourceType;
     sourceId: string;
     type: string;
