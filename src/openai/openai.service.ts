@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { EvaluateExerciseAnswerResponse } from 'src/openai/types/response/evaluate-exercise-answer.response';
 import { ExerciseDocument } from '../exercise/types/exercise-document.interface';
+import { ExerciseDifficulty } from '../exercise/enums/exercise-difficulty.enum';
 import { ExerciseType } from '../exercise/enums/exercise-type.enum';
 import { GenerateExercisesResponse, OpenaiCompletionResponse } from './types/openai-responses';
 
@@ -70,7 +71,7 @@ export class OpenaiService {
     async generateExercises(
         text: string,
         type: string,
-        difficulty: string,
+        difficulty: ExerciseDifficulty,
         count: number
     ): Promise<GenerateExercisesResponse> {
         const completion = await this.openaiClient.chat.completions.create({
@@ -98,7 +99,7 @@ export class OpenaiService {
 
         exercises.forEach((exercise) => {
             exercise.type = type as ExerciseType;
-            exercise.difficulty = difficulty;
+            exercise.difficulty = difficulty as ExerciseDifficulty;
 
             if (exercise.type === ExerciseType.MCQ) {
                 const correctChoiceIndex = exercise.correctChoiceIndex;

@@ -1,5 +1,6 @@
 import * as mongoose from 'mongoose';
 import { ExerciseModel } from 'src/db/models/exercise.model';
+import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 import { ExerciseSetDocument } from 'src/exercise-set/types/exercise-set-document.interface';
@@ -17,7 +18,7 @@ const schema = new mongoose.Schema(
         },
         difficulty: {
             type: String,
-            enum: ['mix', 'easy', 'medium', 'hard'],
+            enum: Object.values(ExerciseSetDifficulty),
             default: 'medium',
         },
         count: { type: Number, required: true },

@@ -3,6 +3,7 @@ import { FilterQuery, Model } from 'mongoose';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
 import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
+import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseSetTypeStrategyResolverProvider } from 'src/exercise-set/strategies/type/exercise-set-type-strategy-resolver.provider';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
@@ -62,7 +63,7 @@ export class ExerciseSetService {
                 const generateExercisesResponse = await this.openaiService.generateExercises(
                     sourceText as string,
                     dto.type,
-                    dto.difficulty,
+                    dto.difficulty as unknown as ExerciseDifficulty,
                     dto.count
                 );
 

@@ -1,4 +1,5 @@
 import * as mongoose from 'mongoose';
+import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 
 const schema = new mongoose.Schema(
@@ -13,7 +14,7 @@ const schema = new mongoose.Schema(
             enum: Object.values(ExerciseType),
             required: true,
         },
-        difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
+        difficulty: { type: String, enum: Object.values(ExerciseDifficulty), default: 'medium' },
         prompt: { type: String, required: true },
         solution: String, // for 'openEnded', also can be considered for 'mcq' and 'trueFalse' for explanations of the correct choice
         choices: [String], // for 'mcq' and 'trueFalse'

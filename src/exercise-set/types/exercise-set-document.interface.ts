@@ -1,4 +1,5 @@
 import { Document as MongooseDocument } from 'mongoose';
+import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 
@@ -8,7 +9,7 @@ export interface ExerciseSetDocument extends MongooseDocument {
     sourceType: ExerciseSetSourceType;
     sourceId: string;
     type: ExerciseType;
-    difficulty: string;
+    difficulty: ExerciseSetDifficulty;
     count: number;
     title: string;
 }
