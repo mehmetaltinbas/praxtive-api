@@ -42,6 +42,27 @@ export default tseslint.config(
             'prettier/prettier': 'warn',
             'prefer-const': 'warn',
             'no-empty': 'warn',
+            "padding-line-between-statements": [
+                "warn",
+                // Always a blank line before 'return' statements
+                { "blankLine": "always", "prev": "*", "next": "return" },
+                
+                // Always a blank line after headers/imports
+                { "blankLine": "always", "prev": "import", "next": "*" },
+                { "blankLine": "any", "prev": "import", "next": "import" },
+
+                // Space out variable blocks from code logic
+                { "blankLine": "always", "prev": ["const", "let", "var"], "next": "*" },
+                { "blankLine": "any", "prev": ["const", "let", "var"], "next": ["const", "let", "var"] },
+
+                // Space out classes and functions
+                { "blankLine": "always", "prev": "*", "next": ["function", "class", "export"] },
+                { "blankLine": "always", "prev": ["function", "class", "export"], "next": "*" },
+                
+                // Space out multiline blocks (if/for/while/try)
+                { "blankLine": "always", "prev": "*", "next": "multiline-block-like" },
+                { "blankLine": "always", "prev": "multiline-block-like", "next": "*" }
+            ],
             '@typescript-eslint/explicit-function-return-type': 'error', // suggest explicit return types
             '@typescript-eslint/consistent-type-definitions': ['error', 'interface'], // enforce interfaces for object types
             '@typescript-eslint/ban-ts-comment': 'warn', // warn on disabling TS checks with comments

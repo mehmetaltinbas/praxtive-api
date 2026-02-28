@@ -9,6 +9,7 @@ export class OpenaiController {
     @Get('test')
     async test(): Promise<OpenaiCompletionResponse> {
         const response = await this.openaiService.test();
+
         return response;
     }
 }

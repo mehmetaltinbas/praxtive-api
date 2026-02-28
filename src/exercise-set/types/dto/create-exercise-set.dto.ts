@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsOptional } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional } from 'class-validator';
+import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 
 export class CreateExerciseSetDto {
     @IsOptional()
@@ -7,8 +8,9 @@ export class CreateExerciseSetDto {
     @IsNotEmpty()
     readonly count!: number;
 
+    @IsEnum(ExerciseSetType)
     @IsNotEmpty()
-    readonly type!: string;
+    readonly type!: ExerciseSetType;
 
     @IsNotEmpty()
     readonly difficulty!: string;

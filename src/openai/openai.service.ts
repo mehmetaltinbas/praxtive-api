@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { EvaluateExerciseAnswerResponse } from 'src/openai/types/response/evaluate-exercise-answer.response';
 import { ExerciseDocument } from '../exercise/types/exercise-document.interface';
+import { ExerciseType } from '../exercise/enums/exercise-type.enum';
 import { GenerateExercisesResponse, OpenaiCompletionResponse } from './types/openai-responses';
 
 @Injectable()
@@ -83,26 +84,27 @@ export class OpenaiService {
                         for mcq (5 options): [ { prompt: string, choices: [ string, string, string, string, string], correctChoiceIndex: number }, ... ]\n
                         for trueFalse: [ { prompt: string, choices: [ false, true], correctChoiceIndex: number }, ... ]\n
                         for openEnded: [ { prompt: string, solution: string}, ... ]\n
-                        for short: [ { prompt: string, solution: string}, ... ]\n
                         Return only valid JSON. Do not include extra text or formatting.\n
                         prompt means the the stem of the exercise (questionText)\n
                         also make sure for mcq or for trueFalse the correctChoiceIndex is not undefined\n
                         for openEnded the solution (answer) is in any length\n
-                        for short the solution (answer) is just 1-5 words of answers (not sentences and not true false exercise)\n
-                        make sure openEnded or short exercise types' solution is not undefined\n
+                        make sure openEnded exercise type's solution is not undefined\n
                         for trueFalse, correctChoiceIndex = 0 indicates false, and 1 indicates true`,
                 },
             ],
         });
 
         const exercises = JSON.parse(completion.choices[0].message.content!) as ExerciseDocument[];
+
         exercises.forEach((exercise) => {
-            exercise.type = type;
+            exercise.type = type as ExerciseType;
             exercise.difficulty = difficulty;
-            if (exercise.type === 'mcq') {
+
+            if (exercise.type === ExerciseType.MCQ) {
                 const correctChoiceIndex = exercise.correctChoiceIndex;
                 const randomIndex = Math.floor(Math.random() * 5);
                 const temporaryElement = exercise.choices[randomIndex];
+
                 exercise.choices[randomIndex] = exercise.choices[correctChoiceIndex];
                 exercise.choices[correctChoiceIndex] = temporaryElement;
                 exercise.correctChoiceIndex = randomIndex;
@@ -131,6 +133,7 @@ export class OpenaiService {
             score: number;
             feedback: string;
         };
+
         return {
             isSuccess: true,
             message: 'evaluation for openai is done',

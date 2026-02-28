@@ -12,9 +12,11 @@ export class PlanService {
 
     async create(createPlanDto: CreatePlanDto): Promise<ResponseBase> {
         const plan = await this.db.Plan.create(createPlanDto);
+
         if (!plan) {
             return { isSuccess: false, message: "plan couldn't created" };
         }
+
         return { isSuccess: true, message: 'plan created' };
     }
 
@@ -22,22 +24,21 @@ export class PlanService {
         const plan = await this.db.Plan.findOne({
             name: planName,
         });
+
         if (!plan) {
             return { isSuccess: false, message: "plan couldn't read" };
         }
+
         return { isSuccess: true, message: 'plan read', plan };
     }
 
-    async validateIsHigher(
-        currentPlanName: PlanName,
-        higherPlanName: PlanName
-    ): Promise<ResponseBase> {
+    async validateIsHigher(currentPlanName: PlanName, higherPlanName: PlanName): Promise<ResponseBase> {
         const isCurrentPlanNameValid = Object.values(PlanName).includes(currentPlanName);
-        if (!isCurrentPlanNameValid)
-            return { isSuccess: false, message: "currentPlanName isn't valid" };
+
+        if (!isCurrentPlanNameValid) return { isSuccess: false, message: "currentPlanName isn't valid" };
         const isHigherPlanNameValid = Object.values(PlanName).includes(higherPlanName);
-        if (!isHigherPlanNameValid)
-            return { isSuccess: false, message: "higherPlanName isn't valid" };
+
+        if (!isHigherPlanNameValid) return { isSuccess: false, message: "higherPlanName isn't valid" };
 
         if (currentPlanName === PlanName.FREE) {
             if (higherPlanName === PlanName.PRO || higherPlanName === PlanName.BUSINESS)
@@ -67,16 +68,13 @@ export class PlanService {
         return { isSuccess: false, message: "couldn't verified" };
     }
 
-    async validateIsLower(
-        currentPlanName: PlanName,
-        lowerPlanName: PlanName
-    ): Promise<ResponseBase> {
+    async validateIsLower(currentPlanName: PlanName, lowerPlanName: PlanName): Promise<ResponseBase> {
         const isCurrentPlanNameValid = Object.values(PlanName).includes(currentPlanName);
-        if (!isCurrentPlanNameValid)
-            return { isSuccess: false, message: "currentPlanName isn't valid" };
+
+        if (!isCurrentPlanNameValid) return { isSuccess: false, message: "currentPlanName isn't valid" };
         const isHigherPlanNameValid = Object.values(PlanName).includes(lowerPlanName);
-        if (!isHigherPlanNameValid)
-            return { isSuccess: false, message: "higherPlanName isn't valid" };
+
+        if (!isHigherPlanNameValid) return { isSuccess: false, message: "higherPlanName isn't valid" };
 
         if (currentPlanName === PlanName.FREE) {
             return { isSuccess: false, message: 'currentPlan is already the lowest plan' };

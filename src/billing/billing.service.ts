@@ -20,6 +20,7 @@ export class BillingService {
         const remainingDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
         const extractedPrice = currentPlanMonthlyPrice * (remainingDays / 30);
         const priceToPay = Number((newPlanMonthlyPrice - extractedPrice).toFixed(2));
+
         return {
             isSuccess: true,
             message: 'prorationed price calculated',

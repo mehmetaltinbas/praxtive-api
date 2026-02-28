@@ -34,11 +34,13 @@ describe('Auth', () => {
                 .expect(200)
                 .expect(function (res) {
                     const resBody = res.body as SignInResponse;
+
                     if (!resBody.isSuccess) {
                         throw new Error(resBody.message);
                     }
                 });
             const responseBody = response.body as SignInResponse;
+
             jwt = responseBody.jwt!;
             testData.write(TestDataKeys.JWT, jwt);
             testData.write(TestDataKeys.IS_JWT_READY, true);

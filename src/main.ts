@@ -8,6 +8,7 @@ async function bootstrap(): Promise<void> {
     const app = await NestFactory.create(AppModule);
     const configService = app.get(ConfigService);
     const port = configService.get<number>('PORT') || 4001;
+
     app.useGlobalPipes(
         new ValidationPipe({
             transform: true,
@@ -24,4 +25,5 @@ async function bootstrap(): Promise<void> {
     await app.listen(port);
     console.log(`Server is running on http://localhost:${port}\n`);
 }
+
 bootstrap().catch((e) => console.log(e));

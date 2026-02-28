@@ -20,6 +20,7 @@ export class ExerciseSetReadAllFilterCompositeProvider implements ExerciseSetRea
         for (const child of this.children) {
             filterQuery = child.filter(readMultipleExerciseSetsFilterCriteriaDto, filterQuery);
         }
+
         return filterQuery;
     }
 }

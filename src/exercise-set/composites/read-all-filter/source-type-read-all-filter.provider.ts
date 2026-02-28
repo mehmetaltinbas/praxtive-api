@@ -17,6 +17,7 @@ export class SourceTypeReadAllFilter implements ExerciseSetReadAllFilter {
         if (readMultipleExerciseSetsFilterCriteriaDto.sourceType) {
             filterQuery.sourceType = readMultipleExerciseSetsFilterCriteriaDto.sourceType;
         }
+
         return filterQuery;
     }
 }

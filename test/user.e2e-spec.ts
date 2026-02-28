@@ -72,6 +72,7 @@ describe('User', () => {
                 .expect(201)
                 .expect((res) => {
                     const resBody = res.body as SignUpResponse;
+
                     userId = resBody.user._id;
                     testData.write(TestDataKeys.IS_USER_SIGNED_UP, true);
                 });
@@ -89,12 +90,11 @@ describe('User', () => {
                 .expect(200)
                 .expect((res) => {
                     const resBody = res.body as ReadSingleUserResponse;
+
                     if (!resBody.user) {
                         throw new Error("user couldn't be read");
                     } else if (resBody.user.userName !== userCredentials.userName) {
-                        throw new Error(
-                            "the userName of the user being read doesn't match the true one"
-                        );
+                        throw new Error("the userName of the user being read doesn't match the true one");
                     }
                 });
         });

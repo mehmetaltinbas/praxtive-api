@@ -42,11 +42,10 @@ export class EventsGateway implements OnGatewayConnection {
     }
 
     @SubscribeMessage('read-all-sources-by-user-id')
-    async readAllSourcesByUserId(
-        @ConnectedSocket() client: Socket
-    ): Promise<SourceDocument[]> {
+    async readAllSourcesByUserId(@ConnectedSocket() client: Socket): Promise<SourceDocument[]> {
         if (client.user?.sub) {
             const response = await this.sourceService.readAllByUserId(client.user.sub);
+
             return response.sources!;
         } else {
             return [];
@@ -56,6 +55,7 @@ export class EventsGateway implements OnGatewayConnection {
     @SubscribeMessage('other-event')
     handleOtherEvent(@MessageBody() data: string, @ConnectedSocket() client: Socket): string {
         console.log(data);
+
         return 'return something';
     }
 

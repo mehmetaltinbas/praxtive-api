@@ -8,10 +8,7 @@ import { OpenaiService } from 'src/openai/openai.service';
 export class TrueFalseTypeStrategyProvider implements ExerciseSetTypeStrategy {
     constructor(private openaiService: OpenaiService) {}
 
-    async evaluateAnswer(
-        exercise: ExerciseDocument,
-        answer: string
-    ): Promise<EvaluateAnswerStrategyResponse> {
+    async evaluateAnswer(exercise: ExerciseDocument, answer: string): Promise<EvaluateAnswerStrategyResponse> {
         const chosenIndex = Number(answer);
         const prompt = `I want you to evaluate user's answer and provide feedback for this trueFalse exercise.
             arguement to check whether it is true or false: ${exercise.prompt} \n\n choices: \n${exercise.choices.map((choice, index) => `${index} -> ${choice}\n`).join('')}\n
@@ -21,9 +18,10 @@ export class TrueFalseTypeStrategyProvider implements ExerciseSetTypeStrategy {
             (score is 100 if user selected correctly, 0 if selected wrongly)\n
             Return only valid JSON. Do not include extra text or formatting!`;
         const evaluationResponse = await this.openaiService.evaluateExerciseAnswer(prompt);
-        if (!evaluationResponse.isSuccess)
-            return { isSuccess: false, message: evaluationResponse.message };
+
+        if (!evaluationResponse.isSuccess) return { isSuccess: false, message: evaluationResponse.message };
         const score = exercise.correctChoiceIndex === chosenIndex ? 100 : 0;
+
         return {
             isSuccess: true,
             message: 'evaluating answer is done',

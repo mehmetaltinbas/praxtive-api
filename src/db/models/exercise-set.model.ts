@@ -1,16 +1,18 @@
 import * as mongoose from 'mongoose';
 import { ExerciseModel } from 'src/db/models/exercise.model';
+import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
+import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 import { ExerciseSetDocument } from 'src/exercise-set/types/exercise-set-document.interface';
 
 const schema = new mongoose.Schema(
     {
         userId: { type: mongoose.Schema.Types.ObjectId },
-        sourceType: { type: String, enum: ['source', 'independent'], required: true },
+        sourceType: { type: String, enum: Object.values(ExerciseSetSourceType), required: true },
         sourceId: { type: mongoose.Schema.Types.ObjectId },
         title: { type: String },
         type: {
             type: String,
-            enum: ['mix', 'mcq', 'trueFalse', 'short', 'openEnded'],
+            enum: Object.values(ExerciseSetType),
             required: true,
         },
         difficulty: {

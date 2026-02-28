@@ -24,6 +24,7 @@ export class ExerciseSetController {
         @Body() createExerciseSetDto: CreateExerciseSetDto
     ): Promise<ResponseBase> {
         const response = await this.exerciseSetService.create(user.sub, undefined, createExerciseSetDto);
+
         return response;
     }
 
@@ -34,12 +35,14 @@ export class ExerciseSetController {
         @Body() createExerciseSetDto: CreateExerciseSetDto
     ): Promise<ResponseBase> {
         const response = await this.exerciseSetService.create(user.sub, sourceId, createExerciseSetDto);
+
         return response;
     }
 
     @Get('read-by-id/:id')
     async readById(@Param('id') id: string): Promise<ReadSingleExerciseSetResponse> {
         const response = this.exerciseSetService.readById(id);
+
         return response;
     }
 
@@ -52,6 +55,7 @@ export class ExerciseSetController {
             user.sub,
             readMultipleExerciseSetsFilterCriteriaDto
         );
+
         return response;
     }
 
@@ -60,18 +64,21 @@ export class ExerciseSetController {
         @User() user: JwtPayload
     ): Promise<ReadAllExerciseSetsGroupedBySourcesResponse> {
         const response = await this.exerciseSetService.readAllByUserIdGroupedBySources(user.sub);
+
         return response;
     }
 
     @Delete('delete-by-id/:id')
     async deleteById(@Param('id') id: string): Promise<ResponseBase> {
         const response = await this.exerciseSetService.deleteById(id);
+
         return response;
     }
 
     @Post('evaluate-answers')
     async evaluateAnswers(@Body() evaluateAnswersDto: EvaluateAnswersDto): Promise<EvaluateAnswersResponse> {
         const response = this.exerciseSetService.evaluateAnswers(evaluateAnswersDto);
+
         return response;
     }
 }

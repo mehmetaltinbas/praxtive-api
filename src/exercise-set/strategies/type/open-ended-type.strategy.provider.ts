@@ -8,10 +8,7 @@ import { OpenaiService } from 'src/openai/openai.service';
 export class OpenEndedTypeStrategyProvider implements ExerciseSetTypeStrategy {
     constructor(private openaiService: OpenaiService) {}
 
-    async evaluateAnswer(
-        exercise: ExerciseDocument,
-        answer: string
-    ): Promise<EvaluateAnswerStrategyResponse> {
+    async evaluateAnswer(exercise: ExerciseDocument, answer: string): Promise<EvaluateAnswerStrategyResponse> {
         const prompt = `I want you to evaluate user's answer and provide feedback for this openEnded question exercise.
             question: ${exercise.prompt} \n\n
             user's answer: ${answer}\n ${exercise.solution ? `the solution: ${exercise.solution}` : ''} \n\n
@@ -19,8 +16,9 @@ export class OpenEndedTypeStrategyProvider implements ExerciseSetTypeStrategy {
             your output should match this JSON interface: { score: number, feedback: string }\n
             Return only valid JSON. Do not include extra text or formatting!`;
         const evaluationResponse = await this.openaiService.evaluateExerciseAnswer(prompt);
-        if (!evaluationResponse.isSuccess)
-            return { isSuccess: false, message: evaluationResponse.message };
+
+        if (!evaluationResponse.isSuccess) return { isSuccess: false, message: evaluationResponse.message };
+
         return {
             isSuccess: true,
             message: 'evaluating answer is done',

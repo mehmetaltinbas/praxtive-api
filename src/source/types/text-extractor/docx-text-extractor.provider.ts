@@ -6,6 +6,7 @@ import mammoth from 'mammoth';
 export class DocxTextExtractor implements TextExtractor {
     async extractText(fileBuffer: Buffer): Promise<string> {
         const extractedText = await mammoth.extractRawText({ buffer: fileBuffer });
+
         return extractedText.value;
     }
 }

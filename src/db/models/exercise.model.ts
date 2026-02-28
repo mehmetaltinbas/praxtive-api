@@ -1,4 +1,5 @@
 import * as mongoose from 'mongoose';
+import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 
 const schema = new mongoose.Schema(
     {
@@ -9,12 +10,12 @@ const schema = new mongoose.Schema(
         },
         type: {
             type: String,
-            enum: ['mcq', 'trueFalse', 'short', 'openEnded'],
+            enum: Object.values(ExerciseType),
             required: true,
         },
         difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
         prompt: { type: String, required: true },
-        solution: String, // for 'short' and 'openEnded', also can be considered for 'mcq' and 'trueFalse' for explanations of the correct choice
+        solution: String, // for 'openEnded', also can be considered for 'mcq' and 'trueFalse' for explanations of the correct choice
         choices: [String], // for 'mcq' and 'trueFalse'
         correctChoiceIndex: Number, // for 'mcq' and 'trueFalse
     },

@@ -6,11 +6,7 @@ import { SourceModule } from '../source/source.module';
 import { ExerciseSetModule } from 'src/exercise-set/exercise-set.module';
 
 @Module({
-    imports: [
-        OpenaiModule,
-        SourceModule,
-        forwardRef(() => ExerciseSetModule),
-    ],
+    imports: [OpenaiModule, SourceModule, forwardRef(() => ExerciseSetModule)],
     controllers: [ExerciseController],
     providers: [ExerciseService],
     exports: [ExerciseService],

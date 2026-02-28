@@ -38,33 +38,35 @@ export class SourceController {
         @UploadedFile() file: Express.Multer.File
     ): Promise<ResponseBase> {
         const response = await this.sourceService.create(user.sub, createSourceDto, file);
+
         return response;
     }
 
     @Get('read-by-id/:id')
     async readById(@Param('id') id: string): Promise<ReadSingleSourceResponse> {
         const response = await this.sourceService.readById(id);
+
         return response;
     }
 
     @Get('read-all-by-user-id')
     async readAllByUserId(@User() user: JwtPayload): Promise<ReadAllSourcesResponse> {
         const response = await this.sourceService.readAllByUserId(user.sub);
+
         return response;
     }
 
     @Patch('update-by-id/:id')
-    async updateById(
-        @Param('id') id: string,
-        @Body() updateSourceDto: UpdateSourceDto
-    ): Promise<ResponseBase> {
+    async updateById(@Param('id') id: string, @Body() updateSourceDto: UpdateSourceDto): Promise<ResponseBase> {
         const response = await this.sourceService.updateById(id, updateSourceDto);
+
         return response;
     }
 
     @Delete('delete-by-id/:id')
     async deleteById(@Param('id') id: string): Promise<ResponseBase> {
         const response = await this.sourceService.deleteById(id);
+
         return response;
     }
 }

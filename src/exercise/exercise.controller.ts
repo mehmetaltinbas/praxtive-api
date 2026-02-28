@@ -27,26 +27,28 @@ export class ExerciseController {
         @Body() createExerciseDto: CreateExerciseDto
     ): Promise<ResponseBase> {
         const response = await this.exerciseService.create(exerciseSetId, createExerciseDto);
+
         return response;
     }
 
     @Get('read-all')
     async readAll(): Promise<ResponseBase> {
         const response = await this.exerciseService.readAll();
+
         return response;
     }
 
     @Get('read-by-id/:id')
     async readById(@Param('id') id: string): Promise<ResponseBase> {
         const response = await this.exerciseService.readById(id);
+
         return response;
     }
 
     @Get('read-all-by-exercise-set-id/:exerciseSetId')
-    async readAllByExerciseSetId(
-        @Param('exerciseSetId') exerciseSetId: string
-    ): Promise<ReadAllExercisesResponse> {
+    async readAllByExerciseSetId(@Param('exerciseSetId') exerciseSetId: string): Promise<ReadAllExercisesResponse> {
         const response = await this.exerciseService.readAllByExerciseSetId(exerciseSetId);
+
         return response;
     }
 
@@ -58,6 +60,7 @@ export class ExerciseController {
     @Delete('delete-by-id/:id')
     async deleteById(@Param('id') id: string): Promise<ResponseBase> {
         const response = await this.exerciseService.deleteById(id);
+
         return response;
     }
 }

@@ -18,6 +18,7 @@ export class SubscriptionController {
     async test(): Promise<any> {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const response = await this.subscriptionService.test();
+
         return response;
     }
 
@@ -26,10 +27,8 @@ export class SubscriptionController {
         @User() user: JwtPayload,
         @Body() upgradeSubscriptionDto: UpgradeSubscriptionDto
     ): Promise<ResponseBase> {
-        const response = await this.subscriptionService.upgrade(
-            user.sub,
-            upgradeSubscriptionDto
-        );
+        const response = await this.subscriptionService.upgrade(user.sub, upgradeSubscriptionDto);
+
         return response;
     }
 
@@ -38,10 +37,8 @@ export class SubscriptionController {
         @User() user: JwtPayload,
         @Body() upgradeSubscriptionDto: UpgradeSubscriptionDto
     ): Promise<CheckPriceToPayOnUpgradeSubscriptionResponse> {
-        const response = await this.subscriptionService.checkPriceToPayOnUpgrade(
-            user.sub,
-            upgradeSubscriptionDto
-        );
+        const response = await this.subscriptionService.checkPriceToPayOnUpgrade(user.sub, upgradeSubscriptionDto);
+
         return response;
     }
 
@@ -50,16 +47,15 @@ export class SubscriptionController {
         @User() user: JwtPayload,
         @Body() downgradeSubscriptionDto: DowngradeSubscriptionDto
     ): Promise<ResponseBase> {
-        const response = await this.subscriptionService.downgrade(
-            user.sub,
-            downgradeSubscriptionDto
-        );
+        const response = await this.subscriptionService.downgrade(user.sub, downgradeSubscriptionDto);
+
         return response;
     }
 
     @Post('cancel-downgrade')
     async cancelDowngrade(@User() user: JwtPayload): Promise<ResponseBase> {
         const response = await this.subscriptionService.cancelDowngrade(user.sub);
+
         return response;
     }
 }

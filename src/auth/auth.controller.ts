@@ -1,4 +1,3 @@
-// eslint-disable-next-line no-redeclare
 import {
     Body as BodyDecorator,
     Controller,
@@ -33,10 +32,13 @@ export class AuthController {
         @Res() res: ExpressResponse
     ): Promise<ExpressResponse<any, Record<string, any>>> {
         const response = await this.authService.signInAsync(signInDto);
+
         if (!response.isSuccess) {
             return res.json({ isSuccess: response.isSuccess, message: response.message });
         }
+
         const jwtCookieName = this.configService.get<string>('JWT_COOKIE_NAME');
+
         if (jwtCookieName) {
             res.cookie(jwtCookieName, response.jwt, {
                 httpOnly: true,
@@ -50,6 +52,7 @@ export class AuthController {
                 message: 'no jwt cookie name provided as env variable',
             });
         }
+
         return res.json({ isSuccess: response.isSuccess, message: response.message });
     }
 
@@ -57,6 +60,7 @@ export class AuthController {
     @Get('authorize')
     async authorize(@Req() req: ExpressRequest): Promise<ResponseBase> {
         const response = await this.authService.authorizeAsync();
+
         return response;
     }
 }

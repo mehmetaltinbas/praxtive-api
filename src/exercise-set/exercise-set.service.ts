@@ -2,6 +2,8 @@ import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { FilterQuery, Model } from 'mongoose';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
 import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
+import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
+import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseSetTypeStrategyResolverProvider } from 'src/exercise-set/strategies/type/exercise-set-type-strategy-resolver.provider';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
@@ -33,16 +35,13 @@ export class ExerciseSetService {
         private exerciseSetReadAllFilterCompositeProvider: ExerciseSetReadAllFilterCompositeProvider
     ) {}
 
-    async create(
-        userId: string,
-        sourceId: string | undefined,
-        createExerciseSetDto: CreateExerciseSetDto
-    ): Promise<ResponseBase> {
+    async create(userId: string, sourceId: string | undefined, dto: CreateExerciseSetDto): Promise<ResponseBase> {
         let sourceText;
         let sourceType;
 
         if (sourceId) {
             const readSingleSourceResponse = await this.sourceService.readById(sourceId);
+
             if (readSingleSourceResponse.isSuccess && readSingleSourceResponse.source) {
                 sourceText = readSingleSourceResponse.source.rawText;
                 sourceType = ExerciseSetSourceType.SOURCE;
@@ -57,14 +56,16 @@ export class ExerciseSetService {
         }
 
         let message = '';
+
         switch (sourceType) {
             case ExerciseSetSourceType.SOURCE: {
                 const generateExercisesResponse = await this.openaiService.generateExercises(
                     sourceText as string,
-                    createExerciseSetDto.type,
-                    createExerciseSetDto.difficulty,
-                    createExerciseSetDto.count
+                    dto.type,
+                    dto.difficulty,
+                    dto.count
                 );
+
                 if (!generateExercisesResponse.isSuccess) {
                     return generateExercisesResponse;
                 }
@@ -73,9 +74,9 @@ export class ExerciseSetService {
                     userId,
                     sourceType,
                     sourceId,
-                    type: createExerciseSetDto.type,
-                    difficulty: createExerciseSetDto.difficulty,
-                    count: createExerciseSetDto.count,
+                    type: dto.type,
+                    difficulty: dto.difficulty,
+                    count: dto.count,
                 });
 
                 const promises = generateExercisesResponse.exercises.map((exercise) => {
@@ -84,15 +85,18 @@ export class ExerciseSetService {
                         difficulty: exercise.difficulty,
                         prompt: exercise.prompt,
                     };
-                    if (dto.type === 'mcq' || dto.type === 'trueFalse') {
+
+                    if (dto.type === ExerciseType.MCQ || dto.type === ExerciseType.TRUE_FALSE) {
                         dto.choices = exercise.choices;
                         dto.correctChoiceIndex = exercise.correctChoiceIndex;
-                    } else if (dto.type === 'short' || dto.type === 'openEnded') {
+                    } else if (dto.type === ExerciseType.OPEN_ENDED) {
                         dto.solution = exercise.solution;
                     }
+
                     return this.exerciseService.create(exerciseSet._id, dto);
                 });
                 const responses = await Promise.all(promises);
+
                 message = `exercise set created, type: ${exerciseSet.type}, difficulty: ${exerciseSet.difficulty}, exercise count: ${exerciseSet.count}`;
                 break;
             }
@@ -101,10 +105,11 @@ export class ExerciseSetService {
                 const exerciseSet = await this.db.ExerciseSet.create({
                     userId,
                     sourceType,
-                    type: createExerciseSetDto.type,
-                    difficulty: createExerciseSetDto.difficulty,
+                    type: dto.type,
+                    difficulty: dto.difficulty,
                     count: 0,
                 });
+
                 message = `exercises et created with type ${exerciseSet.type}`;
                 break;
             }
@@ -125,12 +130,14 @@ export class ExerciseSetService {
         };
 
         const response = await this.sourceService.readAllByUserId(userId);
+
         if (
             readMultipleExerciseSetsFilterCriteriaDto.sourceType !== ExerciseSetSourceType.INDEPENDENT &&
             response.sources &&
             response.sources.length !== 0
         ) {
             const sourceIds = response.sources.map((s) => s._id);
+
             filter.sourceId = { $in: sourceIds };
         }
 
@@ -149,6 +156,7 @@ export class ExerciseSetService {
 
     async readAllByUserIdGroupedBySources(userId: string): Promise<ReadAllExerciseSetsGroupedBySourcesResponse> {
         const response = await this.sourceService.readAllByUserId(userId);
+
         if (!response.sources || response.sources.length === 0) {
             return {
                 isSuccess: false,
@@ -157,6 +165,7 @@ export class ExerciseSetService {
         }
 
         const sources = [];
+
         for (const source of response.sources) {
             const exerciseSetsOfSource = await this.db.ExerciseSet.find({
                 sourceId: source._id,
@@ -165,6 +174,7 @@ export class ExerciseSetService {
                 ...(source.toObject() as Omit<ExtendedSourceDocument, 'exerciseSets'>),
                 exerciseSets: exerciseSetsOfSource,
             };
+
             sources.push(extendedSource);
         }
 
@@ -173,9 +183,11 @@ export class ExerciseSetService {
 
     async readById(id: string): Promise<ReadSingleExerciseSetResponse> {
         const exerciseSet = await this.db.ExerciseSet.findById(id);
+
         if (!exerciseSet) {
             return { isSuccess: false, message: `no exerciseSet found by id ${id}` };
         }
+
         return {
             isSuccess: true,
             message: `exerciseSet read by id ${id}`,
@@ -195,14 +207,17 @@ export class ExerciseSetService {
         if (!updated) {
             return { isSuccess: false, message: 'exercise set not found' };
         }
+
         return { isSuccess: true, message: 'exercise set updated' };
     }
 
     async deleteById(id: string): Promise<ResponseBase> {
         const deletedExerciseSet = await this.db.ExerciseSet.findByIdAndDelete(id);
+
         if (!deletedExerciseSet) {
             return { isSuccess: false, message: "exercise set couldn't deleted" };
         }
+
         return { isSuccess: true, message: 'exercise set deleted' };
     }
 
@@ -211,8 +226,10 @@ export class ExerciseSetService {
         // console.log(`\n`);
 
         const exerciseAnswerEvaluationResults: ExerciseAnswerEvaluationResult[] = [];
+
         for (const exercise of evaluateAnswersDto.exercises) {
             const readExerciseByIdResponse = await this.exerciseService.readById(exercise.id);
+
             if (!readExerciseByIdResponse.isSuccess || !readExerciseByIdResponse.exercise) continue; // no exercise read
             // console.log(`exercise read by id: `, readExerciseByIdResponse.exercise);
             // console.log(`\n`);
@@ -221,6 +238,7 @@ export class ExerciseSetService {
                 this.exerciseSetTypeStrategyResolverProvider.resolveTypeStrategyProvider(
                     readExerciseByIdResponse.exercise.type
                 );
+
             if (!resolveTypeStrategyProviderResponse.isSuccess || !resolveTypeStrategyProviderResponse.strategy)
                 continue; // no strategy found
             // console.log(`strategy resolved: `, resolveTypeStrategyProviderResponse.strategy);
@@ -230,6 +248,7 @@ export class ExerciseSetService {
                 readExerciseByIdResponse.exercise,
                 exercise.answer
             );
+
             if (!evaluatedAnswer.isSuccess || evaluatedAnswer.score === undefined || !evaluatedAnswer.feedback)
                 continue;
             // console.log(`evalutedAnswer in strategy: `, evaluatedAnswer);
@@ -251,6 +270,7 @@ export class ExerciseSetService {
         // console.log(`\n`);
 
         let totalOfAllScores = 0;
+
         exerciseAnswerEvaluationResults.forEach((element) => (totalOfAllScores += element.score));
         const overallScore = Math.floor(totalOfAllScores / exerciseAnswerEvaluationResults.length);
 

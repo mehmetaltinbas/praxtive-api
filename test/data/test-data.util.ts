@@ -3,30 +3,36 @@ import { TestData } from './test-data.interface';
 import fs from 'fs';
 
 const testDataJsonFilePath = './test/data/test-data.json';
+
 function readAndParse(): TestData {
     const rawGlobalTestData = fs.readFileSync(testDataJsonFilePath).toString();
     const parsedGlobalTestData = JSON.parse(rawGlobalTestData) as TestData;
+
     return parsedGlobalTestData;
 }
 
 function stringifyAndWrite(testData: TestData): void {
     const stringifiedTestData = JSON.stringify(testData, null, 4);
+
     fs.writeFileSync(testDataJsonFilePath, stringifiedTestData);
 }
 
 function read(key: TestDataKeys): TestData[TestDataKeys] {
     const testData = readAndParse();
+
     return testData[key];
 }
 
 function write<K extends keyof TestData>(key: K, value: TestData[K]): void {
     const testData = readAndParse();
+
     testData[key] = value;
     stringifyAndWrite(testData);
 }
 
 function reset(): void {
     let testData = readAndParse();
+
     testData = {
         isUserSignedUp: false,
         jwt: '',

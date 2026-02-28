@@ -10,14 +10,14 @@ import { InlineNode } from 'src/source/types/inline-node.interface';
 export class PdfTextExtractor implements TextExtractor {
     async extractText(fileBuffer: Buffer): Promise<string> {
         const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-        const pdfDocument = await pdfjs.getDocument({ data: new Uint8Array(fileBuffer) })
-            .promise;
+        const pdfDocument = await pdfjs.getDocument({ data: new Uint8Array(fileBuffer) }).promise;
 
         const documentNode: DocumentNode = { content: [] };
 
         for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
             const page = await pdfDocument.getPage(pageNum);
             const textContent = await page.getTextContent();
+
             await page.getOperatorList();
 
             let currentBlock: BlockNode = { content: [] };
@@ -44,6 +44,7 @@ export class PdfTextExtractor implements TextExtractor {
                     if (inlineNode.text === ' ') {
                         inlineNode.styles.fontSize = element.transform[3] as number;
                     }
+
                     currentBlock.content.push(inlineNode);
                 }
 
@@ -55,10 +56,8 @@ export class PdfTextExtractor implements TextExtractor {
 
                 if (index > 0) {
                     const previousElement = textContent.items[index - 1] as TextItem;
-                    if (
-                        element.hasEOL &&
-                        previousElement.transform[5] !== element.transform[5]
-                    ) {
+
+                    if (element.hasEOL && previousElement.transform[5] !== element.transform[5]) {
                         // line break construction
                         const lineBreak: BlockNode = {
                             content: [
@@ -66,9 +65,7 @@ export class PdfTextExtractor implements TextExtractor {
                                     text: ` `,
                                     styles: {
                                         fontSize: Math.floor(
-                                            previousElement.transform[5] -
-                                                element.transform[5] -
-                                                element.transform[3]
+                                            previousElement.transform[5] - element.transform[5] - element.transform[3]
                                         ),
                                         bold: false,
                                         italic: false,
@@ -76,6 +73,7 @@ export class PdfTextExtractor implements TextExtractor {
                                 },
                             ],
                         };
+
                         documentNode.content.push(lineBreak);
                     }
                 }
