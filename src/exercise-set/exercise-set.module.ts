@@ -7,13 +7,12 @@ import { ShortTypeStrategyProvider } from 'src/exercise-set/strategies/type/shor
 import { TrueFalseTypeStrategyProvider } from 'src/exercise-set/strategies/type/true-false-type.strategy.provider';
 import { ExerciseModule } from '../exercise/exercise.module';
 import { OpenaiModule } from '../openai/openai.module';
-import { ProcessedSourceModule } from '../processed-source/processed-source.module';
 import { SourceModule } from '../source/source.module';
 import { ExerciseSetController } from './exercise-set.controller';
 import { ExerciseSetService } from './exercise-set.service';
 
 @Module({
-    imports: [forwardRef(() => ExerciseModule), OpenaiModule, SourceModule, ProcessedSourceModule],
+    imports: [forwardRef(() => ExerciseModule), OpenaiModule, SourceModule],
     controllers: [ExerciseSetController],
     providers: [
         ExerciseSetService,

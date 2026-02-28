@@ -11,7 +11,6 @@ import { ExerciseSetModule } from './exercise-set/exercise-set.module';
 import { ExerciseModule } from './exercise/exercise.module';
 import { OpenaiModule } from './openai/openai.module';
 import { PlanModule } from './plan/plan.module';
-import { ProcessedSourceModule } from './processed-source/processed-source.module';
 import { SourceModule } from './source/source.module';
 import { UserModule } from './user/user.module';
 
@@ -26,7 +25,6 @@ import { UserModule } from './user/user.module';
         UserModule,
         AuthModule,
         SourceModule,
-        ProcessedSourceModule,
         ExerciseSetModule,
         ExerciseModule,
         OpenaiModule,

@@ -1,5 +1,5 @@
 import * as mongoose from 'mongoose';
-import { SourceModel } from 'src/db/schemas/source.model';
+import { SourceModel } from 'src/db/models/source.model';
 import { UserDocument } from 'src/user/types/user-document.interface';
 
 const schema = new mongoose.Schema(

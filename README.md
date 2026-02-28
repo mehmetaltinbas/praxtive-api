@@ -1,1 +1,11 @@
-This repository is for reference only. No license is granted for use, modification, or distribution.
+# ENV Variables
+
+PORT=
+DB_CONNECTION= #mongodb
+DB_NAME=
+JWT_COOKIE_NAME=
+JWT_SECRET=
+JWT_EXPIRES_IN=
+CLIENT_URL=
+BCRYPT_SALT_OR_ROUNDS=
+OPENAI_API_KEY=

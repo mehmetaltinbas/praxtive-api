@@ -6,7 +6,6 @@ import { SourceDocument } from './types/source-document.interface';
 import { Express } from 'express';
 import { TextExtractorService } from 'src/source/types/text-extractor/text-extractor.service';
 import { OpenaiService } from '../openai/openai.service';
-import { ProcessedSourceService } from '../processed-source/processed-source.service';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
 import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-source.response';
 import { ReadAllSourcesResponse } from 'src/source/types/response/read-all-sources.response';
@@ -16,8 +15,7 @@ export class SourceService {
     constructor(
         @Inject('DB_MODELS') private db: Record<'Source', Model<SourceDocument>>,
         private textExtractorService: TextExtractorService,
-        private openaiService: OpenaiService,
-        private processedSourceService: ProcessedSourceService
+        private openaiService: OpenaiService
     ) {}
 
     async create(

@@ -1,11 +1,11 @@
 import * as mongoose from 'mongoose';
-import { ExerciseModel } from 'src/db/schemas/exercise.model';
+import { ExerciseModel } from 'src/db/models/exercise.model';
 import { ExerciseSetDocument } from 'src/exercise-set/types/exercise-set-document.interface';
 
 const schema = new mongoose.Schema(
     {
         userId: { type: mongoose.Schema.Types.ObjectId },
-        sourceType: { type: String, enum: ['source', 'processedSource', 'independent'], required: true },
+        sourceType: { type: String, enum: ['source', 'independent'], required: true },
         sourceId: { type: mongoose.Schema.Types.ObjectId },
         title: { type: String },
         type: {

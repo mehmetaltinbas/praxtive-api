@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import { GenerateAbstractiveSummaryDto } from 'src/openai/types/dto/generate-abstractive-summary.dto';
 import { EvaluateExerciseAnswerResponse } from 'src/openai/types/response/evaluate-exercise-answer.response';
 import { ExerciseDocument } from '../exercise/types/exercise-document.interface';
 import { GenerateExercisesResponse, OpenaiCompletionResponse } from './types/openai-responses';
@@ -21,6 +20,7 @@ export class OpenaiService {
 
     async test(): Promise<OpenaiCompletionResponse> {
         const prompt = `Give flight status for TK123.`;
+
         const schema = {
             name: 'flight_status',
             schema: {
@@ -37,6 +37,7 @@ export class OpenaiService {
                 additionalProperties: false,
             },
         };
+
         const response = await this.openaiClient.responses.create({
             model: this.model,
             input: [
@@ -53,66 +54,15 @@ export class OpenaiService {
                 format: { type: 'json_schema', name: 'schema', schema },
             },
         });
+
         const result = response as object;
+
         console.log(result);
+
         return {
             isSuccess: true,
             message: 'success',
             completion: JSON.stringify(result),
-        };
-    }
-
-    async generateAbstractiveSummary(
-        generateAbstractiveSummaryDto: GenerateAbstractiveSummaryDto
-    ): Promise<OpenaiCompletionResponse> {
-        const prompt = `You are a professional document analyst. Please process the following document:
-                "${generateAbstractiveSummaryDto.text}"
-                Your task:
-                - Rearrange the content for smoother readability and logical flow. Feel free to reorder sections if needed.
-                - Remove redundancies but keep all key details.
-                - Include all sections and supplementary topics.
-                - Add brief clarifications, examples, or context where it helps understanding.
-                - Simplify complex concepts without losing important details.
-                - Use a clear, professional tone appropriate for the audience.
-                - Maintain factual accuracy and the original intent; do not add unrelated ideas.
-                Custom behavior:
-                - Tone: ${generateAbstractiveSummaryDto.tone}
-                - Style: ${generateAbstractiveSummaryDto.style}
-                - Perspective: ${generateAbstractiveSummaryDto.perspective}
-                - Comprehensiveness: ${generateAbstractiveSummaryDto.comprehensionLevel}
-                - Length: ${generateAbstractiveSummaryDto.length}
-                Output format:
-                interface DocumentNode { content: BlockNode[] }
-                interface BlockNode { content: InlineNode[] }
-                interface InlineNode { text: string; styles: Styles }
-                interface Styles { 
-                    fontSize: number; // in pt
-                    bold: boolean; 
-                    italic: boolean 
-                }
-                const example: DocumentNode = { // example json
-                    content: [
-                        { content: [ { text: "beginning of the document", styles: { fontSize: 16; bold: true; italic: false } }, ]},
-                        { content: [ { text: " ", styles: { fontSize: 25; bold: true; italic: false } }, ]}, // for empty lines and spacing between lines you can use a block node like this
-                        { content: [ { text: "keep going", styles: { fontSize: 11; bold: false; italic: true } }, { text: "just dont give up man", styles: { fontSize: 10; bold: false; italic: false } } ]},
-                    ],
-                };
-                
-                Return only valid JSON in SERIALIZED FORM. Do not include extra text or formatting. DO NOT INCLUDE 'json' in the beginning of json, just return the JSON in SERIALIZED FORM that is it!!!!!!`;
-        const completion = await this.openaiClient.chat.completions.create({
-            model: this.model,
-            messages: [
-                { role: 'developer', content: 'you are an document analyst' },
-                {
-                    role: 'user',
-                    content: prompt,
-                },
-            ],
-        });
-        return {
-            isSuccess: true,
-            message: 'completion is done',
-            completion: completion.choices[0].message.content!,
         };
     }
 

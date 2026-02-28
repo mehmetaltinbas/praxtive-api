@@ -13,8 +13,6 @@ import {
 import { ExerciseService } from '../exercise/exercise.service';
 import { CreateExerciseDto } from '../exercise/types/dto/create-exercise.dto';
 import { OpenaiService } from '../openai/openai.service';
-import { ProcessedSourceService } from '../processed-source/processed-source.service';
-import { ExtendedProcessedSourceDocument } from '../processed-source/types/extended-processed-source-document.interface';
 import ResponseBase from '../shared/interfaces/response-base.interface';
 import { SourceService } from '../source/source.service';
 import { ExtendedSourceDocument } from '../source/types/extended-source-document.interface';
@@ -31,7 +29,6 @@ export class ExerciseSetService {
         @Inject(forwardRef(() => ExerciseService)) private exerciseService: ExerciseService,
         private openaiService: OpenaiService,
         private sourceService: SourceService,
-        private processedSourceService: ProcessedSourceService,
         private exerciseSetTypeStrategyResolverProvider: ExerciseSetTypeStrategyResolverProvider,
         private exerciseSetReadAllFilterCompositeProvider: ExerciseSetReadAllFilterCompositeProvider
     ) {}
@@ -50,16 +47,10 @@ export class ExerciseSetService {
                 sourceText = readSingleSourceResponse.source.rawText;
                 sourceType = ExerciseSetSourceType.SOURCE;
             } else {
-                const readSingleProcessedSourceResponse = await this.processedSourceService.readById(sourceId);
-                if (readSingleProcessedSourceResponse.isSuccess && readSingleProcessedSourceResponse.processedSource) {
-                    sourceText = readSingleProcessedSourceResponse.processedSource.processedText;
-                    sourceType = ExerciseSetSourceType.PROCESSED_SOURCE;
-                } else {
-                    return {
-                        isSuccess: false,
-                        message: 'no source or processed-source found by given id',
-                    };
-                }
+                return {
+                    isSuccess: false,
+                    message: 'no source found by given id',
+                };
             }
         } else {
             sourceType = ExerciseSetSourceType.INDEPENDENT;
@@ -67,8 +58,7 @@ export class ExerciseSetService {
 
         let message = '';
         switch (sourceType) {
-            case ExerciseSetSourceType.SOURCE:
-            case ExerciseSetSourceType.PROCESSED_SOURCE: {
+            case ExerciseSetSourceType.SOURCE: {
                 const generateExercisesResponse = await this.openaiService.generateExercises(
                     sourceText as string,
                     createExerciseSetDto.type,
@@ -141,17 +131,6 @@ export class ExerciseSetService {
             response.sources.length !== 0
         ) {
             const sourceIds = response.sources.map((s) => s._id);
-
-            const processedSourcesResponses = await Promise.all(
-                response.sources.map((source) => this.processedSourceService.readAllBySourceId(source._id))
-            );
-
-            for (const res of processedSourcesResponses) {
-                if (res.processedSources) {
-                    sourceIds.push(...res.processedSources.map((ps) => ps._id));
-                }
-            }
-
             filter.sourceId = { $in: sourceIds };
         }
 
@@ -182,33 +161,11 @@ export class ExerciseSetService {
             const exerciseSetsOfSource = await this.db.ExerciseSet.find({
                 sourceId: source._id,
             });
-            const response = await this.processedSourceService.readAllBySourceId(source._id);
-            if (response.processedSources && response.processedSources.length !== 0) {
-                const processedSources = [];
-                for (const processedSource of response.processedSources) {
-                    const exerciseSetsOfProcessedSource = await this.db.ExerciseSet.find({
-                        sourceId: processedSource._id,
-                    });
-                    const extendedProcessedSource: ExtendedProcessedSourceDocument = {
-                        ...(processedSource.toObject() as Omit<ExtendedProcessedSourceDocument, 'exerciseSets'>),
-                        exerciseSets: exerciseSetsOfProcessedSource,
-                    };
-                    processedSources.push(extendedProcessedSource);
-                }
-                const extendedSource: ExtendedSourceDocument = {
-                    ...(source.toObject() as Omit<ExtendedSourceDocument, 'exerciseSets'>),
-                    exerciseSets: exerciseSetsOfSource,
-                    processedSources: processedSources,
-                };
-                sources.push(extendedSource);
-            } else {
-                const extendedSource: ExtendedSourceDocument = {
-                    ...(source.toObject() as Omit<ExtendedSourceDocument, 'exerciseSets'>),
-                    exerciseSets: exerciseSetsOfSource,
-                    processedSources: [],
-                };
-                sources.push(extendedSource);
-            }
+            const extendedSource: ExtendedSourceDocument = {
+                ...(source.toObject() as Omit<ExtendedSourceDocument, 'exerciseSets'>),
+                exerciseSets: exerciseSetsOfSource,
+            };
+            sources.push(extendedSource);
         }
 
         return { isSuccess: true, message: 'All exercise sets read', sources };

@@ -43,7 +43,7 @@ export class ExerciseController {
     }
 
     @Get('read-all-by-exercise-set-id/:exerciseSetId')
-    async readAllByProcessedSourceId(
+    async readAllByExerciseSetId(
         @Param('exerciseSetId') exerciseSetId: string
     ): Promise<ReadAllExercisesResponse> {
         const response = await this.exerciseService.readAllByExerciseSetId(exerciseSetId);

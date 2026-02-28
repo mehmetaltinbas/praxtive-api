@@ -7,7 +7,6 @@ import ResponseBase from '../shared/interfaces/response-base.interface';
 import { CreateExerciseDto } from './types/dto/create-exercise.dto';
 import { OpenaiService } from '../openai/openai.service';
 import { SourceService } from '../source/source.service';
-import { ProcessedSourceService } from '../processed-source/processed-source.service';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 
 @Injectable()
@@ -16,7 +15,6 @@ export class ExerciseService {
         @Inject('DB_MODELS') private db: Record<'Exercise', Model<ExerciseDocument>>,
         private openaiService: OpenaiService,
         private sourceService: SourceService,
-        private processedSourceService: ProcessedSourceService,
         @Inject(forwardRef(() => ExerciseSetService))
         private exerciseSetService: ExerciseSetService
     ) {}
