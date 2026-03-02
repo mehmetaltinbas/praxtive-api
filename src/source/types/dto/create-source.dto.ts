@@ -1,9 +1,11 @@
-import { IsNotEmpty, IsOptional } from 'class-validator';
+import { IsEnum, IsNotEmpty } from 'class-validator';
+import { SourceType } from 'src/source/enums/source-type.enum';
 
 export class CreateSourceDto {
-    @IsOptional()
+    @IsEnum(SourceType)
+    @IsNotEmpty()
     readonly type!: string;
 
-    @IsOptional()
+    @IsNotEmpty()
     readonly title!: string;
 }

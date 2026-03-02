@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { ExerciseDocument } from './types/exercise-document.interface';
 import { Model } from 'mongoose';
 import { ReadAllExercisesResponse } from './types/response/read-all-exercises.response';
@@ -22,11 +22,7 @@ export class ExerciseService {
     ) {}
 
     async create(exerciseSetId: string, dto: CreateExerciseDto): Promise<ResponseBase> {
-        const associatedExerciseSet = (await this.exerciseSetService.readById(exerciseSetId)).exerciseSet;
-
-        if (!associatedExerciseSet) {
-            return { isSuccess: false, message: 'no associated exercise set found' };
-        }
+        const { exerciseSet: associatedExerciseSet } = await this.exerciseSetService.readById(exerciseSetId);
 
         let createdExercise: ExerciseDocument | undefined = undefined;
 
@@ -58,32 +54,18 @@ export class ExerciseService {
         }
 
         if (!createdExercise) {
-            return { isSuccess: false, message: "exercise couldn't created" };
+            throw new InternalServerErrorException("exercise couldn't be created");
         }
 
         if (dto.type === associatedExerciseSet.type) {
-            const exerciseSetUpdateResponse = await this.exerciseSetService.updateById(associatedExerciseSet._id, {
+            await this.exerciseSetService.updateById(associatedExerciseSet._id, {
                 count: associatedExerciseSet.count + 1,
             });
-
-            if (!exerciseSetUpdateResponse.isSuccess) {
-                return {
-                    isSuccess: false,
-                    message: `exercise created but exercise count of exercise set couldn't updated, the update response message: ${exerciseSetUpdateResponse.message}`,
-                };
-            }
         } else if (dto.type !== associatedExerciseSet.type) {
-            const exerciseSetUpdateResponse = await this.exerciseSetService.updateById(associatedExerciseSet._id, {
+            await this.exerciseSetService.updateById(associatedExerciseSet._id, {
                 type: ExerciseSetType.MIX,
                 count: associatedExerciseSet.count + 1,
             });
-
-            if (!exerciseSetUpdateResponse.isSuccess) {
-                return {
-                    isSuccess: false,
-                    message: `exercise created but exercise count of exercise set couldn't updated, the update response message: ${exerciseSetUpdateResponse.message}`,
-                };
-            }
         }
 
         return { isSuccess: true, message: 'exercise created' };
@@ -93,7 +75,7 @@ export class ExerciseService {
         const exercises = await this.db.Exercise.find();
 
         if (exercises.length === 0) {
-            return { isSuccess: false, message: 'no exercise found' };
+            throw new NotFoundException('no exercises found');
         }
 
         return { isSuccess: true, message: 'all exercises read', exercises };
@@ -103,7 +85,7 @@ export class ExerciseService {
         const exercise = await this.db.Exercise.findById(id);
 
         if (!exercise) {
-            return { isSuccess: false, message: 'no exercise found' };
+            throw new NotFoundException(`no exercise found by id: ${id}`);
         }
 
         return { isSuccess: true, message: `exercise read by id: ${id}`, exercise };
@@ -113,10 +95,7 @@ export class ExerciseService {
         const exercises = await this.db.Exercise.find({ exerciseSetId });
 
         if (!exercises || exercises.length === 0) {
-            return {
-                isSuccess: false,
-                message: `no exercise found that has exerciseSetId: ${exerciseSetId}`,
-            };
+            throw new NotFoundException(`no exercises found for exerciseSetId: ${exerciseSetId}`);
         }
 
         return {
@@ -131,35 +110,18 @@ export class ExerciseService {
     // }
 
     async deleteById(id: string): Promise<ResponseBase> {
-        const exercise = (await this.readById(id)).exercise;
-
-        if (!exercise) {
-            return { isSuccess: false, message: 'no exercise found assoicated with given id' };
-        }
-
-        const associatedExerciseSet = (await this.exerciseSetService.readById(exercise.exerciseSetId)).exerciseSet;
-
-        if (!associatedExerciseSet) {
-            return { isSuccess: false, message: 'no assoicated exercise set found' };
-        }
+        const { exercise } = await this.readById(id);
+        const { exerciseSet: associatedExerciseSet } = await this.exerciseSetService.readById(exercise.exerciseSetId);
 
         const deletedExercise = await this.db.Exercise.findByIdAndDelete(id);
 
         if (!deletedExercise) {
-            return { isSuccess: false, message: 'no exercise found to delete' };
+            throw new NotFoundException('no exercise found to delete');
         }
 
-        const exerciseSetUpdateResponse = await this.exerciseSetService.updateById(associatedExerciseSet._id, {
+        await this.exerciseSetService.updateById(associatedExerciseSet._id, {
             count: associatedExerciseSet.count - 1,
         });
-
-        if (!exerciseSetUpdateResponse.isSuccess) {
-            return {
-                isSuccess: false,
-                message: `exercise deleted but exercise count of associated exercise set couldn't updated,
-                the update response message: ${exerciseSetUpdateResponse.message}`,
-            };
-        }
 
         return { isSuccess: true, message: `exercise deleted by id: ${id}` };
     }

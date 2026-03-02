@@ -2,5 +2,5 @@ import { ExerciseSetTypeStrategy } from 'src/exercise-set/types/strategy/exercis
 import ResponseBase from 'src/shared/interfaces/response-base.interface';
 
 export interface ResolveTypeStrategyProviderResponse extends ResponseBase {
-    strategy?: ExerciseSetTypeStrategy;
+    strategy: ExerciseSetTypeStrategy;
 }

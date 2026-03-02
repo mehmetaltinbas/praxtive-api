@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcrypt';
 import mongoose, { Model } from 'mongoose';
@@ -37,7 +37,7 @@ export class UserService {
         const user = await this.db.User.findById(id).exec();
 
         if (!user) {
-            return { isSuccess: false, message: `user with id ${id} couldn't read` };
+            throw new NotFoundException(`user with id ${id} not found`);
         }
 
         return { isSuccess: true, message: `user with id ${id} read`, user };
@@ -47,10 +47,7 @@ export class UserService {
         const user = await this.db.User.findOne({ userName });
 
         if (!user) {
-            return {
-                isSuccess: false,
-                message: `user couldn't read with userName: ${userName}`,
-            };
+            throw new NotFoundException(`user not found with userName: ${userName}`);
         }
 
         return { isSuccess: true, message: `user read with userName: ${userName}`, user };
@@ -61,7 +58,6 @@ export class UserService {
         updateUserDto: UpdateUserDto,
         session?: mongoose.mongo.ClientSession
     ): Promise<ResponseBase> {
-        // console.log(updateUserDto);
         const { password, ...restOfUpdateUserDto } = updateUserDto;
         const updateData: Partial<UserDocument> = { ...restOfUpdateUserDto };
 
@@ -72,7 +68,7 @@ export class UserService {
         const user = await this.db.User.findByIdAndUpdate(id, updateData, { session });
 
         if (!user) {
-            return { isSuccess: false, message: "user couldn't updated" };
+            throw new NotFoundException('user not found');
         }
 
         return { isSuccess: true, message: 'user updated' };
@@ -82,7 +78,7 @@ export class UserService {
         const user = await this.db.User.findByIdAndDelete(id);
 
         if (!user) {
-            return { isSuccess: false, message: "user couldn't deleted" };
+            throw new NotFoundException('user not found');
         }
 
         return { isSuccess: true, message: 'user deleted' };

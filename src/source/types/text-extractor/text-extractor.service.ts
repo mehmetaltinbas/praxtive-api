@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { DocxTextExtractor } from './docx-text-extractor.provider';
 import { PdfTextExtractor } from './pdf-text-extractor.provider';
 import { TextExtractor } from './types/text-extractor.interface';
@@ -21,7 +21,7 @@ export class TextExtractorService {
         const strategyInstance = this.extractorMap.get(mimetype);
 
         if (!strategyInstance) {
-            throw new Error(`No strategy for mimetype: ${mimetype}`);
+            throw new BadRequestException(`Unsupported file type: ${mimetype}`);
         }
 
         return strategyInstance;

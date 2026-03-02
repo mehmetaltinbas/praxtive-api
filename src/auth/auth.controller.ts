@@ -1,22 +1,20 @@
 import {
     Body as BodyDecorator,
     Controller,
-    Req,
-    Post,
     Get,
-    Patch,
-    Delete,
-    UseGuards,
     HttpCode,
+    InternalServerErrorException,
+    Post,
+    Req,
     Res,
+    UseGuards,
 } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { SignInDto } from './types/auth-dtos';
-import { SignInResponse } from './types/auth-responses';
+import { ConfigService } from '@nestjs/config';
+import { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import ResponseBase from '../shared/interfaces/response-base.interface';
 import { AuthGuard } from './auth.guard';
-import { Request as ExpressRequest, Response as ExpressResponse } from 'express';
-import { ConfigService } from '@nestjs/config';
+import { AuthService } from './auth.service';
+import { SignInDto } from './types/auth-dtos';
 
 @Controller('auth')
 export class AuthController {
@@ -33,25 +31,18 @@ export class AuthController {
     ): Promise<ExpressResponse<any, Record<string, any>>> {
         const response = await this.authService.signInAsync(signInDto);
 
-        if (!response.isSuccess) {
-            return res.json({ isSuccess: response.isSuccess, message: response.message });
-        }
-
         const jwtCookieName = this.configService.get<string>('JWT_COOKIE_NAME');
 
-        if (jwtCookieName) {
-            res.cookie(jwtCookieName, response.jwt, {
-                httpOnly: true,
-                maxAge: 3600000,
-                // secure: true,
-                sameSite: 'lax',
-            });
-        } else if (!jwtCookieName) {
-            return res.json({
-                isSuccess: false,
-                message: 'no jwt cookie name provided as env variable',
-            });
+        if (!jwtCookieName) {
+            throw new InternalServerErrorException('no jwt cookie name provided as env variable');
         }
+
+        res.cookie(jwtCookieName, response.jwt, {
+            httpOnly: true,
+            maxAge: 3600000,
+            // secure: true,
+            sameSite: 'lax',
+        });
 
         return res.json({ isSuccess: response.isSuccess, message: response.message });
     }

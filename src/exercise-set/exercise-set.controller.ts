@@ -19,11 +19,8 @@ export class ExerciseSetController {
     constructor(private exerciseSetService: ExerciseSetService) {}
 
     @Post('create')
-    async createIndependent(
-        @User() user: JwtPayload,
-        @Body() createExerciseSetDto: CreateExerciseSetDto
-    ): Promise<ResponseBase> {
-        const response = await this.exerciseSetService.create(user.sub, undefined, createExerciseSetDto);
+    async createIndependent(@User() user: JwtPayload, @Body() dto: CreateExerciseSetDto): Promise<ResponseBase> {
+        const response = await this.exerciseSetService.create(user.sub, undefined, dto);
 
         return response;
     }

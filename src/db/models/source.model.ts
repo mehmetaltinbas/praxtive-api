@@ -1,12 +1,13 @@
 import * as mongoose from 'mongoose';
 import { ExerciseSetModel } from 'src/db/models/exercise-set.model';
+import { SourceType } from 'src/source/enums/source-type.enum';
 import { SourceDocument } from 'src/source/types/source-document.interface';
 
 const schema = new mongoose.Schema(
     {
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-        type: { type: String, enum: ['text', 'document', 'youtubeUrl'], required: true },
-        title: String,
+        type: { type: String, enum: Object.values(SourceType), required: true },
+        title: { type: String, required: true },
         rawText: String,
     },
     { timestamps: true }

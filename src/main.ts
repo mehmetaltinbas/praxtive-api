@@ -1,19 +1,26 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ValidationPipe } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
+import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './shared/filters/all-exceptions.filter';
 
 async function bootstrap(): Promise<void> {
     const app = await NestFactory.create(AppModule);
     const configService = app.get(ConfigService);
     const port = configService.get<number>('PORT') || 4001;
 
+    app.useGlobalFilters(new AllExceptionsFilter());
     app.useGlobalPipes(
         new ValidationPipe({
             transform: true,
             whitelist: true,
-            // forbidNonWhitelisted: true,
+            forbidNonWhitelisted: true,
+            exceptionFactory: (errors): BadRequestException => {
+                const message = errors.flatMap((err) => Object.values(err.constraints ?? {})).join(', ');
+
+                return new BadRequestException(message);
+            },
         })
     );
     app.use(cookieParser());

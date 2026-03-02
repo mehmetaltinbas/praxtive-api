@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import mongoose, { Model } from 'mongoose';
 import { BillingService } from 'src/billing/billing.service';
@@ -43,23 +43,26 @@ export class SubscriptionService {
         ]);
         const userIds = aggregationBuckets.map((aggregationBucket: { _id: string }) => aggregationBucket._id);
 
-        const downgrades = userIds.map((userId) => this.processDowngrades(userId));
-        const downgradeResponses = await Promise.all(downgrades);
-
-        downgradeResponses.forEach(
-            (downgradeResponse) => !downgradeResponse.isSuccess && console.log(downgradeResponse.message)
-        );
+        for (const userId of userIds) {
+            try {
+                await this.processDowngrades(userId);
+            } catch (error) {
+                console.error(`downgrade processing failed for userId: ${userId}`, error);
+            }
+        }
 
         const renewalSubs = await this.db.Subscription.find({
             nextBillingDate: { $lte: new Date() },
             status: SubscriptionStatus.ACTIVE,
         });
-        const renewals = renewalSubs.map((sub) => this.processMonthlyRenewal(sub.user._id));
-        const renewalResponses = await Promise.all(renewals);
 
-        renewalResponses.forEach(
-            (renewalResponse) => !renewalResponse.isSuccess && console.log(renewalResponse.message)
-        );
+        for (const sub of renewalSubs) {
+            try {
+                await this.processMonthlyRenewal(sub.user._id);
+            } catch (error) {
+                console.error(`renewal processing failed for userId: ${sub.user._id}`, error);
+            }
+        }
     }
 
     // MAIN Service methods ↓
@@ -69,9 +72,7 @@ export class SubscriptionService {
     }
 
     async upgrade(userId: string, upgradeSubscriptionDto: UpgradeSubscriptionDto): Promise<ResponseBase> {
-        const readNewPlanResponse = await this.planService.readByName(upgradeSubscriptionDto.newPlanName);
-
-        if (!readNewPlanResponse.isSuccess || !readNewPlanResponse.plan) return readNewPlanResponse;
+        const { plan: newPlan } = await this.planService.readByName(upgradeSubscriptionDto.newPlanName);
 
         const pendingActivateSub = await this.db.Subscription.findOne({
             user: userId,
@@ -84,13 +85,7 @@ export class SubscriptionService {
 
         try {
             if (pendingActivateSub) {
-                const cancelDowngradeResponse = await this.cancelDowngradeWithSession(userId, session);
-
-                if (!cancelDowngradeResponse.isSuccess) {
-                    await session.abortTransaction();
-
-                    return cancelDowngradeResponse;
-                }
+                await this.cancelDowngradeWithSession(userId, session);
             }
 
             const activeSubscription = await this.db.Subscription.findOne({
@@ -102,17 +97,10 @@ export class SubscriptionService {
                 .session(session);
 
             if (!activeSubscription) {
-                await session.abortTransaction();
-
-                return { isSuccess: false, message: 'no active sub found' };
+                throw new NotFoundException('no active subscription found');
             }
 
-            const higherPlanVerificationResponse = await this.planService.validateIsHigher(
-                activeSubscription.plan.name,
-                readNewPlanResponse.plan.name
-            );
-
-            if (!higherPlanVerificationResponse.isSuccess) return higherPlanVerificationResponse;
+            await this.planService.validateIsHigher(activeSubscription.plan.name, newPlan.name);
 
             const updatedSub = await this.db.Subscription.findOneAndUpdate(
                 {
@@ -127,19 +115,17 @@ export class SubscriptionService {
             );
 
             if (!updatedSub) {
-                await session.abortTransaction();
-
-                return { isSuccess: false, message: "current sub couldn't updated to end it" };
+                throw new InternalServerErrorException("current subscription couldn't be updated to end it");
             }
 
             const nextBillingDate = new Date();
 
             nextBillingDate.setMonth(new Date().getMonth() + 1);
             activeSubscription.nextBillingDate = nextBillingDate;
-            const subCreateResponse = await this.create(
+            await this.create(
                 userId,
                 {
-                    planName: readNewPlanResponse.plan.name,
+                    planName: newPlan.name,
                     nextBillingDate: nextBillingDate,
                     status: SubscriptionStatus.ACTIVE,
                     startedAt: new Date(),
@@ -147,17 +133,12 @@ export class SubscriptionService {
                 session
             );
 
-            if (!subCreateResponse.isSuccess) {
-                await session.abortTransaction();
-
-                return subCreateResponse;
-            }
-
             const creditsToGrant = Math.min(
-                readNewPlanResponse.plan.monthlyCredits,
-                readNewPlanResponse.plan.maximumCredits - activeSubscription.user.creditBalance
+                newPlan.monthlyCredits,
+                newPlan.maximumCredits - activeSubscription.user.creditBalance
             );
-            const updateUserResponse = await this.userService.updateById(
+
+            await this.userService.updateById(
                 userId,
                 {
                     creditBalance: activeSubscription.user.creditBalance + creditsToGrant,
@@ -165,13 +146,7 @@ export class SubscriptionService {
                 session
             );
 
-            if (!updateUserResponse.isSuccess) {
-                await session.abortTransaction();
-
-                return updateUserResponse;
-            }
-
-            const createCreditTransactionResponse = await this.creditTransactionService.create(
+            await this.creditTransactionService.create(
                 userId,
                 {
                     type: CreditTransactionType.PLAN_UPGRADE,
@@ -180,19 +155,11 @@ export class SubscriptionService {
                 session
             );
 
-            if (!createCreditTransactionResponse.isSuccess) {
-                await session.abortTransaction();
-
-                return createCreditTransactionResponse;
-            }
-
-            const calculateProrationResponse = this.billingService.calculateProrationOnUpgrade(
+            this.billingService.calculateProrationOnUpgrade(
                 activeSubscription.nextBillingDate,
                 activeSubscription.plan.monthlyPrice,
-                readNewPlanResponse.plan.monthlyPrice
+                newPlan.monthlyPrice
             );
-
-            if (!calculateProrationResponse.isSuccess) return calculateProrationResponse;
             // payment processing or anywhere else basically,
 
             await session.commitTransaction();
@@ -201,10 +168,7 @@ export class SubscriptionService {
         } catch (error) {
             await session.abortTransaction();
 
-            return {
-                isSuccess: false,
-                message: `internal server error, ${JSON.stringify(error, null, 2)}`,
-            };
+            throw error;
         } finally {
             await session.endSession();
         }
@@ -224,55 +188,35 @@ export class SubscriptionService {
             .populate('plan');
 
         if (!activeSubscription) {
-            return { isSuccess: false, message: "user doesn't have an active subscription" };
+            throw new NotFoundException("user doesn't have an active subscription");
         }
 
-        const readNewPlanResponse = await this.planService.readByName(downgradeSubscriptionDto.newPlanName);
+        const { plan: newPlan } = await this.planService.readByName(downgradeSubscriptionDto.newPlanName);
 
-        if (!readNewPlanResponse.isSuccess || !readNewPlanResponse.plan) {
-            return readNewPlanResponse;
-        }
-
-        const validateLowerPlanResponse = await this.planService.validateIsLower(
-            activeSubscription.plan.name,
-            readNewPlanResponse.plan.name
-        );
-
-        if (!validateLowerPlanResponse) return validateLowerPlanResponse;
+        await this.planService.validateIsLower(activeSubscription.plan.name, newPlan.name);
 
         const session = await mongoose.startSession();
 
         session.startTransaction();
 
         try {
-            const cancelActiveSubResponse = await this.cancelActiveSubscription(userId, session);
+            await this.cancelActiveSubscription(userId, session);
 
-            if (!cancelActiveSubResponse.isSuccess) {
-                return cancelActiveSubResponse;
-            }
-
-            const createNewSubResponse = await this.create(
+            await this.create(
                 userId,
                 {
-                    planName: readNewPlanResponse.plan.name,
+                    planName: newPlan.name,
                     nextBillingDate: activeSubscription.nextBillingDate,
                     status: SubscriptionStatus.PENDING_ACTIVATE,
                 },
                 session
             );
 
-            if (!createNewSubResponse.isSuccess) {
-                return createNewSubResponse;
-            }
-
             await session.commitTransaction();
         } catch (error) {
             await session.abortTransaction();
 
-            return {
-                isSuccess: false,
-                message: `internal server error: ${JSON.stringify(error, null, 2)}`,
-            };
+            throw error;
         } finally {
             await session.endSession();
         }
@@ -292,31 +236,18 @@ export class SubscriptionService {
             .populate('plan');
 
         if (!activeSubscription) {
-            return { isSuccess: false, message: "user doesn't have an active subscription" };
+            throw new NotFoundException("user doesn't have an active subscription");
         }
 
-        const readNewPlanResponse = await this.planService.readByName(upgradeSubscriptionDto.newPlanName);
+        const { plan: newPlan } = await this.planService.readByName(upgradeSubscriptionDto.newPlanName);
 
-        if (!readNewPlanResponse.isSuccess || !readNewPlanResponse.plan) {
-            return readNewPlanResponse;
-        }
-
-        const higherPlanVerificationResponse = await this.planService.validateIsHigher(
-            activeSubscription.plan.name,
-            readNewPlanResponse.plan.name
-        );
-
-        if (!higherPlanVerificationResponse.isSuccess) {
-            return higherPlanVerificationResponse;
-        }
+        await this.planService.validateIsHigher(activeSubscription.plan.name, newPlan.name);
 
         const calculateProrationResponse = this.billingService.calculateProrationOnUpgrade(
             activeSubscription.nextBillingDate,
             activeSubscription.plan.monthlyPrice,
-            readNewPlanResponse.plan.monthlyPrice
+            newPlan.monthlyPrice
         );
-
-        if (!calculateProrationResponse.isSuccess) return calculateProrationResponse;
 
         return {
             isSuccess: true,
@@ -331,19 +262,13 @@ export class SubscriptionService {
         session.startTransaction();
 
         try {
-            const response = await this.cancelDowngradeWithSession(userId, session);
-
-            if (!response.isSuccess) {
-                await session.abortTransaction();
-
-                return response;
-            }
+            await this.cancelDowngradeWithSession(userId, session);
 
             await session.commitTransaction();
         } catch (error) {
             await session.abortTransaction();
 
-            return { isSuccess: false, message: 'canceling downgrade unsucessfull' };
+            throw error;
         } finally {
             await session.endSession();
         }
@@ -359,62 +284,33 @@ export class SubscriptionService {
             status: SubscriptionStatus.CANCELED,
         });
 
-        if (!canceledSub)
-            return {
-                isSuccess: false,
-                message: `canceledSub not found for userId: ${userId}`,
-            };
+        if (!canceledSub) {
+            throw new NotFoundException(`canceledSub not found for userId: ${userId}`);
+        }
+
         const pendingActivateSub = await this.db.Subscription.findOne({
             user: userId,
             status: SubscriptionStatus.PENDING_ACTIVATE,
         });
 
-        if (!pendingActivateSub)
-            return {
-                isSuccess: false,
-                message: `pendingActivateSub not found for userId: ${userId}`,
-            };
+        if (!pendingActivateSub) {
+            throw new NotFoundException(`pendingActivateSub not found for userId: ${userId}`);
+        }
 
         const session = await mongoose.startSession();
 
         session.startTransaction();
 
         try {
-            const expirationResponse = await this.expire(canceledSub, session);
-
-            if (!expirationResponse.isSuccess) {
-                await session.abortTransaction();
-
-                return expirationResponse;
-            }
-
-            const activationResponse = await this.activate(pendingActivateSub, session);
-
-            if (!activationResponse) {
-                await session.abortTransaction();
-
-                return activationResponse;
-            }
-
-            const grantMonthlyCreditsUponActiveSubResponse = await this.grantMonthlyCreditsUponActiveSub(
-                userId,
-                session
-            );
-
-            if (!grantMonthlyCreditsUponActiveSubResponse.isSuccess) {
-                await session.abortTransaction();
-
-                return grantMonthlyCreditsUponActiveSubResponse;
-            }
+            await this.expire(canceledSub, session);
+            await this.activate(pendingActivateSub, session);
+            await this.grantMonthlyCreditsUponActiveSub(userId, session);
 
             await session.commitTransaction();
         } catch (error) {
             await session.abortTransaction();
 
-            return {
-                isSuccess: false,
-                message: `downgrade processing unsuccessfull for userId: ${userId}`,
-            };
+            throw error;
         } finally {
             await session.endSession();
         }
@@ -428,25 +324,13 @@ export class SubscriptionService {
         session.startTransaction();
 
         try {
-            const grantMonthlyCreditsUponActiveSubResponse = await this.grantMonthlyCreditsUponActiveSub(
-                userId,
-                session
-            );
-
-            if (!grantMonthlyCreditsUponActiveSubResponse.isSuccess) {
-                await session.abortTransaction();
-
-                return grantMonthlyCreditsUponActiveSubResponse;
-            }
+            await this.grantMonthlyCreditsUponActiveSub(userId, session);
 
             await session.commitTransaction();
         } catch (error) {
             await session.abortTransaction();
 
-            return {
-                isSuccess: false,
-                message: `renewing processing unsuccessfull for userId: ${userId}`,
-            };
+            throw error;
         } finally {
             await session.endSession();
         }
@@ -462,17 +346,13 @@ export class SubscriptionService {
         createSubscriptionDto: CreateSubscriptionDto,
         session?: mongoose.mongo.ClientSession
     ): Promise<ResponseBase> {
-        const readSinglePlanResponse = await this.planService.readByName(createSubscriptionDto.planName);
-
-        if (!readSinglePlanResponse.isSuccess || !readSinglePlanResponse.plan) {
-            return readSinglePlanResponse;
-        }
+        const { plan } = await this.planService.readByName(createSubscriptionDto.planName);
 
         const [subscription] = await this.db.Subscription.create(
             [
                 {
                     user: userId,
-                    plan: readSinglePlanResponse.plan._id,
+                    plan: plan._id,
                     nextBillingDate: createSubscriptionDto.nextBillingDate,
                     status: createSubscriptionDto.status,
                 },
@@ -481,7 +361,7 @@ export class SubscriptionService {
         );
 
         if (!subscription) {
-            return { isSuccess: false, message: "subscription couldn't created" };
+            throw new InternalServerErrorException("subscription couldn't be created");
         }
 
         return { isSuccess: true, message: 'subscription created' };
@@ -500,10 +380,7 @@ export class SubscriptionService {
             .session(session ?? null);
 
         if (!activeSub) {
-            return {
-                isSuccess: false,
-                message: "user doesn't have an active subscription",
-            };
+            throw new NotFoundException("user doesn't have an active subscription");
         }
 
         const creditsToGrant = Math.min(
@@ -514,13 +391,9 @@ export class SubscriptionService {
             creditBalance: activeSub.user.creditBalance + creditsToGrant,
         };
 
-        const updateUserResponse = await this.userService.updateById(userId, updateUserDto, session);
+        await this.userService.updateById(userId, updateUserDto, session);
 
-        if (!updateUserResponse.isSuccess) {
-            return updateUserResponse;
-        }
-
-        const createCreditTransactionResponse = await this.creditTransactionService.create(
+        await this.creditTransactionService.create(
             userId,
             {
                 type: CreditTransactionType.MONTHLY,
@@ -528,10 +401,6 @@ export class SubscriptionService {
             },
             session
         );
-
-        if (!createCreditTransactionResponse.isSuccess) {
-            return createCreditTransactionResponse;
-        }
 
         const nextBillingDate = new Date();
 
@@ -551,7 +420,7 @@ export class SubscriptionService {
         );
 
         if (!updatedSubscription) {
-            return { isSuccess: false, message: 'subscription update failure' };
+            throw new InternalServerErrorException('subscription update failure');
         }
 
         return { isSuccess: true, message: 'monthly credits granted' };
@@ -567,7 +436,7 @@ export class SubscriptionService {
         }).session(session || null);
 
         if (!activeSubscription) {
-            return { isSuccess: false, message: 'no subscription found to cancel' };
+            throw new NotFoundException('no subscription found to cancel');
         }
 
         activeSubscription.status = SubscriptionStatus.CANCELED;
@@ -609,13 +478,13 @@ export class SubscriptionService {
             status: SubscriptionStatus.CANCELED,
         });
 
-        if (!canceledSub) return { isSuccess: false, message: 'canceled sub not found' };
+        if (!canceledSub) throw new NotFoundException('canceled subscription not found');
         const pendingActivateSub = await this.db.Subscription.findOne({
             user: userId,
             status: SubscriptionStatus.PENDING_ACTIVATE,
         });
 
-        if (!pendingActivateSub) return { isSuccess: false, message: 'pendingActivateSub not found' };
+        if (!pendingActivateSub) throw new NotFoundException('pending activate subscription not found');
 
         canceledSub.status = SubscriptionStatus.ACTIVE;
         canceledSub.canceledAt = undefined;
@@ -631,9 +500,7 @@ export class SubscriptionService {
         );
 
         if (!deleteResult.acknowledged) {
-            await session.abortTransaction();
-
-            return { isSuccess: false, message: "pending activate couldn't deleted" };
+            throw new InternalServerErrorException("pending activate subscription couldn't be deleted");
         }
 
         return { isSuccess: true, message: 'downgrade canceled' };

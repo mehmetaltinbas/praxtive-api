@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { MCQTypeStrategyProvider } from 'src/exercise-set/strategies/type/mcq-type.strategy.provider';
 import { OpenEndedTypeStrategyProvider } from 'src/exercise-set/strategies/type/open-ended-type.strategy.provider';
 import { TrueFalseTypeStrategyProvider } from 'src/exercise-set/strategies/type/true-false-type.strategy.provider';
@@ -25,10 +25,10 @@ export class ExerciseSetTypeStrategyResolverProvider {
     resolveTypeStrategyProvider(type: string): ResolveTypeStrategyProviderResponse {
         const strategy = this.strategyMap.get(type);
 
-        if (strategy) {
-            return { isSuccess: true, message: 'strategy is resolved', strategy };
+        if (!strategy) {
+            throw new BadRequestException(`no strategy found for exercise type: ${type}`);
         }
 
-        return { isSuccess: false, message: "couldn't resolved" };
+        return { isSuccess: true, message: 'strategy is resolved', strategy };
     }
 }

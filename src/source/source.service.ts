@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Model } from 'mongoose';
 import { Express } from 'express';
 import { TextExtractorService } from 'src/source/types/text-extractor/text-extractor.service';
@@ -34,7 +34,7 @@ export class SourceService {
         const source = await this.db.Source.findOne({ _id: id });
 
         if (!source) {
-            return { isSuccess: false, message: "source couldn't read" };
+            throw new NotFoundException(`source not found by id ${id}`);
         }
 
         return { isSuccess: true, message: `source read by id ${id}`, source };
@@ -44,7 +44,7 @@ export class SourceService {
         const sources = await this.db.Source.find({ userId });
 
         if (sources.length === 0) {
-            return { isSuccess: false, message: 'no source found' };
+            throw new NotFoundException('no sources found');
         }
 
         return {
@@ -60,7 +60,7 @@ export class SourceService {
         });
 
         if (!updatedSource) {
-            return { isSuccess: false, message: 'source not found' };
+            throw new NotFoundException('source not found');
         }
 
         return { isSuccess: true, message: 'source updated' };
@@ -70,7 +70,7 @@ export class SourceService {
         const deletedSource = await this.db.Source.findOneAndDelete({ _id: id });
 
         if (!deletedSource) {
-            return { isSuccess: false, message: 'source not found' };
+            throw new NotFoundException('source not found');
         }
 
         return { isSuccess: true, message: 'source deleted' };

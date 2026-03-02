@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { UserService } from '../user/user.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -17,16 +17,18 @@ export class AuthService {
     ) {}
 
     async signInAsync(signInUserDto: SignInDto): Promise<SignInResponse> {
-        const readSingleUserResponse = await this.userService.readByUserName(signInUserDto.userName);
+        let readSingleUserResponse;
 
-        if (!readSingleUserResponse.user) {
-            return readSingleUserResponse;
+        try {
+            readSingleUserResponse = await this.userService.readByUserName(signInUserDto.userName);
+        } catch {
+            throw new UnauthorizedException('invalid credentials');
         }
 
         const isMatch = await bcrypt.compare(signInUserDto.password, readSingleUserResponse.user.passwordHash);
 
         if (!isMatch) {
-            return { isSuccess: false, message: 'password is incorrect' };
+            throw new UnauthorizedException('invalid credentials');
         }
 
         const payload: JwtPayload = {
