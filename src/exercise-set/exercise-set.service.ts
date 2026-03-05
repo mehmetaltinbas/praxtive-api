@@ -2,6 +2,7 @@ import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/commo
 import mongoose, { FilterQuery, Model } from 'mongoose';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
 import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
+import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 import { ExerciseSetTypeStrategyResolverProvider } from 'src/exercise-set/strategies/type/exercise-set-type-strategy-resolver.provider';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
@@ -192,17 +193,40 @@ export class ExerciseSetService {
     /**
      * only updates given fields
      */
-    async updateById(id: string, updateExerciseSetDto: UpdateExerciseSetDto): Promise<ResponseBase> {
+    async updateById(
+        id: string,
+        updateExerciseSetDto: UpdateExerciseSetDto,
+        session?: mongoose.mongo.ClientSession
+    ): Promise<ResponseBase> {
         const cleanedDto = Object.fromEntries(
             Object.entries(updateExerciseSetDto).filter(([_, value]) => value !== undefined)
         );
-        const updated = await this.db.ExerciseSet.findByIdAndUpdate(id, { $set: cleanedDto }, { new: true });
+        const updated = await this.db.ExerciseSet.findByIdAndUpdate(id, { $set: cleanedDto }, { new: true, session });
 
         if (!updated) {
             throw new NotFoundException('exercise set not found');
         }
 
         return { isSuccess: true, message: 'exercise set updated' };
+    }
+
+    async addExercise(id: string, exerciseType: ExerciseType, session?: mongoose.mongo.ClientSession): Promise<void> {
+        const { exerciseSet } = await this.readById(id);
+
+        const needsMix =
+            exerciseType.toString() !== exerciseSet.type.toString() && exerciseSet.type !== ExerciseSetType.MIX;
+
+        const update: UpdateExerciseSetDto = needsMix
+            ? { type: ExerciseSetType.MIX, count: exerciseSet.count + 1 }
+            : { count: exerciseSet.count + 1 };
+
+        await this.updateById(id, update, session);
+    }
+
+    async removeExercise(id: string, session?: mongoose.mongo.ClientSession): Promise<void> {
+        const { exerciseSet } = await this.readById(id);
+
+        await this.updateById(id, { count: exerciseSet.count - 1 }, session);
     }
 
     async deleteById(id: string): Promise<ResponseBase> {

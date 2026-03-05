@@ -1,20 +1,11 @@
-import {
-    Controller,
-    Post,
-    Get,
-    Patch,
-    Delete,
-    Inject, // eslint-disable-next-line no-redeclare
-    Body,
-    Param,
-    HttpCode,
-    UseGuards,
-} from '@nestjs/common';
-import { ExerciseService } from './exercise.service';
-import ResponseBase from '../shared/interfaces/response-base.interface';
-import { ReadAllExercisesResponse } from './types/response/read-all-exercises.response';
+// eslint-disable-next-line no-redeclare
+import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
+import { TransferExerciseDto } from 'src/exercise/types/dto/transfer-exercise.dto';
+import ResponseBase from '../shared/interfaces/response-base.interface';
+import { ExerciseService } from './exercise.service';
+import { ReadAllExercisesResponse } from './types/response/read-all-exercises.response';
 
 @Controller('exercise')
 @UseGuards(AuthGuard)
@@ -60,6 +51,13 @@ export class ExerciseController {
     @Delete('delete-by-id/:id')
     async deleteById(@Param('id') id: string): Promise<ResponseBase> {
         const response = await this.exerciseService.deleteById(id);
+
+        return response;
+    }
+
+    @Post('transfer/:id')
+    async transfer(@Param('id') id: string, @Body() dto: TransferExerciseDto): Promise<ResponseBase> {
+        const response = await this.exerciseService.transfer(id, dto);
 
         return response;
     }

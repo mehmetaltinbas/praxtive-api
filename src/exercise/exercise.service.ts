@@ -1,15 +1,15 @@
 import { forwardRef, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { ExerciseDocument } from './types/exercise-document.interface';
-import { Model } from 'mongoose';
-import { ReadAllExercisesResponse } from './types/response/read-all-exercises.response';
-import { ReadSingleExerciseResponse } from './types/response/read-single-exercise.response';
-import ResponseBase from '../shared/interfaces/response-base.interface';
-import { CreateExerciseDto } from './types/dto/create-exercise.dto';
-import { OpenaiService } from '../openai/openai.service';
-import { SourceService } from '../source/source.service';
+import mongoose, { Model } from 'mongoose';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
-import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
+import { TransferExerciseDto } from 'src/exercise/types/dto/transfer-exercise.dto';
+import { OpenaiService } from '../openai/openai.service';
+import ResponseBase from '../shared/interfaces/response-base.interface';
+import { SourceService } from '../source/source.service';
+import { CreateExerciseDto } from './types/dto/create-exercise.dto';
+import { ExerciseDocument } from './types/exercise-document.interface';
+import { ReadAllExercisesResponse } from './types/response/read-all-exercises.response';
+import { ReadSingleExerciseResponse } from './types/response/read-single-exercise.response';
 
 @Injectable()
 export class ExerciseService {
@@ -22,8 +22,6 @@ export class ExerciseService {
     ) {}
 
     async create(exerciseSetId: string, dto: CreateExerciseDto): Promise<ResponseBase> {
-        const { exerciseSet: associatedExerciseSet } = await this.exerciseSetService.readById(exerciseSetId);
-
         let createdExercise: ExerciseDocument | undefined = undefined;
 
         if (dto.type === ExerciseType.MCQ) {
@@ -57,16 +55,7 @@ export class ExerciseService {
             throw new InternalServerErrorException("exercise couldn't be created");
         }
 
-        if (dto.type === associatedExerciseSet.type) {
-            await this.exerciseSetService.updateById(associatedExerciseSet._id, {
-                count: associatedExerciseSet.count + 1,
-            });
-        } else if (dto.type !== associatedExerciseSet.type) {
-            await this.exerciseSetService.updateById(associatedExerciseSet._id, {
-                type: ExerciseSetType.MIX,
-                count: associatedExerciseSet.count + 1,
-            });
-        }
+        await this.exerciseSetService.addExercise(exerciseSetId, dto.type);
 
         return { isSuccess: true, message: 'exercise created' };
     }
@@ -109,6 +98,39 @@ export class ExerciseService {
 
     // }
 
+    async transfer(id: string, dto: TransferExerciseDto): Promise<ResponseBase> {
+        const { exercise } = await this.readById(id);
+        const { exerciseSet: sourceExerciseSet } = await this.exerciseSetService.readById(exercise.exerciseSetId);
+        const { exerciseSet: targetExerciseSet } = await this.exerciseSetService.readById(dto.exerciseSetId);
+
+        if (sourceExerciseSet._id.toString() === targetExerciseSet._id.toString()) {
+            return { isSuccess: false, message: 'exercise already belongs to this exercise set' };
+        }
+
+        const session = await mongoose.startSession();
+
+        session.startTransaction();
+
+        try {
+            await this.db.Exercise.findByIdAndUpdate(id, { $set: { exerciseSetId: dto.exerciseSetId } }, { session });
+
+            await this.exerciseSetService.removeExercise(sourceExerciseSet._id, session);
+            await this.exerciseSetService.addExercise(targetExerciseSet._id, exercise.type, session);
+
+            await session.commitTransaction();
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            await session.endSession();
+        }
+
+        return {
+            isSuccess: true,
+            message: `exercise transferred from exercise set ${sourceExerciseSet._id} to ${targetExerciseSet._id}`,
+        };
+    }
+
     async deleteById(id: string): Promise<ResponseBase> {
         const { exercise } = await this.readById(id);
         const { exerciseSet: associatedExerciseSet } = await this.exerciseSetService.readById(exercise.exerciseSetId);
@@ -119,9 +141,7 @@ export class ExerciseService {
             throw new NotFoundException('no exercise found to delete');
         }
 
-        await this.exerciseSetService.updateById(associatedExerciseSet._id, {
-            count: associatedExerciseSet.count - 1,
-        });
+        await this.exerciseSetService.removeExercise(associatedExerciseSet._id);
 
         return { isSuccess: true, message: `exercise deleted by id: ${id}` };
     }
