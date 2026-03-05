@@ -21,41 +21,60 @@ export class ExerciseService {
         private exerciseSetService: ExerciseSetService
     ) {}
 
-    async create(exerciseSetId: string, dto: CreateExerciseDto): Promise<ResponseBase> {
+    async create(
+        exerciseSetId: string,
+        dto: CreateExerciseDto,
+        session?: mongoose.mongo.ClientSession
+    ): Promise<ResponseBase> {
         let createdExercise: ExerciseDocument | undefined = undefined;
 
         if (dto.type === ExerciseType.MCQ) {
-            createdExercise = await this.db.Exercise.create({
-                exerciseSetId,
-                type: dto.type,
-                difficulty: dto.difficulty,
-                prompt: dto.prompt,
-                choices: dto.choices,
-                correctChoiceIndex: dto.correctChoiceIndex,
-            });
+            [createdExercise] = await this.db.Exercise.create(
+                [
+                    {
+                        exerciseSetId,
+                        type: dto.type,
+                        difficulty: dto.difficulty,
+                        prompt: dto.prompt,
+                        choices: dto.choices,
+                        correctChoiceIndex: dto.correctChoiceIndex,
+                    },
+                ],
+                { session }
+            );
         } else if (dto.type === ExerciseType.TRUE_FALSE) {
-            createdExercise = await this.db.Exercise.create({
-                exerciseSetId,
-                type: dto.type,
-                difficulty: dto.difficulty,
-                prompt: dto.prompt,
-                correctChoiceIndex: dto.correctChoiceIndex,
-            });
+            [createdExercise] = await this.db.Exercise.create(
+                [
+                    {
+                        exerciseSetId,
+                        type: dto.type,
+                        difficulty: dto.difficulty,
+                        prompt: dto.prompt,
+                        correctChoiceIndex: dto.correctChoiceIndex,
+                    },
+                ],
+                { session }
+            );
         } else if (dto.type === ExerciseType.OPEN_ENDED) {
-            createdExercise = await this.db.Exercise.create({
-                exerciseSetId,
-                type: dto.type,
-                difficulty: dto.difficulty,
-                prompt: dto.prompt,
-                solution: dto.solution,
-            });
+            [createdExercise] = await this.db.Exercise.create(
+                [
+                    {
+                        exerciseSetId,
+                        type: dto.type,
+                        difficulty: dto.difficulty,
+                        prompt: dto.prompt,
+                        solution: dto.solution,
+                    },
+                ],
+                { session }
+            );
         }
 
         if (!createdExercise) {
             throw new InternalServerErrorException("exercise couldn't be created");
         }
 
-        await this.exerciseSetService.addExercise(exerciseSetId, dto.type);
+        await this.exerciseSetService.addExercise(exerciseSetId, dto.type, session);
 
         return { isSuccess: true, message: 'exercise created' };
     }

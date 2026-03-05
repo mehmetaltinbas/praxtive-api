@@ -60,35 +60,54 @@ export class ExerciseSetService {
                     dto.count
                 );
 
-                const exerciseSet = await this.db.ExerciseSet.create({
-                    userId: new mongoose.Types.ObjectId(userId),
-                    sourceType,
-                    sourceId,
-                    title: dto.title,
-                    type: dto.type,
-                    difficulty: dto.difficulty,
-                    count: dto.count,
-                });
+                const session = await mongoose.startSession();
 
-                const promises = generateExercisesResponse.exercises.map((exercise) => {
-                    const dto: CreateExerciseDto = {
-                        type: exercise.type,
-                        difficulty: exercise.difficulty,
-                        prompt: exercise.prompt,
-                    };
+                session.startTransaction();
 
-                    if (dto.type === ExerciseType.MCQ || dto.type === ExerciseType.TRUE_FALSE) {
-                        dto.choices = exercise.choices;
-                        dto.correctChoiceIndex = exercise.correctChoiceIndex;
-                    } else if (dto.type === ExerciseType.OPEN_ENDED) {
-                        dto.solution = exercise.solution;
-                    }
+                try {
+                    const [exerciseSet] = await this.db.ExerciseSet.create(
+                        [
+                            {
+                                userId: new mongoose.Types.ObjectId(userId),
+                                sourceType,
+                                sourceId,
+                                title: dto.title,
+                                type: dto.type,
+                                difficulty: dto.difficulty,
+                                count: 0,
+                            },
+                        ],
+                        { session }
+                    );
 
-                    return this.exerciseService.create(exerciseSet._id, dto);
-                });
-                const responses = await Promise.all(promises);
+                    const promises = generateExercisesResponse.exercises.map((exercise) => {
+                        const createDto: CreateExerciseDto = {
+                            type: exercise.type,
+                            difficulty: exercise.difficulty,
+                            prompt: exercise.prompt,
+                        };
 
-                message = `exercise set created, type: ${exerciseSet.type}, difficulty: ${exerciseSet.difficulty}, exercise count: ${exerciseSet.count}`;
+                        if (createDto.type === ExerciseType.MCQ || createDto.type === ExerciseType.TRUE_FALSE) {
+                            createDto.choices = exercise.choices;
+                            createDto.correctChoiceIndex = exercise.correctChoiceIndex;
+                        } else if (createDto.type === ExerciseType.OPEN_ENDED) {
+                            createDto.solution = exercise.solution;
+                        }
+
+                        return this.exerciseService.create(exerciseSet._id, createDto, session);
+                    });
+                    await Promise.all(promises);
+
+                    await session.commitTransaction();
+
+                    message = `exercise set created, type: ${exerciseSet.type}, difficulty: ${exerciseSet.difficulty}, exercise count: ${generateExercisesResponse.exercises.length}`;
+                } catch (error) {
+                    await session.abortTransaction();
+                    throw error;
+                } finally {
+                    await session.endSession();
+                }
+
                 break;
             }
 
@@ -211,22 +230,26 @@ export class ExerciseSetService {
     }
 
     async addExercise(id: string, exerciseType: ExerciseType, session?: mongoose.mongo.ClientSession): Promise<void> {
-        const { exerciseSet } = await this.readById(id);
+        const exerciseSet = await this.db.ExerciseSet.findById(id).session(session ?? null);
+
+        if (!exerciseSet) {
+            throw new NotFoundException(`no exerciseSet found by id ${id}`);
+        }
 
         const needsMix =
             exerciseType.toString() !== exerciseSet.type.toString() && exerciseSet.type !== ExerciseSetType.MIX;
 
-        const update: UpdateExerciseSetDto = needsMix
-            ? { type: ExerciseSetType.MIX, count: exerciseSet.count + 1 }
-            : { count: exerciseSet.count + 1 };
+        const update: Record<string, unknown> = { $inc: { count: 1 } };
 
-        await this.updateById(id, update, session);
+        if (needsMix) {
+            update.$set = { type: ExerciseSetType.MIX };
+        }
+
+        await this.db.ExerciseSet.findByIdAndUpdate(id, update, { session });
     }
 
     async removeExercise(id: string, session?: mongoose.mongo.ClientSession): Promise<void> {
-        const { exerciseSet } = await this.readById(id);
-
-        await this.updateById(id, { count: exerciseSet.count - 1 }, session);
+        await this.db.ExerciseSet.findByIdAndUpdate(id, { $inc: { count: -1 } }, { session });
     }
 
     async deleteById(id: string): Promise<ResponseBase> {
