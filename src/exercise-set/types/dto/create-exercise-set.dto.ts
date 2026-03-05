@@ -1,11 +1,11 @@
-import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsString } from 'class-validator';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 
 export class CreateExerciseSetDto {
     @IsString()
-    @IsOptional()
-    readonly title?: string;
+    @IsNotEmpty()
+    readonly title!: string;
 
     @IsInt()
     @IsNotEmpty()

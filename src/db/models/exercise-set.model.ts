@@ -10,7 +10,7 @@ const schema = new mongoose.Schema(
         userId: { type: mongoose.Schema.Types.ObjectId },
         sourceType: { type: String, enum: Object.values(ExerciseSetSourceType), required: true },
         sourceId: { type: mongoose.Schema.Types.ObjectId },
-        title: { type: String },
+        title: { type: String, required: true },
         type: {
             type: String,
             enum: Object.values(ExerciseSetType),
