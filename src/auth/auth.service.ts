@@ -1,11 +1,11 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { UserService } from '../user/user.service';
-import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
+import ResponseBase from '../shared/interfaces/response-base.interface';
+import { UserService } from '../user/user.service';
 import { SignInDto } from './types/auth-dtos';
 import { SignInResponse } from './types/auth-responses';
-import ResponseBase from '../shared/interfaces/response-base.interface';
 import JwtPayload from './types/jwt-payload.interface';
 
 @Injectable()
@@ -16,7 +16,7 @@ export class AuthService {
         private configService: ConfigService
     ) {}
 
-    async signInAsync(signInUserDto: SignInDto): Promise<SignInResponse> {
+    async signIn(signInUserDto: SignInDto): Promise<SignInResponse> {
         let readSingleUserResponse;
 
         try {
@@ -45,7 +45,7 @@ export class AuthService {
         };
     }
 
-    async authorizeAsync(): Promise<ResponseBase> {
+    async authorize(): Promise<ResponseBase> {
         return { isSuccess: true, message: 'authorized' };
     }
 }

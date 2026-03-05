@@ -29,7 +29,7 @@ export class AuthController {
         @BodyDecorator() signInDto: SignInDto,
         @Res() res: ExpressResponse
     ): Promise<ExpressResponse<any, Record<string, any>>> {
-        const response = await this.authService.signInAsync(signInDto);
+        const response = await this.authService.signIn(signInDto);
 
         const jwtCookieName = this.configService.get<string>('JWT_COOKIE_NAME');
 
@@ -37,11 +37,13 @@ export class AuthController {
             throw new InternalServerErrorException('no jwt cookie name provided as env variable');
         }
 
+        const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+
         res.cookie(jwtCookieName, response.jwt, {
             httpOnly: true,
-            maxAge: 3600000,
-            // secure: true,
-            sameSite: 'lax',
+            maxAge: 24 * 60 * 60 * 1000,
+            secure: isProduction,
+            sameSite: isProduction ? 'none' : 'lax',
         });
 
         return res.json({ isSuccess: response.isSuccess, message: response.message });
@@ -50,7 +52,7 @@ export class AuthController {
     @UseGuards(AuthGuard)
     @Get('authorize')
     async authorize(@Req() req: ExpressRequest): Promise<ResponseBase> {
-        const response = await this.authService.authorizeAsync();
+        const response = await this.authService.authorize();
 
         return response;
     }
