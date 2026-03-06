@@ -1,11 +1,12 @@
 // eslint-disable-next-line no-redeclare
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
 import { TransferExerciseDto } from 'src/exercise/types/dto/transfer-exercise.dto';
 import ResponseBase from '../shared/interfaces/response-base.interface';
 import { ExerciseService } from './exercise.service';
 import { ReadAllExercisesResponse } from './types/response/read-all-exercises.response';
+import { UpdateExerciseDto } from 'src/exercise/types/dto/update-exercise.dto';
 
 @Controller('exercise')
 @UseGuards(AuthGuard)
@@ -43,10 +44,12 @@ export class ExerciseController {
         return response;
     }
 
-    // @Patch('update-by-id')
-    // async updateById(): ResponseBase {
+    @Patch('update-by-id/:id')
+    async updateById(@Param('id') id: string, @Body() dto: UpdateExerciseDto): Promise<ResponseBase> {
+        const response = await this.exerciseService.updateById(id, dto);
 
-    // }
+        return response;
+    }
 
     @Delete('delete-by-id/:id')
     async deleteById(@Param('id') id: string): Promise<ResponseBase> {

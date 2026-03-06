@@ -1,7 +1,8 @@
-import { forwardRef, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose, { Model } from 'mongoose';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
+import { validateExerciseFields } from 'src/exercise/utils/validate-exercise-fields.util';
 import { TransferExerciseDto } from 'src/exercise/types/dto/transfer-exercise.dto';
 import { OpenaiService } from '../openai/openai.service';
 import ResponseBase from '../shared/interfaces/response-base.interface';
@@ -10,6 +11,7 @@ import { CreateExerciseDto } from './types/dto/create-exercise.dto';
 import { ExerciseDocument } from './types/exercise-document.interface';
 import { ReadAllExercisesResponse } from './types/response/read-all-exercises.response';
 import { ReadSingleExerciseResponse } from './types/response/read-single-exercise.response';
+import { UpdateExerciseDto } from 'src/exercise/types/dto/update-exercise.dto';
 
 @Injectable()
 export class ExerciseService {
@@ -26,54 +28,32 @@ export class ExerciseService {
         dto: CreateExerciseDto,
         session?: mongoose.mongo.ClientSession
     ): Promise<ResponseBase> {
-        let createdExercise: ExerciseDocument | undefined = undefined;
+        validateExerciseFields(dto.type, dto);
 
-        if (dto.type === ExerciseType.MCQ) {
-            [createdExercise] = await this.db.Exercise.create(
-                [
-                    {
-                        exerciseSetId,
-                        type: dto.type,
-                        difficulty: dto.difficulty,
-                        prompt: dto.prompt,
-                        choices: dto.choices,
-                        correctChoiceIndex: dto.correctChoiceIndex,
-                    },
-                ],
-                { session }
-            );
-        } else if (dto.type === ExerciseType.TRUE_FALSE) {
-            [createdExercise] = await this.db.Exercise.create(
-                [
-                    {
-                        exerciseSetId,
-                        type: dto.type,
-                        difficulty: dto.difficulty,
-                        prompt: dto.prompt,
-                        correctChoiceIndex: dto.correctChoiceIndex,
-                    },
-                ],
-                { session }
-            );
-        } else if (dto.type === ExerciseType.OPEN_ENDED) {
-            [createdExercise] = await this.db.Exercise.create(
-                [
-                    {
-                        exerciseSetId,
-                        type: dto.type,
-                        difficulty: dto.difficulty,
-                        prompt: dto.prompt,
-                        solution: dto.solution,
-                    },
-                ],
-                { session }
-            );
+        const commonFields = {
+            exerciseSetId,
+            type: dto.type,
+            difficulty: dto.difficulty,
+            prompt: dto.prompt,
+        };
+
+        let exerciseData: Record<string, unknown>;
+
+        switch (dto.type) {
+            case ExerciseType.MCQ:
+                exerciseData = { ...commonFields, choices: dto.choices, correctChoiceIndex: dto.correctChoiceIndex };
+                break;
+            case ExerciseType.TRUE_FALSE:
+                exerciseData = { ...commonFields, correctChoiceIndex: dto.correctChoiceIndex, solution: dto.solution };
+                break;
+            case ExerciseType.OPEN_ENDED:
+                exerciseData = { ...commonFields, solution: dto.solution };
+                break;
+            default:
+                throw new BadRequestException(`unsupported exercise type: ${dto.type as string}`);
         }
 
-        if (!createdExercise) {
-            throw new InternalServerErrorException("exercise couldn't be created");
-        }
-
+        await this.db.Exercise.create([exerciseData], { session });
         await this.exerciseSetService.addExercise(exerciseSetId, dto.type, session);
 
         return { isSuccess: true, message: 'exercise created' };
@@ -113,9 +93,47 @@ export class ExerciseService {
         };
     }
 
-    // async updateById() {
+    async updateById(id: string, dto: UpdateExerciseDto): Promise<ResponseBase> {
+        const { type, ...restOfDto } = dto;
 
-    // }
+        const exercise = await this.db.Exercise.findById(id);
+        if (!exercise) {
+            throw new NotFoundException(`no exercise found by id: ${id}`);
+        }
+
+        const updateData: Partial<ExerciseDocument> = { ...restOfDto };
+
+        if (type !== undefined) {
+            updateData.type = type;
+
+            validateExerciseFields(type, {
+                choices: restOfDto.choices ?? exercise.choices,
+                correctChoiceIndex: restOfDto.correctChoiceIndex ?? exercise.correctChoiceIndex,
+                solution: restOfDto.solution ?? exercise.solution,
+            });
+
+            if (type !== exercise.type) {
+                const session = await mongoose.startSession();
+                session.startTransaction();
+
+                try {
+                    await this.db.Exercise.findByIdAndUpdate(id, { $set: updateData }, { session });
+                    await this.exerciseSetService.removeExercise(exercise.exerciseSetId, session);
+                    await this.exerciseSetService.addExercise(exercise.exerciseSetId, type, session);
+                    await session.commitTransaction();
+                } catch (error) {
+                    await session.abortTransaction();
+                    throw error;
+                } finally {
+                    await session.endSession();
+                }
+                return { isSuccess: true, message: 'exercise updated' };
+            }
+        }
+
+        await this.db.Exercise.findByIdAndUpdate(id, { $set: updateData });
+        return { isSuccess: true, message: 'exercise updated' };
+    }
 
     async transfer(id: string, dto: TransferExerciseDto): Promise<ResponseBase> {
         const { exercise } = await this.readById(id);

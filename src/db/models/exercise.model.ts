@@ -16,9 +16,9 @@ const schema = new mongoose.Schema(
         },
         difficulty: { type: String, enum: Object.values(ExerciseDifficulty), default: 'medium' },
         prompt: { type: String, required: true },
-        solution: String, // for 'openEnded', also can be considered for 'mcq' and 'trueFalse' for explanations of the correct choice
-        choices: [String], // for 'mcq' and 'trueFalse'
-        correctChoiceIndex: Number, // for 'mcq' and 'trueFalse
+        solution: String, // required for 'openEnded'
+        choices: [String], // required for 'mcq', there has to be exactly 5 options, option count can be controlled with a constant stored in exercise/constants/
+        correctChoiceIndex: Number, // required for 'mcq' and 'trueFalse, for mcq it has to be in range from 0 to 4; in for trueFalse it has to be 0 or 1, 0 indicating false, 1 indicating true
     },
     { timestamps: true }
 );
