@@ -95,13 +95,16 @@ export class ExerciseService {
     }
 
     async updateById(id: string, dto: UpdateExerciseDto): Promise<ResponseBase> {
-        const { type, ...restOfDto } = dto;
+        const { type, difficulty, ...restOfDto } = dto;
 
         const exercise = await this.db.Exercise.findById(id);
 
         if (!exercise) {
             throw new NotFoundException(`no exercise found by id: ${id}`);
         }
+
+        const effectiveType = type ?? exercise.type;
+        const effectiveDifficulty = difficulty ?? exercise.difficulty;
 
         const updateData: Partial<ExerciseDocument> = { ...restOfDto };
 
@@ -113,43 +116,54 @@ export class ExerciseService {
                 correctChoiceIndex: restOfDto.correctChoiceIndex ?? exercise.correctChoiceIndex,
                 solution: restOfDto.solution ?? exercise.solution,
             });
+        }
 
-            if (type !== exercise.type) {
-                const fieldsToUnset = EXERCISE_TYPE_SPECIFIC_FIELDS_TO_UNSET[type];
+        if (difficulty !== undefined) {
+            updateData.difficulty = difficulty;
+        }
+
+        const typeChanged = type !== undefined && type !== exercise.type;
+        const needsBookkeeping = typeChanged || difficulty !== undefined;
+
+        if (needsBookkeeping) {
+            let unsetFields: Record<string, number> | undefined;
+
+            if (typeChanged) {
+                const fieldsToUnset = EXERCISE_TYPE_SPECIFIC_FIELDS_TO_UNSET[type!];
 
                 for (const field of fieldsToUnset) {
                     delete (updateData as Record<string, unknown>)[field];
                 }
 
-                const unsetFields = Object.fromEntries(fieldsToUnset.map((field) => [field, 1]));
-
-                const session = await mongoose.startSession();
-
-                session.startTransaction();
-
-                try {
-                    await this.db.Exercise.findByIdAndUpdate(
-                        id,
-                        { $set: updateData, $unset: unsetFields },
-                        { session }
-                    );
-                    await this.exerciseSetService.unregisterExercise(exercise.exerciseSetId, session);
-                    await this.exerciseSetService.registerExercise(
-                        exercise.exerciseSetId,
-                        type,
-                        exercise.difficulty,
-                        session
-                    );
-                    await session.commitTransaction();
-                } catch (error) {
-                    await session.abortTransaction();
-                    throw error;
-                } finally {
-                    await session.endSession();
-                }
-
-                return { isSuccess: true, message: 'exercise updated' };
+                unsetFields = Object.fromEntries(fieldsToUnset.map((field) => [field, 1]));
             }
+
+            const session = await mongoose.startSession();
+
+            session.startTransaction();
+
+            try {
+                await this.db.Exercise.findByIdAndUpdate(
+                    id,
+                    { $set: updateData, ...(unsetFields && { $unset: unsetFields }) },
+                    { session }
+                );
+                await this.exerciseSetService.unregisterExercise(exercise.exerciseSetId, session);
+                await this.exerciseSetService.registerExercise(
+                    exercise.exerciseSetId,
+                    effectiveType,
+                    effectiveDifficulty,
+                    session
+                );
+                await session.commitTransaction();
+            } catch (error) {
+                await session.abortTransaction();
+                throw error;
+            } finally {
+                await session.endSession();
+            }
+
+            return { isSuccess: true, message: 'exercise updated' };
         }
 
         await this.db.Exercise.findByIdAndUpdate(id, { $set: updateData });
