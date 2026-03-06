@@ -65,7 +65,7 @@ export class UserService {
             updateData.passwordHash = await bcrypt.hash(password, 10);
         }
 
-        const user = await this.db.User.findByIdAndUpdate(id, updateData, { session });
+        const user = await this.db.User.findByIdAndUpdate(id, { $set: updateData }, { session });
 
         if (!user) {
             throw new NotFoundException('user not found');

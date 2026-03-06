@@ -36,7 +36,7 @@ export class UserController {
     @Patch('update-by-id/:id')
     @UseGuards(AuthGuard)
     async updateById(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto): Promise<ResponseBase> {
-        const response = this.userService.updateById(id, updateUserDto);
+        const response = await this.userService.updateById(id, updateUserDto);
 
         return response;
     }
@@ -44,7 +44,7 @@ export class UserController {
     @Delete('delete-by-id/:id')
     @UseGuards(AuthGuard)
     async deleteById(@Param('id') id: string): Promise<ResponseBase> {
-        const response = this.userService.deleteById(id);
+        const response = await this.userService.deleteById(id);
 
         return response;
     }

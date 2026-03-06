@@ -55,7 +55,7 @@ export class SourceService {
     }
 
     async updateById(id: string, dto: UpdateSourceDto): Promise<ResponseBase> {
-        const updatedSource = await this.db.Source.findOneAndUpdate({ _id: id }, dto, {
+        const updatedSource = await this.db.Source.findOneAndUpdate({ _id: id }, { $set: dto }, {
             new: true,
         });
 

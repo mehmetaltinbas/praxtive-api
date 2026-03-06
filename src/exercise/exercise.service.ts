@@ -54,7 +54,7 @@ export class ExerciseService {
         }
 
         await this.db.Exercise.create([exerciseData], { session });
-        await this.exerciseSetService.addExercise(exerciseSetId, dto.type, session);
+        await this.exerciseSetService.registerExercise(exerciseSetId, dto.type, dto.difficulty, session);
 
         return { isSuccess: true, message: 'exercise created' };
     }
@@ -118,8 +118,8 @@ export class ExerciseService {
 
                 try {
                     await this.db.Exercise.findByIdAndUpdate(id, { $set: updateData }, { session });
-                    await this.exerciseSetService.removeExercise(exercise.exerciseSetId, session);
-                    await this.exerciseSetService.addExercise(exercise.exerciseSetId, type, session);
+                    await this.exerciseSetService.unregisterExercise(exercise.exerciseSetId, session);
+                    await this.exerciseSetService.registerExercise(exercise.exerciseSetId, type, exercise.difficulty, session);
                     await session.commitTransaction();
                 } catch (error) {
                     await session.abortTransaction();
@@ -151,8 +151,8 @@ export class ExerciseService {
         try {
             await this.db.Exercise.findByIdAndUpdate(id, { $set: { exerciseSetId: dto.exerciseSetId } }, { session });
 
-            await this.exerciseSetService.removeExercise(sourceExerciseSet._id, session);
-            await this.exerciseSetService.addExercise(targetExerciseSet._id, exercise.type, session);
+            await this.exerciseSetService.unregisterExercise(sourceExerciseSet._id, session);
+            await this.exerciseSetService.registerExercise(targetExerciseSet._id, exercise.type, exercise.difficulty, session);
 
             await session.commitTransaction();
         } catch (error) {
@@ -178,7 +178,7 @@ export class ExerciseService {
             throw new NotFoundException('no exercise found to delete');
         }
 
-        await this.exerciseSetService.removeExercise(associatedExerciseSet._id);
+        await this.exerciseSetService.unregisterExercise(associatedExerciseSet._id);
 
         return { isSuccess: true, message: `exercise deleted by id: ${id}` };
     }
