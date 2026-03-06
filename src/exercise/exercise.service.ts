@@ -1,9 +1,11 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose, { Model } from 'mongoose';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
+import { EXERCISE_TYPE_SPECIFIC_FIELDS_TO_UNSET } from 'src/exercise/constants/exercise-type-specific-fields-to-unset.constant';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
-import { validateExerciseFields } from 'src/exercise/utils/validate-exercise-fields.util';
 import { TransferExerciseDto } from 'src/exercise/types/dto/transfer-exercise.dto';
+import { UpdateExerciseDto } from 'src/exercise/types/dto/update-exercise.dto';
+import { validateExerciseFields } from 'src/exercise/utils/validate-exercise-fields.util';
 import { OpenaiService } from '../openai/openai.service';
 import ResponseBase from '../shared/interfaces/response-base.interface';
 import { SourceService } from '../source/source.service';
@@ -11,7 +13,6 @@ import { CreateExerciseDto } from './types/dto/create-exercise.dto';
 import { ExerciseDocument } from './types/exercise-document.interface';
 import { ReadAllExercisesResponse } from './types/response/read-all-exercises.response';
 import { ReadSingleExerciseResponse } from './types/response/read-single-exercise.response';
-import { UpdateExerciseDto } from 'src/exercise/types/dto/update-exercise.dto';
 
 @Injectable()
 export class ExerciseService {
@@ -44,7 +45,7 @@ export class ExerciseService {
                 exerciseData = { ...commonFields, choices: dto.choices, correctChoiceIndex: dto.correctChoiceIndex };
                 break;
             case ExerciseType.TRUE_FALSE:
-                exerciseData = { ...commonFields, correctChoiceIndex: dto.correctChoiceIndex, solution: dto.solution };
+                exerciseData = { ...commonFields, correctChoiceIndex: dto.correctChoiceIndex };
                 break;
             case ExerciseType.OPEN_ENDED:
                 exerciseData = { ...commonFields, solution: dto.solution };
@@ -97,6 +98,7 @@ export class ExerciseService {
         const { type, ...restOfDto } = dto;
 
         const exercise = await this.db.Exercise.findById(id);
+
         if (!exercise) {
             throw new NotFoundException(`no exercise found by id: ${id}`);
         }
@@ -113,13 +115,31 @@ export class ExerciseService {
             });
 
             if (type !== exercise.type) {
+                const fieldsToUnset = EXERCISE_TYPE_SPECIFIC_FIELDS_TO_UNSET[type];
+
+                for (const field of fieldsToUnset) {
+                    delete (updateData as Record<string, unknown>)[field];
+                }
+
+                const unsetFields = Object.fromEntries(fieldsToUnset.map((field) => [field, 1]));
+
                 const session = await mongoose.startSession();
+
                 session.startTransaction();
 
                 try {
-                    await this.db.Exercise.findByIdAndUpdate(id, { $set: updateData }, { session });
+                    await this.db.Exercise.findByIdAndUpdate(
+                        id,
+                        { $set: updateData, $unset: unsetFields },
+                        { session }
+                    );
                     await this.exerciseSetService.unregisterExercise(exercise.exerciseSetId, session);
-                    await this.exerciseSetService.registerExercise(exercise.exerciseSetId, type, exercise.difficulty, session);
+                    await this.exerciseSetService.registerExercise(
+                        exercise.exerciseSetId,
+                        type,
+                        exercise.difficulty,
+                        session
+                    );
                     await session.commitTransaction();
                 } catch (error) {
                     await session.abortTransaction();
@@ -127,11 +147,13 @@ export class ExerciseService {
                 } finally {
                     await session.endSession();
                 }
+
                 return { isSuccess: true, message: 'exercise updated' };
             }
         }
 
         await this.db.Exercise.findByIdAndUpdate(id, { $set: updateData });
+
         return { isSuccess: true, message: 'exercise updated' };
     }
 
@@ -152,7 +174,12 @@ export class ExerciseService {
             await this.db.Exercise.findByIdAndUpdate(id, { $set: { exerciseSetId: dto.exerciseSetId } }, { session });
 
             await this.exerciseSetService.unregisterExercise(sourceExerciseSet._id, session);
-            await this.exerciseSetService.registerExercise(targetExerciseSet._id, exercise.type, exercise.difficulty, session);
+            await this.exerciseSetService.registerExercise(
+                targetExerciseSet._id,
+                exercise.type,
+                exercise.difficulty,
+                session
+            );
 
             await session.commitTransaction();
         } catch (error) {

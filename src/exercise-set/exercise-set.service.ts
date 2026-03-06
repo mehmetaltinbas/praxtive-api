@@ -1,8 +1,8 @@
 import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose, { FilterQuery, Model } from 'mongoose';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
-import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
+import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 import { ExerciseSetTypeStrategyResolverProvider } from 'src/exercise-set/strategies/type/exercise-set-type-strategy-resolver.provider';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
@@ -97,6 +97,7 @@ export class ExerciseSetService {
 
                         return this.exerciseService.create(exerciseSet._id, createDto, session);
                     });
+
                     await Promise.all(promises);
 
                     await session.commitTransaction();
@@ -162,10 +163,6 @@ export class ExerciseSetService {
             filter
         );
         const exerciseSets = await this.db.ExerciseSet.find(refinedFilter);
-
-        if (exerciseSets.length === 0) {
-            throw new NotFoundException('no exercise sets found');
-        }
 
         return { isSuccess: true, message: 'All exercise sets read', exerciseSets };
     }
@@ -243,9 +240,14 @@ export class ExerciseSetService {
         if (exerciseType.toString() !== exerciseSet.type.toString() && exerciseSet.type !== ExerciseSetType.MIX) {
             $set.type = ExerciseSetType.MIX;
         }
-        if (exerciseDifficulty.toString() !== exerciseSet.difficulty.toString() && exerciseSet.difficulty !== ExerciseSetDifficulty.MIX) {
+
+        if (
+            exerciseDifficulty.toString() !== exerciseSet.difficulty.toString() &&
+            exerciseSet.difficulty !== ExerciseSetDifficulty.MIX
+        ) {
             $set.difficulty = ExerciseSetDifficulty.MIX;
         }
+
         if (Object.keys($set).length > 0) update.$set = $set;
 
         await this.db.ExerciseSet.findByIdAndUpdate(id, update, { session });
