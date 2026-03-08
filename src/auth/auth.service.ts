@@ -48,4 +48,8 @@ export class AuthService {
     async authorize(): Promise<ResponseBase> {
         return { isSuccess: true, message: 'authorized' };
     }
+
+    signOut(): ResponseBase {
+        return { isSuccess: true, message: 'user signed out' };
+    }
 }

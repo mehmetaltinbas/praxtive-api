@@ -50,6 +50,29 @@ export class AuthController {
     }
 
     @UseGuards(AuthGuard)
+    @HttpCode(200)
+    @Post('sign-out')
+    signOut(@Res() res: ExpressResponse): ExpressResponse<any, Record<string, any>> {
+        const jwtCookieName = this.configService.get<string>('JWT_COOKIE_NAME');
+
+        if (!jwtCookieName) {
+            throw new InternalServerErrorException('no jwt cookie name provided as env variable');
+        }
+
+        const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+
+        res.clearCookie(jwtCookieName, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? 'none' : 'lax',
+        });
+
+        const response = this.authService.signOut();
+
+        return res.json(response);
+    }
+
+    @UseGuards(AuthGuard)
     @Get('authorize')
     async authorize(@Req() req: ExpressRequest): Promise<ResponseBase> {
         const response = await this.authService.authorize();
