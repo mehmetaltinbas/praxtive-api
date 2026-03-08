@@ -43,10 +43,6 @@ export class SourceService {
     async readAllByUserId(userId: string): Promise<ReadAllSourcesResponse> {
         const sources = await this.db.Source.find({ userId });
 
-        if (sources.length === 0) {
-            throw new NotFoundException('no sources found');
-        }
-
         return {
             isSuccess: true,
             message: `all sources read associated by userId: ${userId}`,
@@ -55,9 +51,13 @@ export class SourceService {
     }
 
     async updateById(id: string, dto: UpdateSourceDto): Promise<ResponseBase> {
-        const updatedSource = await this.db.Source.findOneAndUpdate({ _id: id }, { $set: dto }, {
-            new: true,
-        });
+        const updatedSource = await this.db.Source.findOneAndUpdate(
+            { _id: id },
+            { $set: dto },
+            {
+                new: true,
+            }
+        );
 
         if (!updatedSource) {
             throw new NotFoundException('source not found');

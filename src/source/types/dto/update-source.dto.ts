@@ -1,11 +1,7 @@
-import { IsEnum, IsOptional } from 'class-validator';
-import { SourceType } from 'src/source/enums/source-type.enum';
+import { IsOptional, IsString } from 'class-validator';
 
 export class UpdateSourceDto {
-    @IsOptional()
-    @IsEnum(SourceType)
-    readonly type?: SourceType;
-
+    @IsString()
     @IsOptional()
     readonly title?: string;
 }
