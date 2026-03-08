@@ -44,13 +44,13 @@ export class UserController {
         return response;
     }
 
-    // @Patch('update-by-id/:id')
-    // @UseGuards(AuthGuard)
-    // async updateById(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto): Promise<ResponseBase> {
-    //     const response = await this.userService.updateById(id, updateUserDto);
+    @Patch('update-by-token')
+    @UseGuards(AuthGuard)
+    async updateById(@User() user: JwtPayload, @Body() updateUserDto: UpdateUserDto): Promise<ResponseBase> {
+        const response = await this.userService.updateById(user.sub, updateUserDto);
 
-    //     return response;
-    // }
+        return response;
+    }
 
     @Patch('update-password')
     @UseGuards(AuthGuard)
