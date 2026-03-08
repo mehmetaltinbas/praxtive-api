@@ -8,6 +8,7 @@ import { UpdateUserDto } from 'src/user/types/dto/update-user.dto';
 import { ReadAllUsersResponse } from 'src/user/types/response/read-all-users.response';
 import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user.response';
 import { UserDocument } from './types/user-document.interface';
+import { UpdateUserPasswordDto } from 'src/user/types/dto/update-user-password.dto';
 
 @Injectable()
 export class UserService {
@@ -53,25 +54,34 @@ export class UserService {
         return { isSuccess: true, message: `user read with userName: ${userName}`, user };
     }
 
-    async updateById(
-        id: string,
-        updateUserDto: UpdateUserDto,
-        session?: mongoose.mongo.ClientSession
-    ): Promise<ResponseBase> {
-        const { password, ...restOfUpdateUserDto } = updateUserDto;
-        const updateData: Partial<UserDocument> = { ...restOfUpdateUserDto };
-
-        if (password) {
-            updateData.passwordHash = await bcrypt.hash(password, 10);
-        }
-
-        const user = await this.db.User.findByIdAndUpdate(id, { $set: updateData }, { session });
+    async updateById(id: string, dto: UpdateUserDto, session?: mongoose.mongo.ClientSession): Promise<ResponseBase> {
+        const user = await this.db.User.findByIdAndUpdate(id, { $set: dto }, { session, new: true });
 
         if (!user) {
             throw new NotFoundException('user not found');
         }
 
         return { isSuccess: true, message: 'user updated' };
+    }
+
+    async updatePassword(id: string, dto: UpdateUserPasswordDto): Promise<ResponseBase> {
+        const user = await this.db.User.findById(id).select('+passwordHash');
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const isMatch = await bcrypt.compare(dto.oldPassword, user.passwordHash);
+
+        if (!isMatch) {
+            throw new Error('Current password does not match');
+        }
+
+        const newPasswordHash = await bcrypt.hash(dto.oldPassword, 10);
+
+        await this.db.User.updateOne({ _id: id }, { $set: { passwordHash: newPasswordHash } });
+
+        return { isSuccess: true, message: 'Password updated successfully' };
     }
 
     async updateCreditBalance(

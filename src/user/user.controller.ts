@@ -9,6 +9,7 @@ import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user
 import { AuthGuard } from '../auth/auth.guard';
 import ResponseBase from '../shared/interfaces/response-base.interface';
 import { UserService } from './user.service';
+import { UpdateUserPasswordDto } from 'src/user/types/dto/update-user-password.dto';
 
 @Controller('user')
 export class UserController {
@@ -43,10 +44,18 @@ export class UserController {
         return response;
     }
 
-    @Patch('update-by-id/:id')
+    // @Patch('update-by-id/:id')
+    // @UseGuards(AuthGuard)
+    // async updateById(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto): Promise<ResponseBase> {
+    //     const response = await this.userService.updateById(id, updateUserDto);
+
+    //     return response;
+    // }
+
+    @Patch('update-password')
     @UseGuards(AuthGuard)
-    async updateById(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto): Promise<ResponseBase> {
-        const response = await this.userService.updateById(id, updateUserDto);
+    async updatePassword(@User() user: JwtPayload, @Body() dto: UpdateUserPasswordDto): Promise<ResponseBase> {
+        const response = await this.userService.updatePassword(user.sub, dto);
 
         return response;
     }
