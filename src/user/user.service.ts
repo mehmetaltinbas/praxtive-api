@@ -37,10 +37,10 @@ export class UserService {
         const user = await this.db.User.findById(id).exec();
 
         if (!user) {
-            throw new NotFoundException(`user with id ${id} not found`);
+            throw new NotFoundException(`user with given id not found`);
         }
 
-        return { isSuccess: true, message: `user with id ${id} read`, user };
+        return { isSuccess: true, message: `user with given id read`, user };
     }
 
     async readByUserName(userName: string): Promise<ReadSingleUserResponse> {

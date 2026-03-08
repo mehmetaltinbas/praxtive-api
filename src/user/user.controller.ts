@@ -7,6 +7,8 @@ import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user
 import { AuthGuard } from '../auth/auth.guard';
 import ResponseBase from '../shared/interfaces/response-base.interface';
 import { UserService } from './user.service';
+import User from 'src/shared/custom-decorators/user.decorator';
+import JwtPayload from 'src/auth/types/jwt-payload.interface';
 
 @Controller('user')
 export class UserController {
@@ -29,6 +31,13 @@ export class UserController {
     @Get('read-by-id/:id')
     async readById(@Param('id') id: string): Promise<ReadSingleUserResponse> {
         const response = await this.userService.readById(id);
+
+        return response;
+    }
+
+    @Get('read-by-token')
+    async readByToken(@User() user: JwtPayload): Promise<ReadSingleUserResponse> {
+        const response = await this.userService.readById(user.sub);
 
         return response;
     }
