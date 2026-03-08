@@ -3,16 +3,16 @@ import mongoose, { Model } from 'mongoose';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { EXERCISE_TYPE_SPECIFIC_FIELDS_TO_UNSET } from 'src/exercise/constants/exercise-type-specific-fields-to-unset.constant';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
+import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
 import { TransferExerciseDto } from 'src/exercise/types/dto/transfer-exercise.dto';
 import { UpdateExerciseDto } from 'src/exercise/types/dto/update-exercise.dto';
+import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
+import { ReadAllExercisesResponse } from 'src/exercise/types/response/read-all-exercises.response';
+import { ReadSingleExerciseResponse } from 'src/exercise/types/response/read-single-exercise.response';
 import { validateExerciseFields } from 'src/exercise/utils/validate-exercise-fields.util';
-import { OpenaiService } from '../openai/openai.service';
-import ResponseBase from '../shared/interfaces/response-base.interface';
-import { SourceService } from '../source/source.service';
-import { CreateExerciseDto } from './types/dto/create-exercise.dto';
-import { ExerciseDocument } from './types/exercise-document.interface';
-import { ReadAllExercisesResponse } from './types/response/read-all-exercises.response';
-import { ReadSingleExerciseResponse } from './types/response/read-single-exercise.response';
+import { OpenaiService } from 'src/openai/openai.service';
+import ResponseBase from 'src/shared/interfaces/response-base.interface';
+import { SourceService } from 'src/source/source.service';
 
 @Injectable()
 export class ExerciseService {
@@ -63,10 +63,6 @@ export class ExerciseService {
     async readAll(): Promise<ReadAllExercisesResponse> {
         const exercises = await this.db.Exercise.find();
 
-        if (exercises.length === 0) {
-            throw new NotFoundException('no exercises found');
-        }
-
         return { isSuccess: true, message: 'all exercises read', exercises };
     }
 
@@ -80,12 +76,11 @@ export class ExerciseService {
         return { isSuccess: true, message: `exercise read by id: ${id}`, exercise };
     }
 
-    async readAllByExerciseSetId(exerciseSetId: string): Promise<ReadAllExercisesResponse> {
-        const exercises = await this.db.Exercise.find({ exerciseSetId });
-
-        if (!exercises || exercises.length === 0) {
-            throw new NotFoundException(`no exercises found for exerciseSetId: ${exerciseSetId}`);
-        }
+    async readAllByExerciseSetId(
+        exerciseSetId: string,
+        session?: mongoose.mongo.ClientSession
+    ): Promise<ReadAllExercisesResponse> {
+        const exercises = await this.db.Exercise.find({ exerciseSetId }).session(session ?? null);
 
         return {
             isSuccess: true,
@@ -129,7 +124,7 @@ export class ExerciseService {
             let unsetFields: Record<string, number> | undefined;
 
             if (typeChanged) {
-                const fieldsToUnset = EXERCISE_TYPE_SPECIFIC_FIELDS_TO_UNSET[type!];
+                const fieldsToUnset = EXERCISE_TYPE_SPECIFIC_FIELDS_TO_UNSET[type];
 
                 for (const field of fieldsToUnset) {
                     delete (updateData as Record<string, unknown>)[field];
@@ -211,15 +206,27 @@ export class ExerciseService {
 
     async deleteById(id: string): Promise<ResponseBase> {
         const { exercise } = await this.readById(id);
-        const { exerciseSet: associatedExerciseSet } = await this.exerciseSetService.readById(exercise.exerciseSetId);
 
-        const deletedExercise = await this.db.Exercise.findByIdAndDelete(id);
+        const session = await mongoose.startSession();
 
-        if (!deletedExercise) {
-            throw new NotFoundException('no exercise found to delete');
+        session.startTransaction();
+
+        try {
+            const deletedExercise = await this.db.Exercise.findByIdAndDelete(id, { session });
+
+            if (!deletedExercise) {
+                throw new NotFoundException('no exercise found to delete');
+            }
+
+            await this.exerciseSetService.unregisterExercise(exercise.exerciseSetId, session);
+
+            await session.commitTransaction();
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            await session.endSession();
         }
-
-        await this.exerciseSetService.unregisterExercise(associatedExerciseSet._id);
 
         return { isSuccess: true, message: `exercise deleted by id: ${id}` };
     }
