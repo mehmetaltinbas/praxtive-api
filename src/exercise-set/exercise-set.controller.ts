@@ -1,7 +1,8 @@
 // eslint-disable-next-line no-redeclare
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
+import { UpdateExerciseSetDto } from 'src/exercise-set/types/dto/update-exercise-set.dto';
 import { EvaluateAnswersResponse } from 'src/exercise-set/types/response/evaluate-answers.response';
 import { AuthGuard } from '../auth/auth.guard';
 import JwtPayload from '../auth/types/jwt-payload.interface';
@@ -61,6 +62,13 @@ export class ExerciseSetController {
         @User() user: JwtPayload
     ): Promise<ReadAllExerciseSetsGroupedBySourcesResponse> {
         const response = await this.exerciseSetService.readAllByUserIdGroupedBySources(user.sub);
+
+        return response;
+    }
+
+    @Patch('update-by-id/:id')
+    async updateById(@Param('id') id: string, @Body() dto: UpdateExerciseSetDto): Promise<ResponseBase> {
+        const response = await this.exerciseSetService.updateById(id, dto);
 
         return response;
     }

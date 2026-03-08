@@ -14,6 +14,7 @@ import {
 } from 'src/exercise-set/types/response/evaluate-answers.response';
 import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
+import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
 import { ExerciseService } from '../exercise/exercise.service';
 import { CreateExerciseDto } from '../exercise/types/dto/create-exercise.dto';
 import { OpenaiService } from '../openai/openai.service';
@@ -142,20 +143,16 @@ export class ExerciseSetService {
             userId: new mongoose.Types.ObjectId(userId),
         };
 
-        try {
-            const response = await this.sourceService.readAllByUserId(userId);
+        const response = await this.sourceService.readAllByUserId(userId);
 
-            if (
-                readMultipleExerciseSetsFilterCriteriaDto.sourceType === ExerciseSetSourceType.SOURCE &&
-                response.sources &&
-                response.sources.length !== 0
-            ) {
-                const sourceIds = response.sources.map((s) => s._id);
+        if (
+            readMultipleExerciseSetsFilterCriteriaDto.sourceType === ExerciseSetSourceType.SOURCE &&
+            response.sources &&
+            response.sources.length !== 0
+        ) {
+            const sourceIds = response.sources.map((s) => s._id);
 
-                filter.sourceId = { $in: sourceIds };
-            }
-        } catch {
-            // no sources found — skip source filtering
+            filter.sourceId = { $in: sourceIds };
         }
 
         const refinedFilter = this.exerciseSetReadAllFilterCompositeProvider.filter(
@@ -168,13 +165,7 @@ export class ExerciseSetService {
     }
 
     async readAllByUserIdGroupedBySources(userId: string): Promise<ReadAllExerciseSetsGroupedBySourcesResponse> {
-        let sourcesResponse;
-
-        try {
-            sourcesResponse = await this.sourceService.readAllByUserId(userId);
-        } catch {
-            throw new NotFoundException('No sources associated with the given userId, thus no exercise sets can exist');
-        }
+        const sourcesResponse = await this.sourceService.readAllByUserId(userId);
 
         const sources = [];
 
@@ -193,8 +184,8 @@ export class ExerciseSetService {
         return { isSuccess: true, message: 'All exercise sets read', sources };
     }
 
-    async readById(id: string): Promise<ReadSingleExerciseSetResponse> {
-        const exerciseSet = await this.db.ExerciseSet.findById(id);
+    async readById(id: string, session?: mongoose.mongo.ClientSession): Promise<ReadSingleExerciseSetResponse> {
+        const exerciseSet = await this.db.ExerciseSet.findById(id).session(session ?? null);
 
         if (!exerciseSet) {
             throw new NotFoundException(`no exerciseSet found by id ${id}`);
@@ -228,24 +219,25 @@ export class ExerciseSetService {
         exerciseDifficulty: ExerciseDifficulty,
         session?: mongoose.mongo.ClientSession
     ): Promise<void> {
-        const exerciseSet = await this.db.ExerciseSet.findById(id).session(session ?? null);
-
-        if (!exerciseSet) {
-            throw new NotFoundException(`no exerciseSet found by id ${id}`);
-        }
+        const { exerciseSet } = await this.readById(id, session);
 
         const update: Record<string, unknown> = { $inc: { count: 1 } };
         const $set: Record<string, unknown> = {};
 
-        if (exerciseType.toString() !== exerciseSet.type.toString() && exerciseSet.type !== ExerciseSetType.MIX) {
-            $set.type = ExerciseSetType.MIX;
-        }
+        if (exerciseSet.count === 0) {
+            $set.type = exerciseType;
+            $set.difficulty = exerciseDifficulty;
+        } else {
+            if (exerciseType.toString() !== exerciseSet.type.toString() && exerciseSet.type !== ExerciseSetType.MIX) {
+                $set.type = ExerciseSetType.MIX;
+            }
 
-        if (
-            exerciseDifficulty.toString() !== exerciseSet.difficulty.toString() &&
-            exerciseSet.difficulty !== ExerciseSetDifficulty.MIX
-        ) {
-            $set.difficulty = ExerciseSetDifficulty.MIX;
+            if (
+                exerciseDifficulty.toString() !== exerciseSet.difficulty.toString() &&
+                exerciseSet.difficulty !== ExerciseSetDifficulty.MIX
+            ) {
+                $set.difficulty = ExerciseSetDifficulty.MIX;
+            }
         }
 
         if (Object.keys($set).length > 0) update.$set = $set;
@@ -254,7 +246,52 @@ export class ExerciseSetService {
     }
 
     async unregisterExercise(id: string, session?: mongoose.mongo.ClientSession): Promise<void> {
-        await this.db.ExerciseSet.findByIdAndUpdate(id, { $inc: { count: -1 } }, { session });
+        const { exerciseSet } = await this.readById(id, session);
+
+        const update: Record<string, unknown> = { $inc: { count: -1 } };
+        const $set: Record<string, unknown> = {};
+
+        const isMixType = exerciseSet.type === ExerciseSetType.MIX;
+        const isMixDifficulty = exerciseSet.difficulty === ExerciseSetDifficulty.MIX;
+
+        if (isMixType || isMixDifficulty) {
+            let exercises: ExerciseDocument[] = [];
+
+            const result = await this.exerciseService.readAllByExerciseSetId(exerciseSet._id, session);
+            exercises = result.exercises;
+
+            if (exercises.length > 0) {
+                if (isMixType) {
+                    const types = new Set<ExerciseType>();
+
+                    for (const exercise of exercises) {
+                        types.add(exercise.type);
+                        if (types.size > 1) break;
+                    }
+
+                    if (types.size === 1) {
+                        $set.type = [...types][0];
+                    }
+                }
+
+                if (isMixDifficulty) {
+                    const difficulties = new Set<ExerciseDifficulty>();
+
+                    for (const exercise of exercises) {
+                        difficulties.add(exercise.difficulty);
+                        if (difficulties.size > 1) break;
+                    }
+
+                    if (difficulties.size === 1) {
+                        $set.difficulty = [...difficulties][0];
+                    }
+                }
+            }
+        }
+
+        if (Object.keys($set).length > 0) update.$set = $set;
+
+        await this.db.ExerciseSet.findByIdAndUpdate(id, update, { session });
     }
 
     async deleteById(id: string): Promise<ResponseBase> {
