@@ -1,5 +1,7 @@
 // eslint-disable-next-line no-redeclare
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import JwtPayload from 'src/auth/types/jwt-payload.interface';
+import User from 'src/shared/custom-decorators/user.decorator';
 import { SignUpUserDto } from 'src/user/types/dto/sign-up-user.dto';
 import { UpdateUserDto } from 'src/user/types/dto/update-user.dto';
 import { ReadAllUsersResponse } from 'src/user/types/response/read-all-users.response';
@@ -7,8 +9,6 @@ import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user
 import { AuthGuard } from '../auth/auth.guard';
 import ResponseBase from '../shared/interfaces/response-base.interface';
 import { UserService } from './user.service';
-import User from 'src/shared/custom-decorators/user.decorator';
-import JwtPayload from 'src/auth/types/jwt-payload.interface';
 
 @Controller('user')
 export class UserController {
@@ -36,6 +36,7 @@ export class UserController {
     }
 
     @Get('read-by-token')
+    @UseGuards(AuthGuard)
     async readByToken(@User() user: JwtPayload): Promise<ReadSingleUserResponse> {
         const response = await this.userService.readById(user.sub);
 

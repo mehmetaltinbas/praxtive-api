@@ -1,29 +1,27 @@
 import {
-    Controller,
-    Post,
-    Get,
-    Patch,
-    Delete,
-    Inject, // eslint-disable-next-line no-redeclare
+    // eslint-disable-next-line no-redeclare
     Body,
+    Controller,
+    Delete,
+    Get,
     Param,
-    HttpCode,
-    UseGuards,
-    Req,
-    UseInterceptors,
+    Patch,
+    Post,
     UploadedFile,
+    UseGuards,
+    UseInterceptors,
 } from '@nestjs/common';
-import { SourceService } from './source.service';
-import { UpdateSourceDto } from './types/dto/update-source.dto';
-import ResponseBase from '../shared/interfaces/response-base.interface';
+import { Express } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
+import { ReadAllSourcesResponse } from 'src/source/types/response/read-all-sources.response';
+import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-source.response';
 import { AuthGuard } from '../auth/auth.guard';
 import JwtPayload from '../auth/types/jwt-payload.interface';
 import User from '../shared/custom-decorators/user.decorator';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { Express } from 'express';
-import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
-import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-source.response';
-import { ReadAllSourcesResponse } from 'src/source/types/response/read-all-sources.response';
+import ResponseBase from '../shared/interfaces/response-base.interface';
+import { SourceService } from './source.service';
+import { UpdateSourceDto } from './types/dto/update-source.dto';
 
 @Controller('source')
 @UseGuards(AuthGuard)
