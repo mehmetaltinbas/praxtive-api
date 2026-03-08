@@ -138,13 +138,7 @@ export class SubscriptionService {
                 newPlan.maximumCredits - activeSubscription.user.creditBalance
             );
 
-            await this.userService.updateById(
-                userId,
-                {
-                    creditBalance: activeSubscription.user.creditBalance + creditsToGrant,
-                },
-                session
-            );
+            await this.userService.updateCreditBalance(userId, creditsToGrant, session);
 
             await this.creditTransactionService.create(
                 userId,
@@ -387,11 +381,8 @@ export class SubscriptionService {
             activeSub.plan.monthlyCredits,
             activeSub.plan.maximumCredits - activeSub.user.creditBalance
         );
-        const updateUserDto: UpdateUserDto = {
-            creditBalance: activeSub.user.creditBalance + creditsToGrant,
-        };
 
-        await this.userService.updateById(userId, updateUserDto, session);
+        await this.userService.updateCreditBalance(userId, creditsToGrant, session);
 
         await this.creditTransactionService.create(
             userId,

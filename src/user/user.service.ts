@@ -74,6 +74,29 @@ export class UserService {
         return { isSuccess: true, message: 'user updated' };
     }
 
+    async updateCreditBalance(
+        id: string,
+        amount: number,
+        session?: mongoose.mongo.ClientSession
+    ): Promise<ResponseBase> {
+        // We use $inc so that the balance is adjusted relative to its current value
+        // Use a negative number for deductions, positive for additions
+        const user = await this.db.User.findByIdAndUpdate(
+            id,
+            { $inc: { creditBalance: amount } },
+            { session, new: true }
+        );
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        return {
+            isSuccess: true,
+            message: `Credit balance updated by ${amount}. New balance: ${user.creditBalance}`,
+        };
+    }
+
     async deleteById(id: string): Promise<ResponseBase> {
         const user = await this.db.User.findByIdAndDelete(id);
 

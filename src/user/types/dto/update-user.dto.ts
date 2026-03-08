@@ -6,7 +6,4 @@ export class UpdateUserDto {
 
     @IsOptional()
     readonly password?: string;
-
-    @IsOptional()
-    readonly creditBalance?: number;
 }
