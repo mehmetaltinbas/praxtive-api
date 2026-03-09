@@ -15,9 +15,9 @@ import {
 import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
+import { AiService } from '../ai/ai.service';
 import { ExerciseService } from '../exercise/exercise.service';
 import { CreateExerciseDto } from '../exercise/types/dto/create-exercise.dto';
-import { OpenaiService } from '../openai/openai.service';
 import ResponseBase from '../shared/interfaces/response-base.interface';
 import { SourceService } from '../source/source.service';
 import { ExtendedSourceDocument } from '../source/types/extended-source-document.interface';
@@ -32,7 +32,7 @@ export class ExerciseSetService {
     constructor(
         @Inject('DB_MODELS') private db: Record<'ExerciseSet', Model<ExerciseSetDocument>>,
         @Inject(forwardRef(() => ExerciseService)) private exerciseService: ExerciseService,
-        private openaiService: OpenaiService,
+        private aiService: AiService,
         private sourceService: SourceService,
         private exerciseSetTypeStrategyResolverProvider: ExerciseSetTypeStrategyResolverProvider,
         private exerciseSetReadAllFilterCompositeProvider: ExerciseSetReadAllFilterCompositeProvider
@@ -55,9 +55,9 @@ export class ExerciseSetService {
 
         switch (sourceType) {
             case ExerciseSetSourceType.SOURCE: {
-                const generateExercisesResponse = await this.openaiService.generateExercises(
+                const generateExercisesResponse = await this.aiService.generateExercises(
                     sourceText as string,
-                    dto.type,
+                    dto.type as unknown as ExerciseType,
                     dto.difficulty as unknown as ExerciseDifficulty,
                     dto.count
                 );
@@ -89,8 +89,10 @@ export class ExerciseSetService {
                             prompt: exercise.prompt,
                         };
 
-                        if (createDto.type === ExerciseType.MCQ || createDto.type === ExerciseType.TRUE_FALSE) {
+                        if (createDto.type === ExerciseType.MCQ) {
                             createDto.choices = exercise.choices;
+                            createDto.correctChoiceIndex = exercise.correctChoiceIndex;
+                        } else if (createDto.type === ExerciseType.TRUE_FALSE) {
                             createDto.correctChoiceIndex = exercise.correctChoiceIndex;
                         } else if (createDto.type === ExerciseType.OPEN_ENDED) {
                             createDto.solution = exercise.solution;

@@ -4,10 +4,10 @@ export interface ExerciseAnswerEvaluationResult {
     exerciseId: string;
     exerciseType: string;
     userAnswer: string;
-    solution: string;
-    correctChoiceIndex: number;
     score: number;
     feedback: string;
+    solution?: string;
+    correctChoiceIndex?: number;
 }
 
 export interface EvaluateAnswersResponse extends ResponseBase {

@@ -1,21 +1,17 @@
 import { Injectable } from '@nestjs/common';
+import { AiService } from 'src/ai/ai.service';
 import { EvaluateAnswerStrategyResponse } from 'src/exercise-set/types/response/evaluate-answer-strategy-response';
 import { ExerciseSetTypeStrategy } from 'src/exercise-set/types/strategy/exercise-set-type.strategy.interface';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
-import { OpenaiService } from 'src/openai/openai.service';
 
 @Injectable()
 export class OpenEndedTypeStrategyProvider implements ExerciseSetTypeStrategy {
-    constructor(private openaiService: OpenaiService) {}
+    constructor(private openaiService: AiService) {}
 
     async evaluateAnswer(exercise: ExerciseDocument, answer: string): Promise<EvaluateAnswerStrategyResponse> {
-        const prompt = `I want you to evaluate user's answer and provide feedback for this openEnded question exercise.
-            question: ${exercise.prompt} \n\n
-            user's answer: ${answer}\n ${exercise.solution ? `the solution: ${exercise.solution}` : ''} \n\n
-            so, depending on all this info, give user's answer a score out of 100 integer, and provide a feedback\n
-            your output should match this JSON interface: { score: number, feedback: string }\n
-            Return only valid JSON. Do not include extra text or formatting!`;
-        const evaluationResponse = await this.openaiService.evaluateExerciseAnswer(prompt);
+        const prompt = `the correct solution: ${exercise.solution}\n user's answer: ${answer}`;
+
+        const evaluationResponse = await this.openaiService.evaluateExerciseAnswer(exercise, prompt);
 
         if (!evaluationResponse.isSuccess) return { isSuccess: false, message: evaluationResponse.message };
 
