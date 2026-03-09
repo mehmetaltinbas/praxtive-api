@@ -1,5 +1,6 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose, { Model } from 'mongoose';
+import { AiService } from 'src/ai/ai.service';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { EXERCISE_TYPE_SPECIFIC_FIELDS_TO_UNSET } from 'src/exercise/constants/exercise-type-specific-fields-to-unset.constant';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
@@ -10,7 +11,6 @@ import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface
 import { ReadAllExercisesResponse } from 'src/exercise/types/response/read-all-exercises.response';
 import { ReadSingleExerciseResponse } from 'src/exercise/types/response/read-single-exercise.response';
 import { validateExerciseFields } from 'src/exercise/utils/validate-exercise-fields.util';
-import { OpenaiService } from 'src/openai/openai.service';
 import ResponseBase from 'src/shared/interfaces/response-base.interface';
 import { SourceService } from 'src/source/source.service';
 
@@ -18,7 +18,7 @@ import { SourceService } from 'src/source/source.service';
 export class ExerciseService {
     constructor(
         @Inject('DB_MODELS') private db: Record<'Exercise', Model<ExerciseDocument>>,
-        private openaiService: OpenaiService,
+        private aiService: AiService,
         private sourceService: SourceService,
         @Inject(forwardRef(() => ExerciseSetService))
         private exerciseSetService: ExerciseSetService

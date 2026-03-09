@@ -4,14 +4,14 @@ import { ExerciseSetTypeStrategyResolverProvider } from 'src/exercise-set/strate
 import { MCQTypeStrategyProvider } from 'src/exercise-set/strategies/type/mcq-type.strategy.provider';
 import { OpenEndedTypeStrategyProvider } from 'src/exercise-set/strategies/type/open-ended-type.strategy.provider';
 import { TrueFalseTypeStrategyProvider } from 'src/exercise-set/strategies/type/true-false-type.strategy.provider';
+import { AiModule } from '../ai/ai.module';
 import { ExerciseModule } from '../exercise/exercise.module';
-import { OpenaiModule } from '../openai/openai.module';
 import { SourceModule } from '../source/source.module';
 import { ExerciseSetController } from './exercise-set.controller';
 import { ExerciseSetService } from './exercise-set.service';
 
 @Module({
-    imports: [forwardRef(() => ExerciseModule), OpenaiModule, SourceModule],
+    imports: [forwardRef(() => ExerciseModule), AiModule, SourceModule],
     controllers: [ExerciseSetController],
     providers: [
         ExerciseSetService,
