@@ -1,4 +1,4 @@
-import { InlineNode } from 'src/source/types/inline-node.interface';
+import { InlineNode } from 'src/source/types/source-text-node/inline-node.interface';
 
 export function mergeInlineNodes(nodes: InlineNode[]): InlineNode[] {
     return nodes.reduce<InlineNode[]>((acc, node) => {
