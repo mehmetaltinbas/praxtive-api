@@ -4,9 +4,11 @@ import OpenAI from 'openai';
 import { EvaluateExerciseAnswerResponse } from 'src/ai/types/response/evaluate-exercise-answer.response';
 import { MCQ_CHOICES_COUNT } from 'src/exercise/constants/mcq-choices-count.constant';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
+import { SourceTextNode } from 'src/source/types/source-text-node/source-text-node.interface';
 import { ExerciseDifficulty } from '../exercise/enums/exercise-difficulty.enum';
 import { ExerciseType } from '../exercise/enums/exercise-type.enum';
 import { AiGeneratedExercise, AiGeneratedExercisesResponse } from './types/response/generate-exercises.response';
+import { ALLOWED_AUDIO_EXTRACTOR_MIMETYPES } from 'src/source/extractors/constants/allowed-audio-extractor-mimetypes.constant';
 
 @Injectable()
 export class AiService {
@@ -161,7 +163,7 @@ export class AiService {
             additionalProperties: false,
         };
 
-        const response = await this.sendPromptAndParseResponse<{ score: number; feedback: string }>(prompt, schema);
+        const response = await this.sendPromptAndParseResponse<EvaluateExerciseAnswerResponse>(prompt, schema);
 
         return {
             isSuccess: true,
@@ -171,28 +173,75 @@ export class AiService {
         };
     }
 
-    async transcribeAudio(fileBuffer: Buffer): Promise<string> {
-        const file = new File([fileBuffer], 'audio.webm', { type: 'audio/webm' });
+    async transcribeAudio(fileBuffer: Buffer, mimetype: string): Promise<string> {
+        const extension = ALLOWED_AUDIO_EXTRACTOR_MIMETYPES[mimetype] ?? 'webm';
+        const arrayBuffer = Buffer.from(fileBuffer).buffer;
+        const file = new File([arrayBuffer], `audio.${extension}`, { type: mimetype });
+
         const transcription = await this.openaiClient.audio.transcriptions.create({
             model: 'whisper-1',
             file,
         });
+
         return transcription.text;
     }
 
-    async test(): Promise<object> {
+    async convertTextIntoSourceTextNode(text: string): Promise<SourceTextNode> {
+        const prompt = `
+            Convert the following plain text into a structured document node in a most meaningful way.
+
+            Rules:
+            - Split the text into block nodes for next lines.
+            - Each block contains inline nodes (words or phrases that share the same style).
+            - Detect formatting intent: headings/titles → fontSize "title"; subtitles → fontSize "subTitle"; body text → fontSize "body".
+            - Default styles: fontSize "body", bold false, italic false.
+
+            Text:
+            """${text}"""
+        `;
+
         const schema = {
-            type: '',
+            type: 'object',
+            properties: {
+                content: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            content: {
+                                type: 'array',
+                                items: {
+                                    type: 'object',
+                                    properties: {
+                                        text: { type: 'string' },
+                                        styles: {
+                                            type: 'object',
+                                            properties: {
+                                                fontSize: { type: 'string', enum: ['title', 'subTitle', 'body'] },
+                                                bold: { type: 'boolean' },
+                                                italic: { type: 'boolean' },
+                                            },
+                                            required: ['fontSize', 'bold', 'italic'],
+                                            additionalProperties: false,
+                                        },
+                                    },
+                                    required: ['text', 'styles'],
+                                    additionalProperties: false,
+                                },
+                            },
+                        },
+                        required: ['content'],
+                        additionalProperties: false,
+                    },
+                },
+            },
+            required: ['content'],
+            additionalProperties: false,
         };
 
-        return {};
+        const response = await this.sendPromptAndParseResponse<SourceTextNode>(prompt, schema);
 
-        // return await this.generateExercises(
-        //     'In the frozen north, where winds howled like wolves and seas churned black, Leif Ironhand led his crew of twelve warriors across the uncharted ocean. They had sailed for nine days without sight of land, surviving on salted fish and iron will. On the tenth morning, a coastline emerged from the mist — jagged cliffs draped in green, unlike anything they had seen. Leif raised his axe to the sky and roared. His men echoed the cry, their voices swallowing the storm. They made landfall at dusk. The forest was dense, the silence heavy. Then — torches. Dozens of them, emerging from the treeline. Leif did not draw his sword. Instead, he stepped forward alone, hands open. His father had told him: the bravest thing a Viking can do is choose peace when war is easier. That night, they shared fire with strangers.',
-        //     ExerciseType.MCQ,
-        //     ExerciseDifficulty.HARD,
-        //     2
-        // );
+        return response;
     }
 
     private async sendPromptAndParseResponse<T>(prompt: string, schema: { [key: string]: unknown }): Promise<T> {
