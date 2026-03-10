@@ -4,15 +4,15 @@ import { ExtractionInput } from 'src/source/extractors/types/extraction-input.ty
 import { ExtractionResult } from 'src/source/extractors/types/extraction-result.type';
 import { SourceContentExtractor } from 'src/source/extractors/types/source-content-extractor.interface';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
-import { YoutubeTranscript } from 'youtube-transcript';
-import { Express } from 'express';
+import { AiService } from 'src/ai/ai.service';
+import type { Express } from 'express';
 
 @Injectable()
 export class YoutubeVideoExtractor implements SourceContentExtractor {
     readonly sourceType = SourceType.YOUTUBE_VIDEO;
     input?: ExtractionInput;
 
-    constructor() {}
+    constructor(private readonly aiService: AiService) {}
 
     buildInput(dto: CreateSourceDto): SourceContentExtractor {
         this.input = { type: SourceType.YOUTUBE_VIDEO, url: dto.url! };
@@ -25,10 +25,7 @@ export class YoutubeVideoExtractor implements SourceContentExtractor {
     }
 
     async extract(): Promise<ExtractionResult> {
-        const { url } = this.input as Extract<ExtractionInput, { type: SourceType.YOUTUBE_VIDEO }>;
-        const transcriptItems = await YoutubeTranscript.fetchTranscript(url);
-        const text = transcriptItems.map((item) => item.text).join(' ');
-
-        return { text };
+        // send request to an enternal python fastapi application
+        throw new Error('Not implemented');
     }
 }

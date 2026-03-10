@@ -6,17 +6,17 @@ export class CreateSourceDto {
     @IsNotEmpty()
     readonly type!: SourceType;
 
-    @IsOptional()
     @IsString()
+    @IsOptional()
     readonly title?: string;
 
-    @ValidateIf((o) => o.type === SourceType.RAW_TEXT)
     @IsString()
     @IsNotEmpty()
+    @ValidateIf((dto: CreateSourceDto) => dto.type === SourceType.RAW_TEXT)
     readonly rawText?: string;
 
-    @ValidateIf((o) => o.type === SourceType.YOUTUBE_VIDEO)
-    @IsUrl()
+    // @IsUrl()
     @IsNotEmpty()
+    @ValidateIf((dto: CreateSourceDto) => dto.type === SourceType.YOUTUBE_VIDEO)
     readonly url?: string;
 }

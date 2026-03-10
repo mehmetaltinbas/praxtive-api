@@ -2,7 +2,7 @@ import { SourceType } from 'src/source/enums/source-type.enum';
 import { ExtractionInput } from 'src/source/extractors/types/extraction-input.type';
 import { ExtractionResult } from 'src/source/extractors/types/extraction-result.type';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
-import { Express } from 'express';
+import type { Express } from 'express';
 
 export interface SourceContentExtractor {
     readonly sourceType: SourceType;

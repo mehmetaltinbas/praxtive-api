@@ -1,26 +1,30 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { TextItem, TextMarkedContent } from 'pdfjs-dist/types/src/display/api';
+import { AiService } from 'src/ai/ai.service';
 import { SourceType } from 'src/source/enums/source-type.enum';
 import { ExtractionInput } from 'src/source/extractors/types/extraction-input.type';
-import { SourceContentExtractor } from 'src/source/extractors/types/source-content-extractor.interface';
-import { BlockNode } from 'src/source/types/block-node.interface';
-import { DocumentNode } from 'src/source/types/document-node.interface';
-import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
-import { InlineNode } from 'src/source/types/inline-node.interface';
-import { Express } from 'express';
 import { ExtractionResult } from 'src/source/extractors/types/extraction-result.type';
 import { PdfjsFontFaceObject } from 'src/source/extractors/types/pdfjs-font-face-object.interface';
+import { SourceContentExtractor } from 'src/source/extractors/types/source-content-extractor.interface';
 import { mergeInlineNodes } from 'src/source/extractors/utils/merge-inline-nodes.util';
+import { removeEmptyBlockNodes } from 'src/source/extractors/utils/remove-empty-block-nodes.util';
+import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
+import { BlockNode } from 'src/source/types/source-text-node/block-node.interface';
+import { SourceTextNode } from 'src/source/types/source-text-node/source-text-node.interface';
+import type { Express } from 'express';
+import { InlineNode } from 'src/source/types/source-text-node/inline-node.interface';
+import { mapFontSizeToEnum } from 'src/source/extractors/utils/map-to-font-size-enum.util';
 
 @Injectable()
 export class DocumentExtractor implements SourceContentExtractor {
     readonly sourceType = SourceType.DOCUMENT;
     input?: ExtractionInput;
 
-    constructor() {}
+    constructor(private readonly aiService: AiService) {}
 
     buildInput(dto: CreateSourceDto, file?: Express.Multer.File): SourceContentExtractor {
         if (!file) throw new BadRequestException('File is required for document source type');
+        if (file.mimetype !== 'application/pdf') throw new BadRequestException('Only PDF files are supported');
 
         this.input = { type: SourceType.DOCUMENT, fileBuffer: file.buffer };
 
@@ -37,7 +41,7 @@ export class DocumentExtractor implements SourceContentExtractor {
         const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
         const pdfDocument = await pdfjs.getDocument({ data: new Uint8Array(fileBuffer) }).promise;
 
-        const documentNode: DocumentNode = { content: [] };
+        const sourceTextNode: SourceTextNode = { content: [] };
 
         for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
             const page = await pdfDocument.getPage(pageNum);
@@ -59,7 +63,7 @@ export class DocumentExtractor implements SourceContentExtractor {
                 const inlineNode: InlineNode = {
                     text: element.str,
                     styles: {
-                        fontSize: element.height,
+                        fontSize: mapFontSizeToEnum(element.height),
                         bold: marks.bold,
                         italic: marks.italic,
                     },
@@ -67,14 +71,14 @@ export class DocumentExtractor implements SourceContentExtractor {
 
                 if (inlineNode.text.length > 0) {
                     if (inlineNode.text === ' ') {
-                        inlineNode.styles.fontSize = element.transform[3] as number;
+                        inlineNode.styles.fontSize = mapFontSizeToEnum(element.transform[3] as number);
                     }
 
                     currentBlock.content.push(inlineNode);
                 }
 
                 if (element.hasEOL) {
-                    documentNode.content.push({
+                    sourceTextNode.content.push({
                         content: mergeInlineNodes(currentBlock.content),
                     });
                     currentBlock = { content: [] };
@@ -89,8 +93,10 @@ export class DocumentExtractor implements SourceContentExtractor {
                                 {
                                     text: ` `,
                                     styles: {
-                                        fontSize: Math.floor(
-                                            previousElement.transform[5] - element.transform[5] - element.transform[3]
+                                        fontSize: mapFontSizeToEnum(
+                                            Math.floor(
+                                                previousElement.transform[5] - element.transform[5] - element.transform[3]
+                                            )
                                         ),
                                         bold: false,
                                         italic: false,
@@ -99,18 +105,20 @@ export class DocumentExtractor implements SourceContentExtractor {
                             ],
                         };
 
-                        documentNode.content.push(lineBreak);
+                        sourceTextNode.content.push(lineBreak);
                     }
                 }
             });
 
             if (currentBlock.content.length > 0) {
-                documentNode.content.push({
+                sourceTextNode.content.push({
                     content: mergeInlineNodes(currentBlock.content),
                 });
             }
         }
 
-        return { text: JSON.stringify(documentNode) };
+        sourceTextNode.content = removeEmptyBlockNodes(sourceTextNode.content);
+
+        return { text: JSON.stringify(sourceTextNode) };
     }
 }
