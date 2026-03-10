@@ -1,5 +1,5 @@
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
-import ResponseBase from 'src/shared/interfaces/response-base.interface';
+import ResponseBase from 'src/shared/types/response-base.interface';
 
 export type AiGeneratedExercise = Omit<ExerciseDocument, '_id' | 'exerciseSetId'>;
 
