@@ -260,6 +260,7 @@ export class ExerciseSetService {
             let exercises: ExerciseDocument[] = [];
 
             const result = await this.exerciseService.readAllByExerciseSetId(exerciseSet._id, session);
+
             exercises = result.exercises;
 
             if (exercises.length > 0) {
@@ -312,6 +313,7 @@ export class ExerciseSetService {
         for (const exercise of evaluateAnswersDto.exercises) {
             try {
                 const readExerciseByIdResponse = await this.exerciseService.readById(exercise.id);
+
                 const resolveTypeStrategyProviderResponse =
                     this.exerciseSetTypeStrategyResolverProvider.resolveTypeStrategyProvider(
                         readExerciseByIdResponse.exercise.type
@@ -327,11 +329,11 @@ export class ExerciseSetService {
                 exerciseAnswerEvaluationResults.push({
                     exerciseId: exercise.id,
                     exerciseType: readExerciseByIdResponse.exercise.type,
-                    userAnswer: exercise.answer,
                     solution: readExerciseByIdResponse.exercise.solution,
                     correctChoiceIndex: readExerciseByIdResponse.exercise.correctChoiceIndex,
                     score: evaluatedAnswer.score,
                     feedback: evaluatedAnswer.feedback,
+                    userAnswer: exercise.answer,
                 });
             } catch {
                 continue;
