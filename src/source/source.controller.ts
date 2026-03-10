@@ -33,7 +33,7 @@ export class SourceController {
     async create(
         @User() user: JwtPayload,
         @Body() createSourceDto: CreateSourceDto,
-        @UploadedFile() file: Express.Multer.File
+        @UploadedFile() file?: Express.Multer.File
     ): Promise<ResponseBase> {
         const response = await this.sourceService.create(user.sub, createSourceDto, file);
 

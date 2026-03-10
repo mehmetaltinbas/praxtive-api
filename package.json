@@ -55,7 +55,8 @@
         "pdfjs-dist": "^5.4.149",
         "reflect-metadata": "^0.2.2",
         "rxjs": "^7.8.1",
-        "socket.io": "^4.8.1"
+        "socket.io": "^4.8.1",
+        "youtube-transcript": "^1.2.1"
     },
     "devDependencies": {
         "@eslint/eslintrc": "^3.2.0",

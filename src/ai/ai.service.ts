@@ -171,6 +171,15 @@ export class AiService {
         };
     }
 
+    async transcribeAudio(fileBuffer: Buffer): Promise<string> {
+        const file = new File([fileBuffer], 'audio.webm', { type: 'audio/webm' });
+        const transcription = await this.openaiClient.audio.transcriptions.create({
+            model: 'whisper-1',
+            file,
+        });
+        return transcription.text;
+    }
+
     async test(): Promise<object> {
         const schema = {
             type: '',
@@ -180,8 +189,8 @@ export class AiService {
 
         // return await this.generateExercises(
         //     'In the frozen north, where winds howled like wolves and seas churned black, Leif Ironhand led his crew of twelve warriors across the uncharted ocean. They had sailed for nine days without sight of land, surviving on salted fish and iron will. On the tenth morning, a coastline emerged from the mist — jagged cliffs draped in green, unlike anything they had seen. Leif raised his axe to the sky and roared. His men echoed the cry, their voices swallowing the storm. They made landfall at dusk. The forest was dense, the silence heavy. Then — torches. Dozens of them, emerging from the treeline. Leif did not draw his sword. Instead, he stepped forward alone, hands open. His father had told him: the bravest thing a Viking can do is choose peace when war is easier. That night, they shared fire with strangers.',
-        //     ExerciseType.OPEN_ENDED,
-        //     ExerciseDifficulty.EASY,
+        //     ExerciseType.MCQ,
+        //     ExerciseDifficulty.HARD,
         //     2
         // );
     }

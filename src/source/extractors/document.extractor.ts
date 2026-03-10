@@ -1,14 +1,39 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import type { TextItem, TextMarkedContent } from 'pdfjs-dist/types/src/display/api';
-import { PdfjsFontFaceObject } from 'src/source/types/text-extractor/types/pdfjs-font-face-object.interface';
-import { TextExtractor } from 'src/source/types/text-extractor/types/text-extractor.interface';
+import { SourceType } from 'src/source/enums/source-type.enum';
+import { ExtractionInput } from 'src/source/extractors/types/extraction-input.type';
+import { SourceContentExtractor } from 'src/source/extractors/types/source-content-extractor.interface';
 import { BlockNode } from 'src/source/types/block-node.interface';
 import { DocumentNode } from 'src/source/types/document-node.interface';
+import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
 import { InlineNode } from 'src/source/types/inline-node.interface';
+import { Express } from 'express';
+import { ExtractionResult } from 'src/source/extractors/types/extraction-result.type';
+import { PdfjsFontFaceObject } from 'src/source/extractors/types/pdfjs-font-face-object.interface';
+import { mergeInlineNodes } from 'src/source/extractors/utils/merge-inline-nodes.util';
 
 @Injectable()
-export class PdfTextExtractor implements TextExtractor {
-    async extractText(fileBuffer: Buffer): Promise<string> {
+export class DocumentExtractor implements SourceContentExtractor {
+    readonly sourceType = SourceType.DOCUMENT;
+    input?: ExtractionInput;
+
+    constructor() {}
+
+    buildInput(dto: CreateSourceDto, file?: Express.Multer.File): SourceContentExtractor {
+        if (!file) throw new BadRequestException('File is required for document source type');
+
+        this.input = { type: SourceType.DOCUMENT, fileBuffer: file.buffer };
+
+        return this;
+    }
+
+    resolveTitle(dto: CreateSourceDto, file?: Express.Multer.File): string {
+        return dto.title ?? file?.originalname ?? 'Untitled';
+    }
+
+    async extract(): Promise<ExtractionResult> {
+        const { fileBuffer } = this.input as Extract<ExtractionInput, { type: SourceType.DOCUMENT }>;
+
         const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
         const pdfDocument = await pdfjs.getDocument({ data: new Uint8Array(fileBuffer) }).promise;
 
@@ -49,8 +74,9 @@ export class PdfTextExtractor implements TextExtractor {
                 }
 
                 if (element.hasEOL) {
-                    // new block if hasEOL
-                    documentNode.content.push(currentBlock);
+                    documentNode.content.push({
+                        content: mergeInlineNodes(currentBlock.content),
+                    });
                     currentBlock = { content: [] };
                 }
 
@@ -58,7 +84,6 @@ export class PdfTextExtractor implements TextExtractor {
                     const previousElement = textContent.items[index - 1] as TextItem;
 
                     if (element.hasEOL && previousElement.transform[5] !== element.transform[5]) {
-                        // line break construction
                         const lineBreak: BlockNode = {
                             content: [
                                 {
@@ -80,10 +105,12 @@ export class PdfTextExtractor implements TextExtractor {
             });
 
             if (currentBlock.content.length > 0) {
-                documentNode.content.push(currentBlock);
+                documentNode.content.push({
+                    content: mergeInlineNodes(currentBlock.content),
+                });
             }
         }
 
-        return JSON.stringify(documentNode);
+        return { text: JSON.stringify(documentNode) };
     }
 }
