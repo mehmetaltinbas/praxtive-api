@@ -1,10 +1,8 @@
 // eslint-disable-next-line no-redeclare
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { PlanName } from 'src/plan/enums/plan-name.enum';
 import { PlanService } from 'src/plan/plan.service';
-import { CreatePlanDto } from 'src/plan/types/dto/create-plan.dto.model';
 import { ReadSinglePlanResponse } from 'src/plan/types/response/read-single-plan.response';
-import ResponseBase from 'src/shared/interfaces/response-base.interface';
 
 @Controller('plan')
 export class PlanController {

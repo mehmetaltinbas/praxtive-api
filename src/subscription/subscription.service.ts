@@ -5,14 +5,13 @@ import { BillingService } from 'src/billing/billing.service';
 import { CreditTransactionType } from 'src/billing/enums/credit-transaction-type.enum';
 import { CreditTransactionService } from 'src/credit-transaction/credit-transaction.service';
 import { PlanService } from 'src/plan/plan.service';
-import ResponseBase from 'src/shared/interfaces/response-base.interface';
+import ResponseBase from 'src/shared/types/response-base.interface';
 import { SubscriptionStatus } from 'src/subscription/enum/subscription-status.enum';
 import { CreateSubscriptionDto } from 'src/subscription/types/dto/create-subscription.dto';
 import { DowngradeSubscriptionDto } from 'src/subscription/types/dto/downgrade-subscription.dto';
 import { UpgradeSubscriptionDto } from 'src/subscription/types/dto/upgrade-subscription.dto';
 import { CheckPriceToPayOnUpgradeSubscriptionResponse } from 'src/subscription/types/response/check-price-to-pay-on-upgrade-subscription.response';
 import { SubscriptionDocument } from 'src/subscription/types/subscription-document.interface';
-import { UpdateUserDto } from 'src/user/types/dto/update-user.dto';
 import { UserService } from 'src/user/user.service';
 
 @Injectable()

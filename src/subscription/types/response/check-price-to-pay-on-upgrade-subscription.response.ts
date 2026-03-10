@@ -1,4 +1,4 @@
-import ResponseBase from 'src/shared/interfaces/response-base.interface';
+import ResponseBase from 'src/shared/types/response-base.interface';
 
 export interface CheckPriceToPayOnUpgradeSubscriptionResponse extends ResponseBase {
     priceToPay?: number;

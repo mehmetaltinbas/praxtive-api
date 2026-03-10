@@ -11,7 +11,7 @@ import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface
 import { ReadAllExercisesResponse } from 'src/exercise/types/response/read-all-exercises.response';
 import { ReadSingleExerciseResponse } from 'src/exercise/types/response/read-single-exercise.response';
 import { validateExerciseFields } from 'src/exercise/utils/validate-exercise-fields.util';
-import ResponseBase from 'src/shared/interfaces/response-base.interface';
+import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceService } from 'src/source/source.service';
 
 @Injectable()

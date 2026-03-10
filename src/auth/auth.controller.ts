@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request as ExpressRequest, Response as ExpressResponse } from 'express';
-import ResponseBase from '../shared/interfaces/response-base.interface';
+import ResponseBase from '../shared/types/response-base.interface';
 import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
 import { SignInDto } from './types/auth-dtos';

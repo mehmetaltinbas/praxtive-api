@@ -7,7 +7,7 @@ import { EvaluateAnswersResponse } from 'src/exercise-set/types/response/evaluat
 import { AuthGuard } from '../auth/auth.guard';
 import JwtPayload from '../auth/types/jwt-payload.interface';
 import User from '../shared/custom-decorators/user.decorator';
-import ResponseBase from '../shared/interfaces/response-base.interface';
+import ResponseBase from '../shared/types/response-base.interface';
 import { ExerciseSetService } from './exercise-set.service';
 import { CreateExerciseSetDto } from './types/dto/create-exercise-set.dto';
 import { ReadAllExerciseSetsGroupedBySourcesResponse } from './types/response/read-all-exercise-sets-grouped-by-sources.response';

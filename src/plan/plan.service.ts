@@ -4,7 +4,7 @@ import { PlanDocument } from 'src/billing/types/plan-document.interface';
 import { PlanName } from 'src/plan/enums/plan-name.enum';
 import { CreatePlanDto } from 'src/plan/types/dto/create-plan.dto.model';
 import { ReadSinglePlanResponse } from 'src/plan/types/response/read-single-plan.response';
-import ResponseBase from 'src/shared/interfaces/response-base.interface';
+import ResponseBase from 'src/shared/types/response-base.interface';
 
 @Injectable()
 export class PlanService {

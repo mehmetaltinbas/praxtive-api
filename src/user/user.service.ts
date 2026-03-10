@@ -2,13 +2,13 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcrypt';
 import mongoose, { Model } from 'mongoose';
-import ResponseBase from 'src/shared/interfaces/response-base.interface';
+import ResponseBase from 'src/shared/types/response-base.interface';
 import { SignUpUserDto } from 'src/user/types/dto/sign-up-user.dto';
+import { UpdateUserPasswordDto } from 'src/user/types/dto/update-user-password.dto';
 import { UpdateUserDto } from 'src/user/types/dto/update-user.dto';
 import { ReadAllUsersResponse } from 'src/user/types/response/read-all-users.response';
 import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user.response';
 import { UserDocument } from './types/user-document.interface';
-import { UpdateUserPasswordDto } from 'src/user/types/dto/update-user-password.dto';
 
 @Injectable()
 export class UserService {

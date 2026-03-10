@@ -3,13 +3,13 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@n
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import User from 'src/shared/custom-decorators/user.decorator';
 import { SignUpUserDto } from 'src/user/types/dto/sign-up-user.dto';
+import { UpdateUserPasswordDto } from 'src/user/types/dto/update-user-password.dto';
 import { UpdateUserDto } from 'src/user/types/dto/update-user.dto';
 import { ReadAllUsersResponse } from 'src/user/types/response/read-all-users.response';
 import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user.response';
 import { AuthGuard } from '../auth/auth.guard';
-import ResponseBase from '../shared/interfaces/response-base.interface';
+import ResponseBase from '../shared/types/response-base.interface';
 import { UserService } from './user.service';
-import { UpdateUserPasswordDto } from 'src/user/types/dto/update-user-password.dto';
 
 @Controller('user')
 export class UserController {

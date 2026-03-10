@@ -11,17 +11,17 @@ import {
     UseGuards,
     UseInterceptors,
 } from '@nestjs/common';
-import { Express } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { AuthGuard } from 'src/auth/auth.guard';
+import JwtPayload from 'src/auth/types/jwt-payload.interface';
+import User from 'src/shared/custom-decorators/user.decorator';
+import ResponseBase from 'src/shared/types/response-base.interface';
+import { SourceService } from 'src/source/source.service';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
+import { UpdateSourceDto } from 'src/source/types/dto/update-source.dto';
 import { ReadAllSourcesResponse } from 'src/source/types/response/read-all-sources.response';
 import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-source.response';
-import { AuthGuard } from '../auth/auth.guard';
-import JwtPayload from '../auth/types/jwt-payload.interface';
-import User from '../shared/custom-decorators/user.decorator';
-import ResponseBase from '../shared/interfaces/response-base.interface';
-import { SourceService } from './source.service';
-import { UpdateSourceDto } from './types/dto/update-source.dto';
+import type { Express } from 'express';
 
 @Controller('source')
 @UseGuards(AuthGuard)

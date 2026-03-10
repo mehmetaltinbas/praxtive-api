@@ -3,7 +3,7 @@ import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from 'src/auth/auth.guard';
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import User from 'src/shared/custom-decorators/user.decorator';
-import ResponseBase from 'src/shared/interfaces/response-base.interface';
+import ResponseBase from 'src/shared/types/response-base.interface';
 import { SubscriptionService } from 'src/subscription/subscription.service';
 import { DowngradeSubscriptionDto } from 'src/subscription/types/dto/downgrade-subscription.dto';
 import { UpgradeSubscriptionDto } from 'src/subscription/types/dto/upgrade-subscription.dto';

@@ -1,12 +1,12 @@
 // eslint-disable-next-line no-redeclare
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from 'src/auth/auth.guard';
+import { ExerciseService } from 'src/exercise/exercise.service';
 import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
 import { TransferExerciseDto } from 'src/exercise/types/dto/transfer-exercise.dto';
-import ResponseBase from '../shared/interfaces/response-base.interface';
-import { ExerciseService } from './exercise.service';
-import { ReadAllExercisesResponse } from './types/response/read-all-exercises.response';
 import { UpdateExerciseDto } from 'src/exercise/types/dto/update-exercise.dto';
+import { ReadAllExercisesResponse } from 'src/exercise/types/response/read-all-exercises.response';
+import ResponseBase from 'src/shared/types/response-base.interface';
 
 @Controller('exercise')
 @UseGuards(AuthGuard)

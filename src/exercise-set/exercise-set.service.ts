@@ -18,7 +18,7 @@ import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface
 import { AiService } from '../ai/ai.service';
 import { ExerciseService } from '../exercise/exercise.service';
 import { CreateExerciseDto } from '../exercise/types/dto/create-exercise.dto';
-import ResponseBase from '../shared/interfaces/response-base.interface';
+import ResponseBase from '../shared/types/response-base.interface';
 import { SourceService } from '../source/source.service';
 import { ExtendedSourceDocument } from '../source/types/extended-source-document.interface';
 import { CreateExerciseSetDto } from './types/dto/create-exercise-set.dto';
