@@ -1,9 +1,10 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose, { Model } from 'mongoose';
 import { AiService } from 'src/ai/ai.service';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { EXERCISE_TYPE_SPECIFIC_FIELDS_TO_UNSET } from 'src/exercise/constants/exercise-type-specific-fields-to-unset.constant';
-import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
+import { ExerciseTypeFactory } from 'src/exercise/strategies/type/exercise-type.factory';
+import { EvaluateAnswerStrategyResponse } from 'src/exercise/strategies/type/types/evaluate-answer-strategy.response';
 import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
 import { TransferExerciseDto } from 'src/exercise/types/dto/transfer-exercise.dto';
 import { UpdateExerciseDto } from 'src/exercise/types/dto/update-exercise.dto';
@@ -12,16 +13,14 @@ import { ReadAllExercisesResponse } from 'src/exercise/types/response/read-all-e
 import { ReadSingleExerciseResponse } from 'src/exercise/types/response/read-single-exercise.response';
 import { validateExerciseFields } from 'src/exercise/utils/validate-exercise-fields.util';
 import ResponseBase from 'src/shared/types/response-base.interface';
-import { SourceService } from 'src/source/source.service';
 
 @Injectable()
 export class ExerciseService {
     constructor(
         @Inject('DB_MODELS') private db: Record<'Exercise', Model<ExerciseDocument>>,
-        private aiService: AiService,
-        private sourceService: SourceService,
-        @Inject(forwardRef(() => ExerciseSetService))
-        private exerciseSetService: ExerciseSetService
+        private exerciseTypeFactory: ExerciseTypeFactory,
+        @Inject(forwardRef(() => ExerciseSetService)) private exerciseSetService: ExerciseSetService,
+        private aiService: AiService
     ) {}
 
     async create(
@@ -38,21 +37,12 @@ export class ExerciseService {
             prompt: dto.prompt,
         };
 
-        let exerciseData: Record<string, unknown>;
+        const strategy = this.exerciseTypeFactory.resolveStrategy(dto.type);
 
-        switch (dto.type) {
-            case ExerciseType.MCQ:
-                exerciseData = { ...commonFields, choices: dto.choices, correctChoiceIndex: dto.correctChoiceIndex };
-                break;
-            case ExerciseType.TRUE_FALSE:
-                exerciseData = { ...commonFields, correctChoiceIndex: dto.correctChoiceIndex };
-                break;
-            case ExerciseType.OPEN_ENDED:
-                exerciseData = { ...commonFields, solution: dto.solution };
-                break;
-            default:
-                throw new BadRequestException(`unsupported exercise type: ${dto.type as string}`);
-        }
+        const exerciseData: Record<string, unknown> = {
+            ...commonFields,
+            ...strategy.getCreateExerciseData(dto),
+        };
 
         await this.db.Exercise.create([exerciseData], { session });
         await this.exerciseSetService.registerExercise(exerciseSetId, dto.type, dto.difficulty, session);
@@ -229,5 +219,11 @@ export class ExerciseService {
         }
 
         return { isSuccess: true, message: `exercise deleted by id: ${id}` };
+    }
+
+    async evaluateAnswer(exercise: ExerciseDocument, answer: string): Promise<EvaluateAnswerStrategyResponse> {
+        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
+
+        return await strategy.evaluateAnswer(exercise, answer);
     }
 }
