@@ -2,41 +2,29 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import type { TextItem, TextMarkedContent } from 'pdfjs-dist/types/src/display/api';
 import { AiService } from 'src/ai/ai.service';
 import { SourceType } from 'src/source/enums/source-type.enum';
-import { ExtractionInput } from 'src/source/extractors/types/extraction-input.type';
-import { ExtractionResult } from 'src/source/extractors/types/extraction-result.type';
-import { PdfjsFontFaceObject } from 'src/source/extractors/types/pdfjs-font-face-object.interface';
-import { SourceContentExtractor } from 'src/source/extractors/types/source-content-extractor.interface';
-import { mergeInlineNodes } from 'src/source/extractors/utils/merge-inline-nodes.util';
-import { removeEmptyBlockNodes } from 'src/source/extractors/utils/remove-empty-block-nodes.util';
+import { SourceTypeStrategy } from 'src/source/strategies/type/source-type-strategy.interface';
+import { ExtractionResult } from 'src/source/strategies/type/types/extraction-result.response';
+import { PdfjsFontFaceObject } from 'src/source/strategies/type/types/pdfjs-font-face-object.interface';
+import { mapFontSizeToEnum } from 'src/source/strategies/type/utils/map-to-font-size-enum.util';
+import { mergeInlineNodes } from 'src/source/strategies/type/utils/merge-inline-nodes.util';
+import { removeEmptyBlockNodes } from 'src/source/strategies/type/utils/remove-empty-block-nodes.util';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
 import { BlockNode } from 'src/source/types/source-text-node/block-node.interface';
-import { SourceTextNode } from 'src/source/types/source-text-node/source-text-node.interface';
-import type { Express } from 'express';
 import { InlineNode } from 'src/source/types/source-text-node/inline-node.interface';
-import { mapFontSizeToEnum } from 'src/source/extractors/utils/map-to-font-size-enum.util';
+import { SourceTextNode } from 'src/source/types/source-text-node/source-text-node.interface';
+import { Express } from 'express';
 
 @Injectable()
-export class DocumentExtractor implements SourceContentExtractor {
-    readonly sourceType = SourceType.DOCUMENT;
-    input?: ExtractionInput;
+export class DocumentSourceTypeStrategy implements SourceTypeStrategy {
+    type = SourceType.DOCUMENT;
 
     constructor(private readonly aiService: AiService) {}
 
-    buildInput(dto: CreateSourceDto, file?: Express.Multer.File): SourceContentExtractor {
+    async extract(dto: CreateSourceDto, file?: Express.Multer.File): Promise<ExtractionResult> {
         if (!file) throw new BadRequestException('File is required for document source type');
         if (file.mimetype !== 'application/pdf') throw new BadRequestException('Only PDF files are supported');
 
-        this.input = { type: SourceType.DOCUMENT, fileBuffer: file.buffer };
-
-        return this;
-    }
-
-    resolveTitle(dto: CreateSourceDto, file?: Express.Multer.File): string {
-        return dto.title ?? file?.originalname ?? 'Untitled';
-    }
-
-    async extract(): Promise<ExtractionResult> {
-        const { fileBuffer } = this.input as Extract<ExtractionInput, { type: SourceType.DOCUMENT }>;
+        const fileBuffer = file.buffer;
 
         const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
         const pdfDocument = await pdfjs.getDocument({ data: new Uint8Array(fileBuffer) }).promise;
@@ -95,7 +83,9 @@ export class DocumentExtractor implements SourceContentExtractor {
                                     styles: {
                                         fontSize: mapFontSizeToEnum(
                                             Math.floor(
-                                                previousElement.transform[5] - element.transform[5] - element.transform[3]
+                                                previousElement.transform[5] -
+                                                    element.transform[5] -
+                                                    element.transform[3]
                                             )
                                         ),
                                         bold: false,
@@ -119,6 +109,6 @@ export class DocumentExtractor implements SourceContentExtractor {
 
         sourceTextNode.content = removeEmptyBlockNodes(sourceTextNode.content);
 
-        return { text: JSON.stringify(sourceTextNode) };
+        return { title: dto.title ?? file?.originalname ?? 'Untitled', text: JSON.stringify(sourceTextNode) };
     }
 }

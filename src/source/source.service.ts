@@ -1,33 +1,30 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Model } from 'mongoose';
 import ResponseBase from 'src/shared/types/response-base.interface';
-import { SourceType } from 'src/source/enums/source-type.enum';
-import { SOURCE_CONTENT_EXTRACTORS } from 'src/source/extractors/source-content-extractor.token';
-import { SourceContentExtractor } from 'src/source/extractors/types/source-content-extractor.interface';
+import { SourceTypeFactory } from 'src/source/strategies/type/source-type.factory';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
 import { UpdateSourceDto } from 'src/source/types/dto/update-source.dto';
 import { ReadAllSourcesResponse } from 'src/source/types/response/read-all-sources.response';
 import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-source.response';
 import { SourceDocument } from 'src/source/types/source-document.interface';
-import type { Express } from 'express';
+import { Express } from 'express';
 
 @Injectable()
 export class SourceService {
     constructor(
         @Inject('DB_MODELS') private db: Record<'Source', Model<SourceDocument>>,
-        @Inject(SOURCE_CONTENT_EXTRACTORS) private extractors: SourceContentExtractor[]
+        private sourceTypeFactory: SourceTypeFactory
     ) {}
 
     async create(userId: string, dto: CreateSourceDto, file?: Express.Multer.File): Promise<ResponseBase> {
-        const extractor = this.resolveExtractor(dto.type).buildInput(dto, file);
-        const result = await extractor.extract();
-        const title = extractor.resolveTitle(dto, file, result);
+        const strategy = this.sourceTypeFactory.resolveStrategy(dto.type);
+        const { text, title } = await strategy.extract(dto, file);
 
         await this.db.Source.create({
             userId,
             type: dto.type,
             title,
-            rawText: result.text,
+            rawText: text,
         });
 
         return { isSuccess: true, message: 'source created' };
@@ -77,15 +74,5 @@ export class SourceService {
         }
 
         return { isSuccess: true, message: 'source deleted' };
-    }
-
-    private resolveExtractor(type: SourceType): SourceContentExtractor {
-        const extractor = this.extractors.find((e) => e.sourceType === type);
-
-        if (!extractor) {
-            throw new BadRequestException(`Unsupported source type: ${type}`);
-        }
-
-        return extractor;
     }
 }
