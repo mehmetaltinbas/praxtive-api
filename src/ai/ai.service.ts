@@ -4,11 +4,11 @@ import OpenAI from 'openai';
 import { EvaluateExerciseAnswerResponse } from 'src/ai/types/response/evaluate-exercise-answer.response';
 import { MCQ_CHOICES_COUNT } from 'src/exercise/constants/mcq-choices-count.constant';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
+import { ALLOWED_AUDIO_EXTRACTOR_MIMETYPES } from 'src/source/constants/allowed-audio-extractor-mimetypes.constant';
 import { SourceTextNode } from 'src/source/types/source-text-node/source-text-node.interface';
 import { ExerciseDifficulty } from '../exercise/enums/exercise-difficulty.enum';
 import { ExerciseType } from '../exercise/enums/exercise-type.enum';
 import { AiGeneratedExercise, AiGeneratedExercisesResponse } from './types/response/generate-exercises.response';
-import { ALLOWED_AUDIO_EXTRACTOR_MIMETYPES } from 'src/source/extractors/constants/allowed-audio-extractor-mimetypes.constant';
 
 @Injectable()
 export class AiService {

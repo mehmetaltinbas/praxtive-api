@@ -1,31 +1,31 @@
 import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose, { FilterQuery, Model } from 'mongoose';
+import { AiService } from 'src/ai/ai.service';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
-import { ExerciseSetTypeStrategyResolverProvider } from 'src/exercise-set/strategies/type/exercise-set-type-strategy-resolver.provider';
+import { ExerciseSetTypeFactory } from 'src/exercise-set/strategies/type/exercise-set-type.factory';
+import { CreateExerciseSetDto } from 'src/exercise-set/types/dto/create-exercise-set.dto';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
 import { UpdateExerciseSetDto } from 'src/exercise-set/types/dto/update-exercise-set.dto';
+import { ExerciseSetDocument } from 'src/exercise-set/types/exercise-set-document.interface';
 import {
     EvaluateAnswersResponse,
     ExerciseAnswerEvaluationResult,
 } from 'src/exercise-set/types/response/evaluate-answers.response';
+import { ReadAllExerciseSetsGroupedBySourcesResponse } from 'src/exercise-set/types/response/read-all-exercise-sets-grouped-by-sources.response';
+import { ReadAllExerciseSetsResponse } from 'src/exercise-set/types/response/read-all-exercise-sets.response';
+import { ReadSingleExerciseSetResponse } from 'src/exercise-set/types/response/read-single-exercise-set.response';
 import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
+import { ExerciseService } from 'src/exercise/exercise.service';
+import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
-import { AiService } from '../ai/ai.service';
-import { ExerciseService } from '../exercise/exercise.service';
-import { CreateExerciseDto } from '../exercise/types/dto/create-exercise.dto';
-import ResponseBase from '../shared/types/response-base.interface';
-import { SourceService } from '../source/source.service';
-import { ExtendedSourceDocument } from '../source/types/extended-source-document.interface';
-import { CreateExerciseSetDto } from './types/dto/create-exercise-set.dto';
-import { ExerciseSetDocument } from './types/exercise-set-document.interface';
-import { ReadAllExerciseSetsGroupedBySourcesResponse } from './types/response/read-all-exercise-sets-grouped-by-sources.response';
-import { ReadAllExerciseSetsResponse } from './types/response/read-all-exercise-sets.response';
-import { ReadSingleExerciseSetResponse } from './types/response/read-single-exercise-set.response';
+import ResponseBase from 'src/shared/types/response-base.interface';
+import { SourceService } from 'src/source/source.service';
+import { ExtendedSourceDocument } from 'src/source/types/extended-source-document.interface';
 
 @Injectable()
 export class ExerciseSetService {
@@ -34,7 +34,7 @@ export class ExerciseSetService {
         @Inject(forwardRef(() => ExerciseService)) private exerciseService: ExerciseService,
         private aiService: AiService,
         private sourceService: SourceService,
-        private exerciseSetTypeStrategyResolverProvider: ExerciseSetTypeStrategyResolverProvider,
+        private exerciseSetTypeFactory: ExerciseSetTypeFactory,
         private exerciseSetReadAllFilterCompositeProvider: ExerciseSetReadAllFilterCompositeProvider
     ) {}
 
@@ -310,30 +310,23 @@ export class ExerciseSetService {
     async evaluateAnswers(evaluateAnswersDto: EvaluateAnswersDto): Promise<EvaluateAnswersResponse> {
         const exerciseAnswerEvaluationResults: ExerciseAnswerEvaluationResult[] = [];
 
-        for (const exercise of evaluateAnswersDto.exercises) {
+        for (const { id, answer } of evaluateAnswersDto.exercises) {
             try {
-                const readExerciseByIdResponse = await this.exerciseService.readById(exercise.id);
+                const { exercise } = await this.exerciseService.readById(id);
 
-                const resolveTypeStrategyProviderResponse =
-                    this.exerciseSetTypeStrategyResolverProvider.resolveTypeStrategyProvider(
-                        readExerciseByIdResponse.exercise.type
-                    );
+                const evaluatedAnswer = await this.exerciseService.evaluateAnswer(exercise, answer);
 
-                const evaluatedAnswer = await resolveTypeStrategyProviderResponse.strategy.evaluateAnswer(
-                    readExerciseByIdResponse.exercise,
-                    exercise.answer
-                );
-
-                if (evaluatedAnswer.score === undefined || !evaluatedAnswer.feedback) continue;
+                if (!evaluatedAnswer.isSuccess || evaluatedAnswer.score === undefined || !evaluatedAnswer.feedback)
+                    continue;
 
                 exerciseAnswerEvaluationResults.push({
-                    exerciseId: exercise.id,
-                    exerciseType: readExerciseByIdResponse.exercise.type,
-                    solution: readExerciseByIdResponse.exercise.solution,
-                    correctChoiceIndex: readExerciseByIdResponse.exercise.correctChoiceIndex,
+                    exerciseId: id,
+                    exerciseType: exercise.type,
+                    solution: exercise.solution,
+                    correctChoiceIndex: exercise.correctChoiceIndex,
                     score: evaluatedAnswer.score,
                     feedback: evaluatedAnswer.feedback,
-                    userAnswer: exercise.answer,
+                    userAnswer: answer,
                 });
             } catch {
                 continue;

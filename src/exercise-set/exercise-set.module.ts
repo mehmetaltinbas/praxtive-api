@@ -1,24 +1,20 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { AiModule } from 'src/ai/ai.module';
 import { exerciseSetReadAllFilterProviders } from 'src/exercise-set/composites/read-all-filter/read-all-filter-providers.barrel';
-import { ExerciseSetTypeStrategyResolverProvider } from 'src/exercise-set/strategies/type/exercise-set-type-strategy-resolver.provider';
-import { MCQTypeStrategyProvider } from 'src/exercise-set/strategies/type/mcq-type.strategy.provider';
-import { OpenEndedTypeStrategyProvider } from 'src/exercise-set/strategies/type/open-ended-type.strategy.provider';
-import { TrueFalseTypeStrategyProvider } from 'src/exercise-set/strategies/type/true-false-type.strategy.provider';
-import { AiModule } from '../ai/ai.module';
-import { ExerciseModule } from '../exercise/exercise.module';
-import { SourceModule } from '../source/source.module';
-import { ExerciseSetController } from './exercise-set.controller';
-import { ExerciseSetService } from './exercise-set.service';
+import { ExerciseSetController } from 'src/exercise-set/exercise-set.controller';
+import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
+import { ExerciseSetTypeStrategiesBarrel } from 'src/exercise-set/strategies/type/exercise-set-type-strategies.barrel';
+import { ExerciseSetTypeFactory } from 'src/exercise-set/strategies/type/exercise-set-type.factory';
+import { ExerciseModule } from 'src/exercise/exercise.module';
+import { SourceModule } from 'src/source/source.module';
 
 @Module({
     imports: [forwardRef(() => ExerciseModule), AiModule, SourceModule],
     controllers: [ExerciseSetController],
     providers: [
         ExerciseSetService,
-        ExerciseSetTypeStrategyResolverProvider,
-        MCQTypeStrategyProvider,
-        TrueFalseTypeStrategyProvider,
-        OpenEndedTypeStrategyProvider,
+        ExerciseSetTypeFactory,
+        ...ExerciseSetTypeStrategiesBarrel,
         ...exerciseSetReadAllFilterProviders,
     ],
     exports: [ExerciseSetService],
