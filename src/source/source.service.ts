@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Model } from 'mongoose';
 import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceTypeFactory } from 'src/source/strategies/type/source-type.factory';
@@ -7,7 +7,6 @@ import { UpdateSourceDto } from 'src/source/types/dto/update-source.dto';
 import { ReadAllSourcesResponse } from 'src/source/types/response/read-all-sources.response';
 import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-source.response';
 import { SourceDocument } from 'src/source/types/source-document.interface';
-import { Express } from 'express';
 
 @Injectable()
 export class SourceService {
@@ -19,6 +18,12 @@ export class SourceService {
     async create(userId: string, dto: CreateSourceDto, file?: Express.Multer.File): Promise<ResponseBase> {
         const strategy = this.sourceTypeFactory.resolveStrategy(dto.type);
         const { text, title } = await strategy.extract(dto, file);
+
+        const conflict = await this.db.Source.findOne({ userId, title });
+
+        if (conflict) {
+            throw new ConflictException(`A source with the title "${title}" already exists.`);
+        }
 
         await this.db.Source.create({
             userId,
@@ -51,15 +56,38 @@ export class SourceService {
     }
 
     async updateById(id: string, dto: UpdateSourceDto): Promise<ResponseBase> {
-        const updatedSource = await this.db.Source.findOneAndUpdate(
+        const { title, ...restOfDto } = dto;
+
+        if (title) {
+            const currentSource = await this.db.Source.findById(id);
+
+            if (!currentSource) throw new NotFoundException('source not found');
+
+            const conflict = await this.db.Source.findOne({
+                userId: currentSource.userId,
+                title: title,
+                _id: { $ne: id }, // exclude the current document from the search
+            });
+
+            if (conflict) {
+                throw new ConflictException(`Another source already uses the title "${title}".`);
+            }
+        }
+
+        const updated = await this.db.Source.findOneAndUpdate(
             { _id: id },
-            { $set: dto },
+            {
+                $set: {
+                    ...restOfDto,
+                    title,
+                },
+            },
             {
                 new: true,
             }
         );
 
-        if (!updatedSource) {
+        if (!updated) {
             throw new NotFoundException('source not found');
         }
 

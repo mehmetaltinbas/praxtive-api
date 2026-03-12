@@ -1,10 +1,11 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { Response as ExpressResponse } from 'express';
+import { } from 'mongoose';
 import ResponseBase from 'src/shared/types/response-base.interface';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-    catch(exception: unknown, host: ArgumentsHost): void {
+    catch(exception: any, host: ArgumentsHost): void {
         const ctx = host.switchToHttp();
         const response = ctx.getResponse<ExpressResponse>();
 
@@ -16,8 +17,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
         } else {
             console.error(exception);
 
-            const body: ResponseBase = { isSuccess: false, message: 'Internal server error' };
-            response.status(HttpStatus.INTERNAL_SERVER_ERROR).json(body);
+            const responseBody: ResponseBase = { isSuccess: false, message: 'Internal server error' };
+
+            response.status(HttpStatus.INTERNAL_SERVER_ERROR).json(responseBody);
         }
     }
 }

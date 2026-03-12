@@ -2,9 +2,8 @@ import { Document as MongooseDocument } from 'mongoose';
 
 export interface SourceDocument extends MongooseDocument {
     _id: string;
-    title: string;
+    userId: string;
     type: string;
+    title: string;
     rawText: string;
-    locationType: string;
-    location: string;
 }
