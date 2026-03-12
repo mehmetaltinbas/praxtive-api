@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { AiService } from 'src/ai/ai.service';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseTypeStrategy } from 'src/exercise/strategies/type/exercise-type-strategy.interface';
@@ -11,6 +11,17 @@ export class TrueFalseExerciseTypeStrategy implements ExerciseTypeStrategy {
     type = ExerciseType.TRUE_FALSE;
 
     constructor(private openaiService: AiService) {}
+
+    validateFields(fields: { choices?: string[]; correctChoiceIndex?: number; solution?: string }): void {
+        if (
+            fields.correctChoiceIndex === undefined ||
+            (fields.correctChoiceIndex !== 0 && fields.correctChoiceIndex !== 1)
+        ) {
+            throw new BadRequestException(
+                `${ExerciseType.TRUE_FALSE} exercises must have a correctChoiceIndex of 0 or 1`
+            );
+        }
+    }
 
     getCreateExerciseData(dto: CreateExerciseDto): Record<string, unknown> {
         return { correctChoiceIndex: dto.correctChoiceIndex };

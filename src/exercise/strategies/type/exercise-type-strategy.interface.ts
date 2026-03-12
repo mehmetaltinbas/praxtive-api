@@ -6,6 +6,7 @@ import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface
 export interface ExerciseTypeStrategy {
     readonly type: ExerciseType;
 
+    validateFields(fields: { choices?: string[]; correctChoiceIndex?: number; solution?: string }): void;
     getCreateExerciseData(dto: CreateExerciseDto): Record<string, unknown>;
     evaluateAnswer(exercise: ExerciseDocument, answer: string): Promise<EvaluateAnswerStrategyResponse>;
 }
