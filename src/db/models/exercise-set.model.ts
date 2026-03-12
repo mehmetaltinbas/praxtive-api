@@ -26,6 +26,8 @@ const schema = new mongoose.Schema(
     { timestamps: true }
 );
 
+schema.index({ userId: 1, title: 1 }, { unique: true });
+
 schema.post('findOneAndDelete', async function (document: ExerciseSetDocument) {
     if (document) {
         const associatedExerciseDocuments = await ExerciseModel.find({

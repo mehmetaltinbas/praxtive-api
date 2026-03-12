@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose, { FilterQuery, Model } from 'mongoose';
 import { AiService } from 'src/ai/ai.service';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
@@ -41,6 +41,12 @@ export class ExerciseSetService {
     async create(userId: string, sourceId: string | undefined, dto: CreateExerciseSetDto): Promise<ResponseBase> {
         let sourceText;
         let sourceType;
+
+        const conflict = await this.db.ExerciseSet.findOne({ userId, title: dto.title });
+
+        if (conflict) {
+            throw new ConflictException(`An exercise set with the title "${dto.title}" already exists.`);
+        }
 
         if (sourceId) {
             const readSingleSourceResponse = await this.sourceService.readById(sourceId);
@@ -205,8 +211,29 @@ export class ExerciseSetService {
         dto: UpdateExerciseSetDto,
         session?: mongoose.mongo.ClientSession
     ): Promise<ResponseBase> {
-        const updateData: Partial<ExerciseSetDocument> = { ...dto };
-        const updated = await this.db.ExerciseSet.findByIdAndUpdate(id, { $set: updateData }, { new: true, session });
+        const { title, ...restOfDto } = dto;
+
+        if (title) {
+            const currentExerciseSet = await this.db.ExerciseSet.findById(id);
+
+            if (!currentExerciseSet) throw new NotFoundException('exercise set not found');
+
+            const conflict = await this.db.ExerciseSet.findOne({
+                userId: currentExerciseSet.userId,
+                title: title,
+                _id: { $ne: id }, // exclude the current document from the search
+            });
+
+            if (conflict) {
+                throw new ConflictException(`Another exercise set already uses the title "${title}".`);
+            }
+        }
+
+        const updated = await this.db.ExerciseSet.findByIdAndUpdate(
+            id,
+            { $set: { ...restOfDto, title } },
+            { new: true, session }
+        );
 
         if (!updated) {
             throw new NotFoundException('exercise set not found');
