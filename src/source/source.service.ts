@@ -35,8 +35,8 @@ export class SourceService {
         return { isSuccess: true, message: 'source created' };
     }
 
-    async readById(id: string): Promise<ReadSingleSourceResponse> {
-        const source = await this.db.Source.findOne({ _id: id });
+    async readById(userId: string, id: string): Promise<ReadSingleSourceResponse> {
+        const source = await this.db.Source.findOne({ _id: id, userId });
 
         if (!source) {
             throw new NotFoundException(`source not found by id ${id}`);
@@ -55,16 +55,14 @@ export class SourceService {
         };
     }
 
-    async updateById(id: string, dto: UpdateSourceDto): Promise<ResponseBase> {
+    async updateById(userId: string, id: string, dto: UpdateSourceDto): Promise<ResponseBase> {
         const { title, ...restOfDto } = dto;
 
+        await this.readById(userId, id);
+
         if (title) {
-            const currentSource = await this.db.Source.findById(id);
-
-            if (!currentSource) throw new NotFoundException('source not found');
-
             const conflict = await this.db.Source.findOne({
-                userId: currentSource.userId,
+                userId,
                 title: title,
                 _id: { $ne: id }, // exclude the current document from the search
             });
@@ -75,7 +73,7 @@ export class SourceService {
         }
 
         const updated = await this.db.Source.findOneAndUpdate(
-            { _id: id },
+            { _id: id, userId },
             {
                 $set: {
                     ...restOfDto,
@@ -94,8 +92,8 @@ export class SourceService {
         return { isSuccess: true, message: 'source updated' };
     }
 
-    async deleteById(id: string): Promise<ResponseBase> {
-        const deletedSource = await this.db.Source.findOneAndDelete({ _id: id });
+    async deleteById(userId: string, id: string): Promise<ResponseBase> {
+        const deletedSource = await this.db.Source.findOneAndDelete({ _id: id, userId });
 
         if (!deletedSource) {
             throw new NotFoundException('source not found');

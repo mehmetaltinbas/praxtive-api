@@ -6,7 +6,6 @@ import ResponseBase from 'src/shared/types/response-base.interface';
 import { SignUpUserDto } from 'src/user/types/dto/sign-up-user.dto';
 import { UpdateUserPasswordDto } from 'src/user/types/dto/update-user-password.dto';
 import { UpdateUserDto } from 'src/user/types/dto/update-user.dto';
-import { ReadAllUsersResponse } from 'src/user/types/response/read-all-users.response';
 import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user.response';
 import { UserDocument } from './types/user-document.interface';
 
@@ -26,12 +25,6 @@ export class UserService {
         });
 
         return { isSuccess: true, message: 'user created' };
-    }
-
-    async readAll(): Promise<ReadAllUsersResponse> {
-        const users = await this.db.User.find().exec();
-
-        return { isSuccess: true, message: 'all users read', users };
     }
 
     async readById(id: string): Promise<ReadSingleUserResponse> {

@@ -41,8 +41,8 @@ export class SourceController {
     }
 
     @Get('read-by-id/:id')
-    async readById(@Param('id') id: string): Promise<ReadSingleSourceResponse> {
-        const response = await this.sourceService.readById(id);
+    async readById(@User() user: JwtPayload, @Param('id') id: string): Promise<ReadSingleSourceResponse> {
+        const response = await this.sourceService.readById(user.sub, id);
 
         return response;
     }
@@ -55,15 +55,19 @@ export class SourceController {
     }
 
     @Patch('update-by-id/:id')
-    async updateById(@Param('id') id: string, @Body() updateSourceDto: UpdateSourceDto): Promise<ResponseBase> {
-        const response = await this.sourceService.updateById(id, updateSourceDto);
+    async updateById(
+        @User() user: JwtPayload,
+        @Param('id') id: string,
+        @Body() updateSourceDto: UpdateSourceDto
+    ): Promise<ResponseBase> {
+        const response = await this.sourceService.updateById(user.sub, id, updateSourceDto);
 
         return response;
     }
 
     @Delete('delete-by-id/:id')
-    async deleteById(@Param('id') id: string): Promise<ResponseBase> {
-        const response = await this.sourceService.deleteById(id);
+    async deleteById(@User() user: JwtPayload, @Param('id') id: string): Promise<ResponseBase> {
+        const response = await this.sourceService.deleteById(user.sub, id);
 
         return response;
     }
