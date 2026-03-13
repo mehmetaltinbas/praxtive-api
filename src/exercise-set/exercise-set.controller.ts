@@ -4,6 +4,8 @@ import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
 import { UpdateExerciseSetDto } from 'src/exercise-set/types/dto/update-exercise-set.dto';
 import { EvaluateAnswersResponse } from 'src/exercise-set/types/response/evaluate-answers.response';
+import { GetPdfResponse } from 'src/exercise-set/types/response/get-pdf.response';
+import { ReorderExercisesDto } from 'src/exercise/types/dto/reorder-exercises.dto';
 import { AuthGuard } from '../auth/auth.guard';
 import JwtPayload from '../auth/types/jwt-payload.interface';
 import User from '../shared/custom-decorators/user.decorator';
@@ -38,8 +40,8 @@ export class ExerciseSetController {
     }
 
     @Get('read-by-id/:id')
-    async readById(@Param('id') id: string): Promise<ReadSingleExerciseSetResponse> {
-        const response = this.exerciseSetService.readById(id);
+    async readById(@User() user: JwtPayload, @Param('id') id: string): Promise<ReadSingleExerciseSetResponse> {
+        const response = this.exerciseSetService.readById(user.sub, id);
 
         return response;
     }
@@ -67,22 +69,47 @@ export class ExerciseSetController {
     }
 
     @Patch('update-by-id/:id')
-    async updateById(@Param('id') id: string, @Body() dto: UpdateExerciseSetDto): Promise<ResponseBase> {
-        const response = await this.exerciseSetService.updateById(id, dto);
+    async updateById(
+        @User() user: JwtPayload,
+        @Param('id') id: string,
+        @Body() dto: UpdateExerciseSetDto
+    ): Promise<ResponseBase> {
+        const response = await this.exerciseSetService.updateById(user.sub, id, dto);
+
+        return response;
+    }
+
+    @Post('reorder/:id')
+    async reorder(
+        @User() user: JwtPayload,
+        @Param('id') id: string,
+        @Body() dto: ReorderExercisesDto
+    ): Promise<ResponseBase> {
+        const response = await this.exerciseSetService.reorder(user.sub, id, dto);
 
         return response;
     }
 
     @Delete('delete-by-id/:id')
-    async deleteById(@Param('id') id: string): Promise<ResponseBase> {
-        const response = await this.exerciseSetService.deleteById(id);
+    async deleteById(@User() user: JwtPayload, @Param('id') id: string): Promise<ResponseBase> {
+        const response = await this.exerciseSetService.deleteById(user.sub, id);
 
         return response;
     }
 
     @Post('evaluate-answers')
-    async evaluateAnswers(@Body() evaluateAnswersDto: EvaluateAnswersDto): Promise<EvaluateAnswersResponse> {
-        const response = this.exerciseSetService.evaluateAnswers(evaluateAnswersDto);
+    async evaluateAnswers(
+        @User() user: JwtPayload,
+        @Body() evaluateAnswersDto: EvaluateAnswersDto
+    ): Promise<EvaluateAnswersResponse> {
+        const response = this.exerciseSetService.evaluateAnswers(user.sub, evaluateAnswersDto);
+
+        return response;
+    }
+
+    @Get('get-pdf/:id')
+    async getPdf(@User() user: JwtPayload, @Param('id') id: string): Promise<GetPdfResponse> {
+        const response = this.exerciseSetService.getPdf(user.sub, id);
 
         return response;
     }

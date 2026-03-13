@@ -1,5 +1,6 @@
 import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose, { Model } from 'mongoose';
+import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { EXERCISE_TYPE_SPECIFIC_FIELDS_TO_UNSET } from 'src/exercise/constants/exercise-type-specific-fields-to-unset.constant';
@@ -11,7 +12,6 @@ import { UpdateExerciseDto } from 'src/exercise/types/dto/update-exercise.dto';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
 import { ReadAllExercisesResponse } from 'src/exercise/types/response/read-all-exercises.response';
 import { ReadSingleExerciseResponse } from 'src/exercise/types/response/read-single-exercise.response';
-import { validateExerciseFields } from 'src/exercise/utils/validate-exercise-fields.util';
 import ResponseBase from 'src/shared/types/response-base.interface';
 
 @Injectable()
@@ -24,53 +24,85 @@ export class ExerciseService {
     ) {}
 
     async create(
+        userId: string,
         exerciseSetId: string,
         dto: CreateExerciseDto,
         session?: mongoose.mongo.ClientSession
     ): Promise<ResponseBase> {
-        validateExerciseFields(dto.type, dto);
+        const isLocalSession = !session;
+        const activeSession = session || (await mongoose.startSession());
 
-        const commonFields = {
-            exerciseSetId,
-            type: dto.type,
-            difficulty: dto.difficulty,
-            prompt: dto.prompt,
-        };
+        try {
+            if (isLocalSession) activeSession.startTransaction();
 
-        const strategy = this.exerciseTypeFactory.resolveStrategy(dto.type);
+            const strategy = this.exerciseTypeFactory.resolveStrategy(dto.type);
 
-        const exerciseData: Record<string, unknown> = {
-            ...commonFields,
-            ...strategy.getCreateExerciseData(dto),
-        };
+            strategy.validateFields(dto);
 
-        await this.db.Exercise.create([exerciseData], { session });
-        await this.exerciseSetService.registerExercise(exerciseSetId, dto.type, dto.difficulty, session);
+            const commonFields = {
+                exerciseSetId,
+                type: dto.type,
+                difficulty: dto.difficulty,
+                prompt: dto.prompt,
+            };
 
-        return { isSuccess: true, message: 'exercise created' };
+            const exerciseData = {
+                ...commonFields,
+                ...strategy.getCreateExerciseData(dto),
+            };
+
+            const count = await this.db.Exercise.countDocuments({ exerciseSetId }).session(activeSession);
+
+            await this.db.Exercise.create([{ ...exerciseData, order: count }], { session: activeSession });
+
+            await this.exerciseSetService.registerExercise(
+                userId,
+                exerciseSetId,
+                dto.type,
+                dto.difficulty,
+                activeSession
+            );
+
+            if (isLocalSession) {
+                await activeSession.commitTransaction();
+            }
+
+            return { isSuccess: true, message: 'exercise created' };
+        } catch (error) {
+            if (isLocalSession) {
+                await activeSession.abortTransaction();
+            }
+
+            throw error;
+        } finally {
+            if (isLocalSession) {
+                await activeSession.endSession();
+            }
+        }
     }
 
-    async readAll(): Promise<ReadAllExercisesResponse> {
-        const exercises = await this.db.Exercise.find();
-
-        return { isSuccess: true, message: 'all exercises read', exercises };
-    }
-
-    async readById(id: string): Promise<ReadSingleExerciseResponse> {
-        const exercise = await this.db.Exercise.findById(id);
+    async readById(userId: string, id: string): Promise<ReadSingleExerciseResponse> {
+        const exercise = await this.db.Exercise.findOne({ _id: id });
 
         if (!exercise) {
             throw new NotFoundException(`no exercise found by id: ${id}`);
         }
 
+        await this.exerciseSetService.readById(userId, exercise.exerciseSetId);
+
         return { isSuccess: true, message: `exercise read by id: ${id}`, exercise };
     }
 
     async readAllByExerciseSetId(
+        userId: string,
         exerciseSetId: string,
         session?: mongoose.mongo.ClientSession
     ): Promise<ReadAllExercisesResponse> {
-        const exercises = await this.db.Exercise.find({ exerciseSetId }).session(session ?? null);
+        const { exerciseSet } = await this.exerciseSetService.readById(userId, exerciseSetId);
+
+        const exercises = await this.db.Exercise.find({ exerciseSetId })
+            .sort({ order: 1 })
+            .session(session ?? null);
 
         return {
             isSuccess: true,
@@ -79,14 +111,10 @@ export class ExerciseService {
         };
     }
 
-    async updateById(id: string, dto: UpdateExerciseDto): Promise<ResponseBase> {
+    async updateById(userId: string, id: string, dto: UpdateExerciseDto): Promise<ResponseBase> {
         const { type, difficulty, ...restOfDto } = dto;
 
-        const exercise = await this.db.Exercise.findById(id);
-
-        if (!exercise) {
-            throw new NotFoundException(`no exercise found by id: ${id}`);
-        }
+        const { exercise } = await this.readById(userId, id);
 
         const effectiveType = type ?? exercise.type;
         const effectiveDifficulty = difficulty ?? exercise.difficulty;
@@ -96,11 +124,9 @@ export class ExerciseService {
         if (type !== undefined) {
             updateData.type = type;
 
-            validateExerciseFields(type, {
-                choices: restOfDto.choices ?? exercise.choices,
-                correctChoiceIndex: restOfDto.correctChoiceIndex ?? exercise.correctChoiceIndex,
-                solution: restOfDto.solution ?? exercise.solution,
-            });
+            const strategy = this.exerciseTypeFactory.resolveStrategy(type);
+
+            strategy.validateFields(restOfDto);
         }
 
         if (difficulty !== undefined) {
@@ -133,8 +159,9 @@ export class ExerciseService {
                     { $set: updateData, ...(unsetFields && { $unset: unsetFields }) },
                     { session }
                 );
-                await this.exerciseSetService.unregisterExercise(exercise.exerciseSetId, session);
+                await this.exerciseSetService.unregisterExercise(userId, exercise.exerciseSetId, session);
                 await this.exerciseSetService.registerExercise(
+                    userId,
                     exercise.exerciseSetId,
                     effectiveType,
                     effectiveDifficulty,
@@ -156,10 +183,13 @@ export class ExerciseService {
         return { isSuccess: true, message: 'exercise updated' };
     }
 
-    async transfer(id: string, dto: TransferExerciseDto): Promise<ResponseBase> {
-        const { exercise } = await this.readById(id);
-        const { exerciseSet: sourceExerciseSet } = await this.exerciseSetService.readById(exercise.exerciseSetId);
-        const { exerciseSet: targetExerciseSet } = await this.exerciseSetService.readById(dto.exerciseSetId);
+    async transfer(userId: string, id: string, dto: TransferExerciseDto): Promise<ResponseBase> {
+        const { exercise } = await this.readById(userId, id);
+        const { exerciseSet: sourceExerciseSet } = await this.exerciseSetService.readById(
+            userId,
+            exercise.exerciseSetId
+        );
+        const { exerciseSet: targetExerciseSet } = await this.exerciseSetService.readById(userId, dto.exerciseSetId);
 
         if (sourceExerciseSet._id.toString() === targetExerciseSet._id.toString()) {
             return { isSuccess: false, message: 'exercise already belongs to this exercise set' };
@@ -170,10 +200,23 @@ export class ExerciseService {
         session.startTransaction();
 
         try {
-            await this.db.Exercise.findByIdAndUpdate(id, { $set: { exerciseSetId: dto.exerciseSetId } }, { session });
+            const count = await this.db.Exercise.countDocuments({ exerciseSetId: dto.exerciseSetId }).session(session);
 
-            await this.exerciseSetService.unregisterExercise(sourceExerciseSet._id, session);
+            await this.db.Exercise.findByIdAndUpdate(
+                id,
+                { $set: { exerciseSetId: dto.exerciseSetId, order: count } },
+                { session }
+            );
+
+            await this.db.Exercise.updateMany(
+                { exerciseSetId: sourceExerciseSet._id, order: { $gt: exercise.order } },
+                { $inc: { order: -1 } },
+                { session }
+            );
+
+            await this.exerciseSetService.unregisterExercise(userId, sourceExerciseSet._id, session);
             await this.exerciseSetService.registerExercise(
+                userId,
                 targetExerciseSet._id,
                 exercise.type,
                 exercise.difficulty,
@@ -194,8 +237,12 @@ export class ExerciseService {
         };
     }
 
-    async deleteById(id: string): Promise<ResponseBase> {
-        const { exercise } = await this.readById(id);
+    async reorder(id: string, order: number, session: mongoose.mongo.ClientSession): Promise<void> {
+        await this.db.Exercise.findOneAndUpdate({ _id: id }, { $set: { order } }, { session });
+    }
+
+    async deleteById(userId: string, id: string): Promise<ResponseBase> {
+        const { exercise } = await this.readById(userId, id);
 
         const session = await mongoose.startSession();
 
@@ -208,7 +255,13 @@ export class ExerciseService {
                 throw new NotFoundException('no exercise found to delete');
             }
 
-            await this.exerciseSetService.unregisterExercise(exercise.exerciseSetId, session);
+            await this.db.Exercise.updateMany(
+                { exerciseSetId: exercise.exerciseSetId, order: { $gt: exercise.order } },
+                { $inc: { order: -1 } },
+                { session }
+            );
+
+            await this.exerciseSetService.unregisterExercise(userId, exercise.exerciseSetId, session);
 
             await session.commitTransaction();
         } catch (error) {
@@ -225,5 +278,17 @@ export class ExerciseService {
         const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
 
         return await strategy.evaluateAnswer(exercise, answer);
+    }
+
+    drawExerciseToPdf(
+        exercise: ExerciseDocument,
+        index: number,
+        document: typeof PDFDocument,
+        usableWidth: number,
+        availableHeight: number
+    ): void {
+        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
+
+        strategy.drawExerciseToPdf(exercise, index, document, usableWidth, availableHeight);
     }
 }

@@ -6,8 +6,9 @@ export interface ExerciseDocument extends MongooseDocument {
     _id: string;
     exerciseSetId: string;
     prompt: string;
-    difficulty: ExerciseDifficulty;
     type: ExerciseType;
+    difficulty: ExerciseDifficulty;
+    order: number; // index based integer
     choices?: string[];
     correctChoiceIndex?: number;
     solution?: string;

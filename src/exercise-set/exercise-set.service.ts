@@ -1,5 +1,6 @@
-import { ConflictException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose, { FilterQuery, Model } from 'mongoose';
+import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
@@ -15,6 +16,7 @@ import {
     EvaluateAnswersResponse,
     ExerciseAnswerEvaluationResult,
 } from 'src/exercise-set/types/response/evaluate-answers.response';
+import { GetPdfResponse } from 'src/exercise-set/types/response/get-pdf.response';
 import { ReadAllExerciseSetsGroupedBySourcesResponse } from 'src/exercise-set/types/response/read-all-exercise-sets-grouped-by-sources.response';
 import { ReadAllExerciseSetsResponse } from 'src/exercise-set/types/response/read-all-exercise-sets.response';
 import { ReadSingleExerciseSetResponse } from 'src/exercise-set/types/response/read-single-exercise-set.response';
@@ -22,6 +24,7 @@ import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum'
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseService } from 'src/exercise/exercise.service';
 import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
+import { ReorderExercisesDto } from 'src/exercise/types/dto/reorder-exercises.dto';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
 import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceService } from 'src/source/source.service';
@@ -49,7 +52,7 @@ export class ExerciseSetService {
         }
 
         if (sourceId) {
-            const readSingleSourceResponse = await this.sourceService.readById(sourceId);
+            const readSingleSourceResponse = await this.sourceService.readById(userId, sourceId);
 
             sourceText = readSingleSourceResponse.source.rawText;
             sourceType = ExerciseSetSourceType.SOURCE;
@@ -88,7 +91,7 @@ export class ExerciseSetService {
                         { session }
                     );
 
-                    const promises = generateExercisesResponse.exercises.map((exercise) => {
+                    for (const exercise of generateExercisesResponse.exercises) {
                         const createDto: CreateExerciseDto = {
                             type: exercise.type,
                             difficulty: exercise.difficulty,
@@ -104,14 +107,12 @@ export class ExerciseSetService {
                             createDto.solution = exercise.solution;
                         }
 
-                        return this.exerciseService.create(exerciseSet._id, createDto, session);
-                    });
-
-                    await Promise.all(promises);
+                        await this.exerciseService.create(userId, exerciseSet._id, createDto, session);
+                    }
 
                     await session.commitTransaction();
 
-                    message = `exercise set created, type: ${exerciseSet.type}, difficulty: ${exerciseSet.difficulty}, exercise count: ${generateExercisesResponse.exercises.length}`;
+                    message = `Exercise set created, type: ${exerciseSet.type}, difficulty: ${exerciseSet.difficulty}, exercise count: ${generateExercisesResponse.exercises.length}.`;
                 } catch (error) {
                     await session.abortTransaction();
                     throw error;
@@ -132,7 +133,7 @@ export class ExerciseSetService {
                     count: 0,
                 });
 
-                message = `exercises et created with type ${exerciseSet.type}`;
+                message = `Exercises et created with type ${exerciseSet.type}`;
                 break;
             }
         }
@@ -192,21 +193,26 @@ export class ExerciseSetService {
         return { isSuccess: true, message: 'All exercise sets read', sources };
     }
 
-    async readById(id: string, session?: mongoose.mongo.ClientSession): Promise<ReadSingleExerciseSetResponse> {
-        const exerciseSet = await this.db.ExerciseSet.findById(id).session(session ?? null);
+    async readById(
+        userId: string,
+        id: string,
+        session?: mongoose.mongo.ClientSession
+    ): Promise<ReadSingleExerciseSetResponse> {
+        const exerciseSet = await this.db.ExerciseSet.findOne({ _id: id, userId }).session(session ?? null);
 
         if (!exerciseSet) {
-            throw new NotFoundException(`no exerciseSet found by id ${id}`);
+            throw new NotFoundException(`No exerciseSet found by id ${id} for this user.`);
         }
 
         return {
             isSuccess: true,
-            message: `exerciseSet read by id ${id}`,
+            message: `ExerciseSet read by id ${id}`,
             exerciseSet,
         };
     }
 
     async updateById(
+        userId: string,
         id: string,
         dto: UpdateExerciseSetDto,
         session?: mongoose.mongo.ClientSession
@@ -214,12 +220,12 @@ export class ExerciseSetService {
         const { title, ...restOfDto } = dto;
 
         if (title) {
-            const currentExerciseSet = await this.db.ExerciseSet.findById(id);
+            const { exerciseSet } = await this.readById(userId, id);
 
-            if (!currentExerciseSet) throw new NotFoundException('exercise set not found');
+            if (!exerciseSet) throw new NotFoundException('exercise set not found');
 
             const conflict = await this.db.ExerciseSet.findOne({
-                userId: currentExerciseSet.userId,
+                userId: userId,
                 title: title,
                 _id: { $ne: id }, // exclude the current document from the search
             });
@@ -242,13 +248,45 @@ export class ExerciseSetService {
         return { isSuccess: true, message: 'exercise set updated' };
     }
 
+    async reorder(userId: string, id: string, dto: ReorderExercisesDto): Promise<ResponseBase> {
+        await this.readById(userId, id);
+
+        const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, id);
+        const existingIds = new Set(exercises.map((e) => e._id.toString()));
+        const allBelong = dto.orderedExerciseIds.every((id) => existingIds.has(id));
+
+        if (!allBelong) {
+            throw new BadRequestException('Some exercise IDs do not belong to this exercise set.');
+        }
+
+        const session = await mongoose.startSession();
+
+        session.startTransaction();
+
+        try {
+            await Promise.all(
+                dto.orderedExerciseIds.map((id, index) => this.exerciseService.reorder(id, index, session))
+            );
+
+            await session.commitTransaction();
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            await session.endSession();
+        }
+
+        return { isSuccess: true, message: 'exercise set reordered' };
+    }
+
     async registerExercise(
-        id: string,
+        userId: string,
+        exerciseSetId: string,
         exerciseType: ExerciseType,
         exerciseDifficulty: ExerciseDifficulty,
         session?: mongoose.mongo.ClientSession
     ): Promise<void> {
-        const { exerciseSet } = await this.readById(id, session);
+        const { exerciseSet } = await this.readById(userId, exerciseSetId, session);
 
         const update: Record<string, unknown> = { $inc: { count: 1 } };
         const $set: Record<string, unknown> = {};
@@ -271,11 +309,15 @@ export class ExerciseSetService {
 
         if (Object.keys($set).length > 0) update.$set = $set;
 
-        await this.db.ExerciseSet.findByIdAndUpdate(id, update, { session });
+        await this.db.ExerciseSet.findByIdAndUpdate(exerciseSetId, update, { session });
     }
 
-    async unregisterExercise(id: string, session?: mongoose.mongo.ClientSession): Promise<void> {
-        const { exerciseSet } = await this.readById(id, session);
+    async unregisterExercise(
+        userId: string,
+        exerciseSetId: string,
+        session?: mongoose.mongo.ClientSession
+    ): Promise<void> {
+        const { exerciseSet } = await this.readById(userId, exerciseSetId, session);
 
         const update: Record<string, unknown> = { $inc: { count: -1 } };
         const $set: Record<string, unknown> = {};
@@ -286,7 +328,7 @@ export class ExerciseSetService {
         if (isMixType || isMixDifficulty) {
             let exercises: ExerciseDocument[] = [];
 
-            const result = await this.exerciseService.readAllByExerciseSetId(exerciseSet._id, session);
+            const result = await this.exerciseService.readAllByExerciseSetId(userId, exerciseSet._id, session);
 
             exercises = result.exercises;
 
@@ -321,11 +363,11 @@ export class ExerciseSetService {
 
         if (Object.keys($set).length > 0) update.$set = $set;
 
-        await this.db.ExerciseSet.findByIdAndUpdate(id, update, { session });
+        await this.db.ExerciseSet.findByIdAndUpdate(exerciseSetId, update, { session });
     }
 
-    async deleteById(id: string): Promise<ResponseBase> {
-        const deletedExerciseSet = await this.db.ExerciseSet.findByIdAndDelete(id);
+    async deleteById(userId: string, id: string): Promise<ResponseBase> {
+        const deletedExerciseSet = await this.db.ExerciseSet.findOneAndDelete({ _id: id, userId });
 
         if (!deletedExerciseSet) {
             throw new NotFoundException('exercise set not found');
@@ -334,12 +376,12 @@ export class ExerciseSetService {
         return { isSuccess: true, message: 'exercise set deleted' };
     }
 
-    async evaluateAnswers(evaluateAnswersDto: EvaluateAnswersDto): Promise<EvaluateAnswersResponse> {
+    async evaluateAnswers(userId: string, dto: EvaluateAnswersDto): Promise<EvaluateAnswersResponse> {
         const exerciseAnswerEvaluationResults: ExerciseAnswerEvaluationResult[] = [];
 
-        for (const { id, answer } of evaluateAnswersDto.exercises) {
+        for (const { id, answer } of dto.exercises) {
             try {
-                const { exercise } = await this.exerciseService.readById(id);
+                const { exercise } = await this.exerciseService.readById(userId, id);
 
                 const evaluatedAnswer = await this.exerciseService.evaluateAnswer(exercise, answer);
 
@@ -371,5 +413,77 @@ export class ExerciseSetService {
             overallScore,
             exerciseAnswerEvaluationResults,
         };
+    }
+
+    async getPdf(userId: string, id: string): Promise<GetPdfResponse> {
+        const { exerciseSet } = await this.readById(userId, id);
+        const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, id);
+
+        return new Promise((resolve, reject) => {
+            const document = new PDFDocument();
+            const buffers: Buffer[] = [];
+
+            document.on('data', buffers.push.bind(buffers));
+            document.on('error', reject);
+            document.on('end', () => {
+                const finalBuffer = Buffer.concat(buffers);
+
+                resolve({
+                    isSuccess: true,
+                    message: 'PDF generated successfully.',
+                    pdfBase64: finalBuffer.toString('base64'),
+                });
+            });
+
+            document.font('Times-Bold').fontSize(16).text(exerciseSet.title, { align: 'center' });
+            document.moveDown(0.5);
+
+            // --- METADATA SECTION START ---
+            document.fontSize(14);
+
+            document.font('Times-Roman');
+            const labelWidth = document.widthOfString('Type:  | Difficulty:  | Count: ');
+
+            document.font('Times-Italic');
+            const valueWidth = document.widthOfString(
+                `${exerciseSet.type}${exerciseSet.difficulty}${exerciseSet.count}`
+            );
+
+            const totalWidth = labelWidth + valueWidth;
+            const startX = (document.page.width - totalWidth) / 2;
+
+            document
+                .font('Times-Roman')
+                .text('Type: ', startX, document.y, { continued: true })
+                .font('Times-Italic')
+                .text(`${exerciseSet.type}`, { continued: true })
+                .font('Times-Roman')
+                .text(' | Difficulty: ', { continued: true })
+                .font('Times-Italic')
+                .text(`${exerciseSet.difficulty}`, { continued: true })
+                .font('Times-Roman')
+                .text(' | Count: ', { continued: true })
+                .font('Times-Italic')
+                .text(`${exerciseSet.count}`);
+
+            document.x = document.page.margins.left;
+            // --- METADATA SECTION END ---
+
+            document.moveDown(2);
+
+            const usableWidth = document.page.width - document.page.margins.left - document.page.margins.right;
+
+            exercises.forEach((exercise, index) => {
+                document.font('Times-Roman').fontSize(12);
+
+                const availableHeight = document.page.height - document.page.margins.bottom - document.y;
+
+                this.exerciseService.drawExerciseToPdf(exercise, index, document, usableWidth, availableHeight);
+
+                document.moveDown(3);
+            });
+
+            document.end();
+        });
     }
 }

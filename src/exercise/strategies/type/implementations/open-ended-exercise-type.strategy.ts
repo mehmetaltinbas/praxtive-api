@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseTypeStrategy } from 'src/exercise/strategies/type/exercise-type-strategy.interface';
@@ -35,5 +36,31 @@ export class OpenEndedExerciseTypeStrategy implements ExerciseTypeStrategy {
             score: evaluationResponse.score,
             feedback: evaluationResponse.feedback,
         };
+    }
+
+    drawExerciseToPdf(
+        exercise: ExerciseDocument,
+        index: number,
+        document: typeof PDFDocument,
+        usableWidth: number,
+        availableHeight: number
+    ): void {
+        let requiredHeight = document.heightOfString(`${index + 1} - ${exercise.prompt}`, { width: usableWidth });
+        const solutionHeight = document.heightOfString(exercise.solution || '', { width: usableWidth });
+
+        requiredHeight += solutionHeight + document.currentLineHeight();
+
+        if (requiredHeight > availableHeight) {
+            document.addPage();
+        }
+
+        document
+            .font('Times-Bold')
+            .fontSize(12)
+            .text(`${index + 1} - `, { continued: true })
+            .font('Times-Roman')
+            .text(exercise.prompt);
+
+        document.y += solutionHeight + document.currentLineHeight();
     }
 }

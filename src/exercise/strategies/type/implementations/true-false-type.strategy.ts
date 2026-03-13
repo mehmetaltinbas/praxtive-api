@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseTypeStrategy } from 'src/exercise/strategies/type/exercise-type-strategy.interface';
@@ -40,5 +41,36 @@ export class TrueFalseExerciseTypeStrategy implements ExerciseTypeStrategy {
             score,
             feedback: isCorrect ? 'success' : 'fail',
         };
+    }
+
+    drawExerciseToPdf(
+        exercise: ExerciseDocument,
+        index: number,
+        document: typeof PDFDocument,
+        usableWidth: number,
+        availableHeight: number
+    ): void {
+        let requiredHeight = document.heightOfString(`${index + 1} - ${exercise.prompt}`, { width: usableWidth });
+
+        // Add space for the 1 line break
+        requiredHeight += document.currentLineHeight();
+
+        requiredHeight += document.heightOfString('   True / False', { width: usableWidth });
+
+        if (requiredHeight > availableHeight) {
+            document.addPage();
+        }
+
+        document
+            .font('Times-Bold')
+            .fontSize(12)
+            .text(`${index + 1} - `, { continued: true })
+            .font('Times-Roman')
+            .text(exercise.prompt);
+
+        // Draw the 1 line break
+        document.moveDown(1);
+
+        document.text(`   True / False`);
     }
 }

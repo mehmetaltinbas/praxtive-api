@@ -53,6 +53,7 @@
         "pdf-lib": "^1.17.1",
         "pdf-parse": "^1.1.1",
         "pdfjs-dist": "^5.4.149",
+        "pdfkit": "^0.17.2",
         "reflect-metadata": "^0.2.2",
         "rxjs": "^7.8.1",
         "socket.io": "^4.8.1"
@@ -72,6 +73,7 @@
         "@types/multer": "^2.0.0",
         "@types/node": "^22.10.7",
         "@types/pdf-parse": "^1.1.5",
+        "@types/pdfkit": "^0.17.5",
         "@types/supertest": "^6.0.2",
         "dotenv-cli": "^8.0.0",
         "eslint": "^9.18.0",

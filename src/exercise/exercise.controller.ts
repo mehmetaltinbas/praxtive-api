@@ -1,11 +1,14 @@
 // eslint-disable-next-line no-redeclare
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from 'src/auth/auth.guard';
+import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import { ExerciseService } from 'src/exercise/exercise.service';
 import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
+import { ReorderExercisesDto } from 'src/exercise/types/dto/reorder-exercises.dto';
 import { TransferExerciseDto } from 'src/exercise/types/dto/transfer-exercise.dto';
 import { UpdateExerciseDto } from 'src/exercise/types/dto/update-exercise.dto';
 import { ReadAllExercisesResponse } from 'src/exercise/types/response/read-all-exercises.response';
+import User from 'src/shared/custom-decorators/user.decorator';
 import ResponseBase from 'src/shared/types/response-base.interface';
 
 @Controller('exercise')
@@ -15,52 +18,57 @@ export class ExerciseController {
 
     @Post('create-by-exercise-set-id/:exerciseSetId')
     async createByExerciseSetId(
+        @User() user: JwtPayload,
         @Param('exerciseSetId') exerciseSetId: string,
         @Body() createExerciseDto: CreateExerciseDto
     ): Promise<ResponseBase> {
-        const response = await this.exerciseService.create(exerciseSetId, createExerciseDto);
-
-        return response;
-    }
-
-    @Get('read-all')
-    async readAll(): Promise<ResponseBase> {
-        const response = await this.exerciseService.readAll();
+        const response = await this.exerciseService.create(user.sub, exerciseSetId, createExerciseDto);
 
         return response;
     }
 
     @Get('read-by-id/:id')
-    async readById(@Param('id') id: string): Promise<ResponseBase> {
-        const response = await this.exerciseService.readById(id);
+    async readById(@User() user: JwtPayload, @Param('id') id: string): Promise<ResponseBase> {
+        const response = await this.exerciseService.readById(user.sub, id);
 
         return response;
     }
 
     @Get('read-all-by-exercise-set-id/:exerciseSetId')
-    async readAllByExerciseSetId(@Param('exerciseSetId') exerciseSetId: string): Promise<ReadAllExercisesResponse> {
-        const response = await this.exerciseService.readAllByExerciseSetId(exerciseSetId);
+    async readAllByExerciseSetId(
+        @User() user: JwtPayload,
+        @Param('exerciseSetId') exerciseSetId: string
+    ): Promise<ReadAllExercisesResponse> {
+        const response = await this.exerciseService.readAllByExerciseSetId(user.sub, exerciseSetId);
 
         return response;
     }
 
     @Patch('update-by-id/:id')
-    async updateById(@Param('id') id: string, @Body() dto: UpdateExerciseDto): Promise<ResponseBase> {
-        const response = await this.exerciseService.updateById(id, dto);
-
-        return response;
-    }
-
-    @Delete('delete-by-id/:id')
-    async deleteById(@Param('id') id: string): Promise<ResponseBase> {
-        const response = await this.exerciseService.deleteById(id);
+    async updateById(
+        @User() user: JwtPayload,
+        @Param('id') id: string,
+        @Body() dto: UpdateExerciseDto
+    ): Promise<ResponseBase> {
+        const response = await this.exerciseService.updateById(user.sub, id, dto);
 
         return response;
     }
 
     @Post('transfer/:id')
-    async transfer(@Param('id') id: string, @Body() dto: TransferExerciseDto): Promise<ResponseBase> {
-        const response = await this.exerciseService.transfer(id, dto);
+    async transfer(
+        @User() user: JwtPayload,
+        @Param('id') id: string,
+        @Body() dto: TransferExerciseDto
+    ): Promise<ResponseBase> {
+        const response = await this.exerciseService.transfer(user.sub, id, dto);
+
+        return response;
+    }
+
+    @Delete('delete-by-id/:id')
+    async deleteById(@User() user: JwtPayload, @Param('id') id: string): Promise<ResponseBase> {
+        const response = await this.exerciseService.deleteById(user.sub, id);
 
         return response;
     }
