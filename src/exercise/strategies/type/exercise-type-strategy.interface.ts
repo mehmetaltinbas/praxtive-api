@@ -17,4 +17,7 @@ export interface ExerciseTypeStrategy {
         usableWidth: number,
         availableHeight: number
     ): void;
+    buildPaperExtractionPrompt(exerciseNumber: number, exercise: ExerciseDocument): string;
+    normalizePaperAnswer(rawAnswer: string): string;
+    getCorrectAnswerText(exercise: ExerciseDocument): string;
 }

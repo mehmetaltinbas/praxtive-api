@@ -10,7 +10,7 @@ import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
 import { TransferExerciseDto } from 'src/exercise/types/dto/transfer-exercise.dto';
 import { UpdateExerciseDto } from 'src/exercise/types/dto/update-exercise.dto';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
-import { ReadAllExercisesResponse } from 'src/exercise/types/response/read-all-exercises.response';
+import { ReadMultipleExercisesResponse } from 'src/exercise/types/response/read-multiple-exercises.response';
 import { ReadSingleExerciseResponse } from 'src/exercise/types/response/read-single-exercise.response';
 import ResponseBase from 'src/shared/types/response-base.interface';
 
@@ -97,7 +97,7 @@ export class ExerciseService {
         userId: string,
         exerciseSetId: string,
         session?: mongoose.mongo.ClientSession
-    ): Promise<ReadAllExercisesResponse> {
+    ): Promise<ReadMultipleExercisesResponse> {
         const { exerciseSet } = await this.exerciseSetService.readById(userId, exerciseSetId);
 
         const exercises = await this.db.Exercise.find({ exerciseSetId })
@@ -278,6 +278,21 @@ export class ExerciseService {
         const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
 
         return await strategy.evaluateAnswer(exercise, answer);
+    }
+
+    buildPaperExtractionPrompt(exercise: ExerciseDocument, exerciseNumber: number): string {
+        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
+        return strategy.buildPaperExtractionPrompt(exerciseNumber, exercise);
+    }
+
+    normalizePaperAnswer(exercise: ExerciseDocument, rawAnswer: string): string {
+        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
+        return strategy.normalizePaperAnswer(rawAnswer);
+    }
+
+    getCorrectAnswerText(exercise: ExerciseDocument): string {
+        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
+        return strategy.getCorrectAnswerText(exercise);
     }
 
     drawExerciseToPdf(

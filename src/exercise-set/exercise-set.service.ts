@@ -1,8 +1,16 @@
-import { BadRequestException, ConflictException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+    BadRequestException,
+    ConflictException,
+    forwardRef,
+    Inject,
+    Injectable,
+    NotFoundException,
+} from '@nestjs/common';
 import mongoose, { FilterQuery, Model } from 'mongoose';
 import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
+import { ALLOWED_PAPER_IMAGE_MIMETYPES } from 'src/exercise-set/constants/allowed-paper-image-mimetypes.constant';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
@@ -415,12 +423,20 @@ export class ExerciseSetService {
         };
     }
 
-    async getPdf(userId: string, id: string): Promise<GetPdfResponse> {
+    async getPdf(userId: string, id: string, withAnswers = false): Promise<GetPdfResponse> {
         const { exerciseSet } = await this.readById(userId, id);
         const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, id);
 
+        let sourceTypeTitle: string = ExerciseSetSourceType.INDEPENDENT;
+
+        if (exerciseSet.sourceType === ExerciseSetSourceType.SOURCE) {
+            const { source } = await this.sourceService.readById(userId, exerciseSet.sourceId);
+
+            sourceTypeTitle = source.title;
+        }
+
         return new Promise((resolve, reject) => {
-            const document = new PDFDocument();
+            const document = new PDFDocument({ margins: { top: 36, bottom: 36, left: 72, right: 72 } });
             const buffers: Buffer[] = [];
 
             document.on('data', buffers.push.bind(buffers));
@@ -442,11 +458,11 @@ export class ExerciseSetService {
             document.fontSize(14);
 
             document.font('Times-Roman');
-            const labelWidth = document.widthOfString('Type:  | Difficulty:  | Count: ');
+            const labelWidth = document.widthOfString('Source:  | Type:  | Difficulty:  | Count: ');
 
             document.font('Times-Italic');
             const valueWidth = document.widthOfString(
-                `${exerciseSet.type}${exerciseSet.difficulty}${exerciseSet.count}`
+                `${sourceTypeTitle}${exerciseSet.type}${exerciseSet.difficulty}${exerciseSet.count}`
             );
 
             const totalWidth = labelWidth + valueWidth;
@@ -454,7 +470,11 @@ export class ExerciseSetService {
 
             document
                 .font('Times-Roman')
-                .text('Type: ', startX, document.y, { continued: true })
+                .text('Source: ', startX, document.y, { continued: true })
+                .font('Times-Italic')
+                .text(`${sourceTypeTitle}`, { continued: true })
+                .font('Times-Roman')
+                .text(' | Type: ', { continued: true })
                 .font('Times-Italic')
                 .text(`${exerciseSet.type}`, { continued: true })
                 .font('Times-Roman')
@@ -483,7 +503,79 @@ export class ExerciseSetService {
                 document.moveDown(3);
             });
 
+            if (withAnswers) {
+                document.addPage();
+                document.font('Times-Bold').fontSize(16).text('Answer Key', { align: 'center' });
+                document.moveDown(1);
+
+                exercises.forEach((exercise, index) => {
+                    const lineHeight = 14 + 21; // approximate line + moveDown(1.5)
+                    const availableHeight = document.page.height - document.page.margins.bottom - document.y;
+
+                    if (availableHeight < lineHeight) {
+                        document.addPage();
+                    }
+
+                    const answer = this.exerciseService.getCorrectAnswerText(exercise);
+
+                    document
+                        .font('Times-Bold')
+                        .fontSize(12)
+                        .text(`${index + 1} - `, { continued: true })
+                        .font('Times-Roman')
+                        .text(answer);
+
+                    document.moveDown(1.5);
+                });
+            }
+
             document.end();
         });
+    }
+
+    async evaluatePaperAnswers(
+        userId: string,
+        exerciseSetId: string,
+        files: Express.Multer.File[]
+    ): Promise<EvaluateAnswersResponse> {
+        if (!files || files.length === 0) {
+            throw new BadRequestException('At least one image file is required.');
+        }
+
+        const invalidFile = files.find((f) => !ALLOWED_PAPER_IMAGE_MIMETYPES.includes(f.mimetype));
+
+        if (invalidFile) {
+            throw new BadRequestException(
+                `Unsupported file type: ${invalidFile.mimetype}. Allowed types: ${ALLOWED_PAPER_IMAGE_MIMETYPES.join(', ')}`
+            );
+        }
+
+        await this.readById(userId, exerciseSetId);
+
+        const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, exerciseSetId);
+
+        const exerciseSummary = exercises
+            .map((exercise, index) => this.exerciseService.buildPaperExtractionPrompt(exercise, index + 1))
+            .join('\n\n');
+
+        const imageData = files.map((f) => ({ buffer: f.buffer, mimetype: f.mimetype }));
+        const extractedAnswers = await this.aiService.extractAnswersFromPaperImages(imageData, exerciseSummary);
+
+        const evaluateAnswersDto: EvaluateAnswersDto = {
+            exercises: [],
+        };
+
+        for (const extractedAnswer of extractedAnswers) {
+            const exerciseIndex = extractedAnswer.exerciseNumber - 1;
+
+            if (exerciseIndex < 0 || exerciseIndex >= exercises.length) continue;
+
+            const exercise = exercises[exerciseIndex];
+            const normalizedAnswer = this.exerciseService.normalizePaperAnswer(exercise, extractedAnswer.answer);
+
+            evaluateAnswersDto.exercises.push({ id: exercise._id, answer: normalizedAnswer });
+        }
+
+        return this.evaluateAnswers(userId, evaluateAnswersDto);
     }
 }

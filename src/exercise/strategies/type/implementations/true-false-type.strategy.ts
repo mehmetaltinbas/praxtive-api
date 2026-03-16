@@ -43,6 +43,23 @@ export class TrueFalseExerciseTypeStrategy implements ExerciseTypeStrategy {
         };
     }
 
+    buildPaperExtractionPrompt(exerciseNumber: number, exercise: ExerciseDocument): string {
+        return `Exercise ${exerciseNumber} (True/False): "${exercise.prompt}"\nReturn "True" or "False".`;
+    }
+
+    normalizePaperAnswer(rawAnswer: string): string {
+        const lower = rawAnswer.trim().toLowerCase();
+
+        if (lower === 'true') return '1';
+        if (lower === 'false') return '0';
+
+        return rawAnswer;
+    }
+
+    getCorrectAnswerText(exercise: ExerciseDocument): string {
+        return exercise.correctChoiceIndex === 1 ? 'True' : 'False';
+    }
+
     drawExerciseToPdf(
         exercise: ExerciseDocument,
         index: number,
@@ -52,10 +69,11 @@ export class TrueFalseExerciseTypeStrategy implements ExerciseTypeStrategy {
     ): void {
         let requiredHeight = document.heightOfString(`${index + 1} - ${exercise.prompt}`, { width: usableWidth });
 
-        // Add space for the 1 line break
         requiredHeight += document.currentLineHeight();
 
         requiredHeight += document.heightOfString('   True / False', { width: usableWidth });
+
+        requiredHeight += document.currentLineHeight();
 
         if (requiredHeight > availableHeight) {
             document.addPage();
@@ -68,7 +86,6 @@ export class TrueFalseExerciseTypeStrategy implements ExerciseTypeStrategy {
             .font('Times-Roman')
             .text(exercise.prompt);
 
-        // Draw the 1 line break
         document.moveDown(1);
 
         document.text(`   True / False`);

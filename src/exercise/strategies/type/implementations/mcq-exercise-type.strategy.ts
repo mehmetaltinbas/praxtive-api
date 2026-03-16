@@ -48,6 +48,26 @@ export class MCQExerciseTypeStrategy implements ExerciseTypeStrategy {
         };
     }
 
+    buildPaperExtractionPrompt(exerciseNumber: number, exercise: ExerciseDocument): string {
+        const choiceLabels = exercise.choices!.map((c, i) => `${String.fromCharCode(65 + i)}) ${c}`);
+        return `Exercise ${exerciseNumber} (MCQ): "${exercise.prompt}"\nChoices: ${choiceLabels.join(', ')}\nReturn the selected letter (A-E).`;
+    }
+
+    normalizePaperAnswer(rawAnswer: string): string {
+        const letter = rawAnswer.trim().toUpperCase();
+        const index = letter.charCodeAt(0) - 65;
+
+        if (index >= 0 && index < MCQ_CHOICES_COUNT) {
+            return index.toString();
+        }
+
+        return rawAnswer;
+    }
+
+    getCorrectAnswerText(exercise: ExerciseDocument): string {
+        return getAlphabetLetter(exercise.correctChoiceIndex!);
+    }
+
     drawExerciseToPdf(
         exercise: ExerciseDocument,
         index: number,
@@ -65,6 +85,8 @@ export class MCQExerciseTypeStrategy implements ExerciseTypeStrategy {
                 width: usableWidth,
             });
         });
+
+        requiredHeight += document.currentLineHeight();
 
         if (requiredHeight > availableHeight) {
             document.addPage();

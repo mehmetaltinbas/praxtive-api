@@ -1,5 +1,19 @@
-// eslint-disable-next-line no-redeclare
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+    // eslint-disable-next-line no-redeclare
+    Body,
+    Controller,
+    Delete,
+    Get,
+    Param,
+    Patch,
+    Post,
+    Query,
+    UploadedFiles,
+    UseGuards,
+    UseInterceptors,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { MAX_PAPER_EVALUATION_UPLOAD_COUNT } from 'src/exercise-set/constants/max-paper-evaluation-upload-count.constant';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
 import { UpdateExerciseSetDto } from 'src/exercise-set/types/dto/update-exercise-set.dto';
@@ -108,8 +122,24 @@ export class ExerciseSetController {
     }
 
     @Get('get-pdf/:id')
-    async getPdf(@User() user: JwtPayload, @Param('id') id: string): Promise<GetPdfResponse> {
-        const response = this.exerciseSetService.getPdf(user.sub, id);
+    async getPdf(
+        @User() user: JwtPayload,
+        @Param('id') id: string,
+        @Query('withAnswers') withAnswers?: string
+    ): Promise<GetPdfResponse> {
+        const response = this.exerciseSetService.getPdf(user.sub, id, withAnswers === 'true');
+
+        return response;
+    }
+
+    @Post('evaluate-paper-answers/:id')
+    @UseInterceptors(FilesInterceptor('files', MAX_PAPER_EVALUATION_UPLOAD_COUNT))
+    async evaluatePaperAnswers(
+        @User() user: JwtPayload,
+        @Param('id') id: string,
+        @UploadedFiles() files: Express.Multer.File[]
+    ): Promise<EvaluateAnswersResponse> {
+        const response = await this.exerciseSetService.evaluatePaperAnswers(user.sub, id, files);
 
         return response;
     }

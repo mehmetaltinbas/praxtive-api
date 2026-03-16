@@ -2,13 +2,14 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { EvaluateExerciseAnswerResponse } from 'src/ai/types/response/evaluate-exercise-answer.response';
+import { ExtractedPaperAnswer } from 'src/ai/types/response/extract-paper-answers.response';
+import { AiGeneratedExercise, AiGeneratedExercisesResponse } from 'src/ai/types/response/generate-exercises.response';
 import { MCQ_CHOICES_COUNT } from 'src/exercise/constants/mcq-choices-count.constant';
+import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum';
+import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
 import { ALLOWED_AUDIO_EXTRACTOR_MIMETYPES } from 'src/source/constants/allowed-audio-extractor-mimetypes.constant';
 import { SourceTextNode } from 'src/source/types/source-text-node/source-text-node.interface';
-import { ExerciseDifficulty } from '../exercise/enums/exercise-difficulty.enum';
-import { ExerciseType } from '../exercise/enums/exercise-type.enum';
-import { AiGeneratedExercise, AiGeneratedExercisesResponse } from './types/response/generate-exercises.response';
 
 @Injectable()
 export class AiService {
@@ -242,6 +243,65 @@ export class AiService {
         const response = await this.sendPromptAndParseResponse<SourceTextNode>(prompt, schema);
 
         return response;
+    }
+
+    async extractAnswersFromPaperImages(
+        imageBuffers: { buffer: Buffer; mimetype: string }[],
+        exerciseSummary: string
+    ): Promise<ExtractedPaperAnswer[]> {
+        const imageContentParts: OpenAI.Responses.ResponseInputContent[] = imageBuffers.map((img) => ({
+            type: 'input_image' as const,
+            image_url: `data:${img.mimetype};base64,${img.buffer.toString('base64')}`,
+            detail: 'high' as const,
+        }));
+
+        const schema = {
+            type: 'object',
+            properties: {
+                items: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            exerciseNumber: { type: 'integer' },
+                            answer: { type: 'string' },
+                        },
+                        required: ['exerciseNumber', 'answer'],
+                        additionalProperties: false,
+                    },
+                },
+            },
+            required: ['items'],
+            additionalProperties: false,
+        };
+
+        const response = await this.openaiClient.responses.create({
+            model: 'gpt-4.1',
+            input: [
+                {
+                    role: 'system',
+                    content:
+                        'You are an answer extraction assistant. Look at the provided images of a completed paper exam and extract the answers for each exercise. Return only valid JSON matching the schema.',
+                },
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'input_text' as const,
+                            text: `Here are the exercises on the paper:\n\n${exerciseSummary}\n\nExtract the handwritten answers from the images for each exercise number.`,
+                        },
+                        ...imageContentParts,
+                    ],
+                },
+            ],
+            text: {
+                format: { type: 'json_schema', name: 'schema', schema },
+            },
+        });
+
+        const result = JSON.parse(response.output_text) as { items: ExtractedPaperAnswer[] };
+
+        return result.items;
     }
 
     private async sendPromptAndParseResponse<T>(prompt: string, schema: { [key: string]: unknown }): Promise<T> {

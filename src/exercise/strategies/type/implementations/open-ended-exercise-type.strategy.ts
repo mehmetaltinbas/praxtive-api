@@ -38,6 +38,18 @@ export class OpenEndedExerciseTypeStrategy implements ExerciseTypeStrategy {
         };
     }
 
+    buildPaperExtractionPrompt(exerciseNumber: number, exercise: ExerciseDocument): string {
+        return `Exercise ${exerciseNumber} (Open Ended): "${exercise.prompt}"\nTranscribe the handwritten answer text.`;
+    }
+
+    normalizePaperAnswer(rawAnswer: string): string {
+        return rawAnswer;
+    }
+
+    getCorrectAnswerText(exercise: ExerciseDocument): string {
+        return exercise.solution ?? '';
+    }
+
     drawExerciseToPdf(
         exercise: ExerciseDocument,
         index: number,
@@ -49,6 +61,8 @@ export class OpenEndedExerciseTypeStrategy implements ExerciseTypeStrategy {
         const solutionHeight = document.heightOfString(exercise.solution || '', { width: usableWidth });
 
         requiredHeight += solutionHeight + document.currentLineHeight();
+
+        requiredHeight += document.currentLineHeight();
 
         if (requiredHeight > availableHeight) {
             document.addPage();
