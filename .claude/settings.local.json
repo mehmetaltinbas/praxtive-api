@@ -6,7 +6,8 @@
       "Bash(npm search:*)",
       "Bash(npm install:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx ts-node:*)"
+      "Bash(npx ts-node:*)",
+      "Bash(npm run:*)"
     ]
   }
 }
