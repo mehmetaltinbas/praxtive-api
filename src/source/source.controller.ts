@@ -21,7 +21,6 @@ import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
 import { UpdateSourceDto } from 'src/source/types/dto/update-source.dto';
 import { ReadAllSourcesResponse } from 'src/source/types/response/read-all-sources.response';
 import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-source.response';
-import type { Express } from 'express';
 
 @Controller('source')
 @UseGuards(AuthGuard)
