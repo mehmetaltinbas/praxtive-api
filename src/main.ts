@@ -25,7 +25,7 @@ async function bootstrap(): Promise<void> {
     );
     app.use(cookieParser());
     app.enableCors({
-        origin: configService.get<string>('CLIENT_URL'),
+        origin: [configService.get<string>('CLIENT_URL'), configService.get<string>('LOCAL_MOBILE_CLIENT_URL')],
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
         credentials: true,
     });

@@ -11,10 +11,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request as ExpressRequest, Response as ExpressResponse } from 'express';
-import ResponseBase from '../shared/types/response-base.interface';
-import { AuthGuard } from './auth.guard';
-import { AuthService } from './auth.service';
-import { SignInDto } from './types/auth-dtos';
+import { AuthGuard } from 'src/auth/auth.guard';
+import { AuthService } from 'src/auth/auth.service';
+import { SignInDto } from 'src/auth/types/auth-dtos';
+import ResponseBase from 'src/shared/types/response-base.interface';
 
 @Controller('auth')
 export class AuthController {
