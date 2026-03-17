@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcrypt';
 import mongoose, { Model } from 'mongoose';
@@ -16,8 +16,15 @@ export class UserService {
         private configService: ConfigService
     ) {}
 
-    async create(signUpUserDto: SignUpUserDto): Promise<ResponseBase> {
-        const { password, ...restOfSignUpUserDto } = signUpUserDto;
+    async create(dto: SignUpUserDto): Promise<ResponseBase> {
+        const { userName, password, ...restOfSignUpUserDto } = dto;
+
+        const existingUser = await this.db.User.findOne({ userName: userName });
+
+        if (existingUser) {
+            throw new ConflictException('Username is already taken');
+        }
+
         const passwordHash = await bcrypt.hash(password, 10);
         const user = await this.db.User.create({
             passwordHash,
@@ -48,7 +55,24 @@ export class UserService {
     }
 
     async updateById(id: string, dto: UpdateUserDto, session?: mongoose.mongo.ClientSession): Promise<ResponseBase> {
-        const user = await this.db.User.findByIdAndUpdate(id, { $set: dto }, { session, new: true });
+        const { userName, ...restOfDto } = dto;
+
+        if (userName) {
+            const existingUser = await this.db.User.findOne({
+                userName: userName,
+                _id: { $ne: id },
+            });
+
+            if (existingUser) {
+                throw new ConflictException('Username is already taken by another user');
+            }
+        }
+
+        const user = await this.db.User.findByIdAndUpdate(
+            id,
+            { $set: { userName, ...restOfDto } },
+            { session, new: true }
+        );
 
         if (!user) {
             throw new NotFoundException('user not found');
