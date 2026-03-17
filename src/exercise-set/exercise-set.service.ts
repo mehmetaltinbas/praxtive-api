@@ -272,9 +272,9 @@ export class ExerciseSetService {
         session.startTransaction();
 
         try {
-            await Promise.all(
-                dto.orderedExerciseIds.map((id, index) => this.exerciseService.reorder(id, index, session))
-            );
+            for (let i = 0; i < dto.orderedExerciseIds.length; i++) {
+                await this.exerciseService.reorder(dto.orderedExerciseIds[i], i, session);
+            }
 
             await session.commitTransaction();
         } catch (error) {
