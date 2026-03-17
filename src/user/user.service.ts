@@ -94,7 +94,7 @@ export class UserService {
             throw new Error('Current password does not match');
         }
 
-        const newPasswordHash = await bcrypt.hash(dto.oldPassword, 10);
+        const newPasswordHash = await bcrypt.hash(dto.newPassword, 10);
 
         await this.db.User.updateOne({ _id: id }, { $set: { passwordHash: newPasswordHash } });
 
