@@ -17,23 +17,25 @@ export class AuthService {
     ) {}
 
     async signIn(signInUserDto: SignInDto): Promise<SignInResponse> {
-        let readSingleUserResponse;
+        let user;
 
         try {
-            readSingleUserResponse = await this.userService.readByUserName(signInUserDto.userName);
+            const readSingleUserResponse = await this.userService.readPasswordHasByUserName(signInUserDto.userName);
+
+            user = readSingleUserResponse.user;
         } catch {
-            throw new UnauthorizedException('invalid credentials');
+            throw new UnauthorizedException('invalid userName');
         }
 
-        const isMatch = await bcrypt.compare(signInUserDto.password, readSingleUserResponse.user.passwordHash);
+        const isMatch = await bcrypt.compare(signInUserDto.password, user.passwordHash);
 
         if (!isMatch) {
-            throw new UnauthorizedException('invalid credentials');
+            throw new UnauthorizedException('invalid password');
         }
 
         const payload: JwtPayload = {
-            sub: readSingleUserResponse.user._id,
-            userName: readSingleUserResponse.user.userName,
+            sub: user._id,
+            userName: user.userName,
         };
         const jwt = await this.jwtService.signAsync(payload);
 
@@ -41,7 +43,7 @@ export class AuthService {
             isSuccess: true,
             message: 'user signed in',
             jwt,
-            userId: readSingleUserResponse.user._id,
+            userId: user._id,
         };
     }
 
