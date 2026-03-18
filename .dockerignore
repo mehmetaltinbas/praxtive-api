@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build output
+dist/
+build/
+out/
+
+# Environment files (VERY IMPORTANT for security)
+.env
+.env.*
+.dev.local.env
+.test.local.env
+
+# Testing and Coverage
+coverage/
+test-results/
+*.spec.ts
+*.e2e-spec.ts
+
+# Docker files
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile
+.dockerignore
+
+# IDE and System files
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.bak
+
+# Log files
+logs/
+*.log
