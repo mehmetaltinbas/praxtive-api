@@ -1,6 +1,7 @@
 import {
     BadRequestException,
     ConflictException,
+    ForbiddenException,
     forwardRef,
     Inject,
     Injectable,
@@ -167,13 +168,18 @@ export class ExerciseSetService {
      * @param dto - Contains the fields inputted from user clonning the set set.
      */
     async clone(userId: string, exerciseSetId: string, dto: CloneExerciseSetDto): Promise<ResponseBase> {
+        const { exerciseSet: sourceExerciseSet } = await this.readById(undefined, exerciseSetId);
+
+        if (sourceExerciseSet.userId.toString() === userId) {
+            throw new ForbiddenException('You cannot clone your own exercise set.');
+        }
+
         const conflict = await this.db.ExerciseSet.findOne({ userId, title: dto.title });
 
         if (conflict) {
             throw new ConflictException(`An exercise set with the title "${dto.title}" already exists.`);
         }
 
-        const { exerciseSet: sourceExerciseSet } = await this.readById(undefined, exerciseSetId);
         const { exercises } = await this.exerciseService.readAllByExerciseSetId(undefined, exerciseSetId);
 
         const session = await mongoose.startSession();
