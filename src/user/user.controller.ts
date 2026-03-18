@@ -1,10 +1,11 @@
 // eslint-disable-next-line no-redeclare
-import { Body, Controller, Delete, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import User from 'src/shared/custom-decorators/user.decorator';
 import { SignUpUserDto } from 'src/user/types/dto/sign-up-user.dto';
 import { UpdateUserPasswordDto } from 'src/user/types/dto/update-user-password.dto';
 import { UpdateUserDto } from 'src/user/types/dto/update-user.dto';
+import { ReadSinglePublicUserResponse } from 'src/user/types/response/read-single-public-user.response';
 import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user.response';
 import { AuthGuard } from '../auth/auth.guard';
 import ResponseBase from '../shared/types/response-base.interface';
@@ -49,6 +50,20 @@ export class UserController {
     @UseGuards(AuthGuard)
     async deleteByToken(@User() user: JwtPayload): Promise<ResponseBase> {
         const response = await this.userService.deleteById(user.sub);
+
+        return response;
+    }
+
+    @Get('read-by-user-name/:userName')
+    async readPublicByUserName(@Param('userName') userName: string): Promise<ReadSinglePublicUserResponse> {
+        const response = await this.userService.readPublicByUserName(userName);
+
+        return response;
+    }
+
+    @Get('read-public-by-id/:id')
+    async readPublicById(@Param('id') id: string): Promise<ReadSinglePublicUserResponse> {
+        const response = await this.userService.readPublicById(id);
 
         return response;
     }

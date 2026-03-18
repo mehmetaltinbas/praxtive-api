@@ -5,10 +5,11 @@ import { ExerciseTypeFactory } from 'src/exercise/strategies/type/exercise-type.
 import { AiModule } from '../ai/ai.module';
 import { ExerciseController } from './exercise.controller';
 import { ExerciseService } from './exercise.service';
+import { PublicExerciseController } from 'src/exercise/public-exercise.controller';
 
 @Module({
     imports: [AiModule, forwardRef(() => ExerciseSetModule)],
-    controllers: [ExerciseController],
+    controllers: [ExerciseController, PublicExerciseController],
     providers: [ExerciseService, ExerciseTypeFactory, ...ExerciseTypeStrategiesBarrel],
     exports: [ExerciseService],
 })

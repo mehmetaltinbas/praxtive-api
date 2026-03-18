@@ -1,5 +1,5 @@
 import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import mongoose, { Model } from 'mongoose';
+import mongoose from 'mongoose';
 import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
@@ -17,7 +17,7 @@ import ResponseBase from 'src/shared/types/response-base.interface';
 @Injectable()
 export class ExerciseService {
     constructor(
-        @Inject('DB_MODELS') private db: Record<'Exercise', Model<ExerciseDocument>>,
+        @Inject('DB_MODELS') private db: Record<'Exercise', mongoose.Model<ExerciseDocument>>,
         private exerciseTypeFactory: ExerciseTypeFactory,
         @Inject(forwardRef(() => ExerciseSetService)) private exerciseSetService: ExerciseSetService,
         private aiService: AiService
@@ -81,7 +81,14 @@ export class ExerciseService {
         }
     }
 
-    async readById(userId: string, id: string): Promise<ReadSingleExerciseResponse> {
+    /**
+     * Reads a single exercise by id.
+     * Validates ownership via the parent exercise set. When userId is undefined,
+     * cascades public access check (visibility:PUBLIC) to the exercise set.
+     * @param userId - The owner's id, or undefined for public access.
+     * @param id - The exercise id.
+     */
+    async readById(userId: string | undefined, id: string): Promise<ReadSingleExerciseResponse> {
         const exercise = await this.db.Exercise.findOne({ _id: id });
 
         if (!exercise) {
@@ -93,8 +100,16 @@ export class ExerciseService {
         return { isSuccess: true, message: `exercise read by id: ${id}`, exercise };
     }
 
+    /**
+     * Reads all exercises belonging to an exercise set.
+     * Validates access via the parent exercise set. When userId is undefined,
+     * cascades public access check (visibility: PUBLIC) to the exercise set.
+     * @param userId - The owner's id, or undefined for public access.
+     * @param exerciseSetId - The exercise set id.
+     * @param session - Optional MongoDB session.
+     */
     async readAllByExerciseSetId(
-        userId: string,
+        userId: string | undefined,
         exerciseSetId: string,
         session?: mongoose.mongo.ClientSession
     ): Promise<ReadMultipleExercisesResponse> {
@@ -282,16 +297,19 @@ export class ExerciseService {
 
     buildPaperExtractionPrompt(exercise: ExerciseDocument, exerciseNumber: number): string {
         const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
+
         return strategy.buildPaperExtractionPrompt(exerciseNumber, exercise);
     }
 
     normalizePaperAnswer(exercise: ExerciseDocument, rawAnswer: string): string {
         const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
+
         return strategy.normalizePaperAnswer(rawAnswer);
     }
 
     getCorrectAnswerText(exercise: ExerciseDocument): string {
         const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
+
         return strategy.getCorrectAnswerText(exercise);
     }
 

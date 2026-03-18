@@ -1,18 +1,21 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcrypt';
-import mongoose, { Model } from 'mongoose';
+import mongoose from 'mongoose';
 import ResponseBase from 'src/shared/types/response-base.interface';
+import { PUBLIC_USER_FIELDS } from 'src/user/constants/public-user-fields.constant';
 import { SignUpUserDto } from 'src/user/types/dto/sign-up-user.dto';
 import { UpdateUserPasswordDto } from 'src/user/types/dto/update-user-password.dto';
 import { UpdateUserDto } from 'src/user/types/dto/update-user.dto';
+import { PublicUserDocument } from 'src/user/types/public-user-document.interface';
+import { ReadSinglePublicUserResponse } from 'src/user/types/response/read-single-public-user.response';
 import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user.response';
 import { UserDocument } from './types/user-document.interface';
 
 @Injectable()
 export class UserService {
     constructor(
-        @Inject('DB_MODELS') private db: Record<'User', Model<UserDocument>>,
+        @Inject('DB_MODELS') private db: Record<'User', mongoose.Model<UserDocument>>,
         private configService: ConfigService
     ) {}
 
@@ -27,6 +30,7 @@ export class UserService {
 
         const passwordHash = await bcrypt.hash(password, 10);
         const user = await this.db.User.create({
+            userName,
             passwordHash,
             ...restOfSignUpUserDto,
         });
@@ -35,7 +39,7 @@ export class UserService {
     }
 
     async readById(id: string): Promise<ReadSingleUserResponse> {
-        const user = await this.db.User.findById(id).exec();
+        const user = await this.db.User.findById(id).select('-passwordHash').exec();
 
         if (!user) {
             throw new NotFoundException(`user with given id not found`);
@@ -45,7 +49,17 @@ export class UserService {
     }
 
     async readByUserName(userName: string): Promise<ReadSingleUserResponse> {
-        const user = await this.db.User.findOne({ userName });
+        const user = await this.db.User.findOne({ userName }).select('-passwordHash');
+
+        if (!user) {
+            throw new NotFoundException(`user not found with userName: ${userName}`);
+        }
+
+        return { isSuccess: true, message: `user read with userName: ${userName}`, user };
+    }
+
+    async readPasswordHasByUserName(userName: string): Promise<ReadSingleUserResponse> {
+        const user = await this.db.User.findOne({ userName }).select('passwordHash');
 
         if (!user) {
             throw new NotFoundException(`user not found with userName: ${userName}`);
@@ -132,5 +146,33 @@ export class UserService {
         }
 
         return { isSuccess: true, message: 'user deleted' };
+    }
+
+    /**
+     * Reads a user's public profile by userName.
+     * Only fields listed in PUBLIC_USER_FIELDS are returned.
+     */
+    async readPublicByUserName(userName: string): Promise<ReadSinglePublicUserResponse> {
+        const user = await this.db.User.findOne({ userName }).select(PUBLIC_USER_FIELDS.join(' '));
+
+        if (!user) {
+            throw new NotFoundException(`user not found with userName: ${userName}`);
+        }
+
+        return { isSuccess: true, message: 'public user read', user: user as unknown as PublicUserDocument };
+    }
+
+    /**
+     * Reads a user's public profile by userName.
+     * Only fields listed in PUBLIC_USER_FIELDS are returned.
+     */
+    async readPublicById(id: string): Promise<ReadSinglePublicUserResponse> {
+        const user = await this.db.User.findOne({ _id: id }).select(PUBLIC_USER_FIELDS.join(' '));
+
+        if (!user) {
+            throw new NotFoundException(`user not found with id: ${id}`);
+        }
+
+        return { isSuccess: true, message: 'public user read', user: user as unknown as PublicUserDocument };
     }
 }

@@ -2,6 +2,7 @@ import { Document as MongooseDocument } from 'mongoose';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
+import { ExerciseSetVisibility } from 'src/exercise-set/enums/exercise-set-visibility.enum';
 
 export interface ExerciseSetDocument extends MongooseDocument {
     _id: string;
@@ -12,4 +13,5 @@ export interface ExerciseSetDocument extends MongooseDocument {
     difficulty: ExerciseSetDifficulty;
     count: number;
     title: string;
+    visibility: ExerciseSetVisibility;
 }

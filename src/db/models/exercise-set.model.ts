@@ -4,6 +4,7 @@ import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-diffi
 import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 import { ExerciseSetDocument } from 'src/exercise-set/types/exercise-set-document.interface';
+import { ExerciseSetVisibility } from 'src/exercise-set/enums/exercise-set-visibility.enum';
 
 const schema = new mongoose.Schema(
     {
@@ -22,6 +23,7 @@ const schema = new mongoose.Schema(
             default: 'medium',
         },
         count: { type: Number, required: true },
+        visibility: { type: String, enum: Object.values(ExerciseSetVisibility), default: ExerciseSetVisibility.PRIVATE },
     },
     { timestamps: true }
 );

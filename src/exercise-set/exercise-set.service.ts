@@ -6,7 +6,7 @@ import {
     Injectable,
     NotFoundException,
 } from '@nestjs/common';
-import mongoose, { FilterQuery, Model } from 'mongoose';
+import mongoose, { FilterQuery } from 'mongoose';
 import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
@@ -14,7 +14,9 @@ import { ALLOWED_PAPER_IMAGE_MIMETYPES } from 'src/exercise-set/constants/allowe
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
+import { ExerciseSetVisibility } from 'src/exercise-set/enums/exercise-set-visibility.enum';
 import { ExerciseSetTypeFactory } from 'src/exercise-set/strategies/type/exercise-set-type.factory';
+import { CloneExerciseSetDto } from 'src/exercise-set/types/dto/clone-exercise-set.dto';
 import { CreateExerciseSetDto } from 'src/exercise-set/types/dto/create-exercise-set.dto';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
@@ -37,16 +39,18 @@ import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface
 import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceService } from 'src/source/source.service';
 import { ExtendedSourceDocument } from 'src/source/types/extended-source-document.interface';
+import { UserService } from 'src/user/user.service';
 
 @Injectable()
 export class ExerciseSetService {
     constructor(
-        @Inject('DB_MODELS') private db: Record<'ExerciseSet', Model<ExerciseSetDocument>>,
+        @Inject('DB_MODELS') private db: Record<'ExerciseSet', mongoose.Model<ExerciseSetDocument>>,
         @Inject(forwardRef(() => ExerciseService)) private exerciseService: ExerciseService,
         private aiService: AiService,
         private sourceService: SourceService,
         private exerciseSetTypeFactory: ExerciseSetTypeFactory,
-        private exerciseSetReadAllFilterCompositeProvider: ExerciseSetReadAllFilterCompositeProvider
+        private exerciseSetReadAllFilterCompositeProvider: ExerciseSetReadAllFilterCompositeProvider,
+        private userService: UserService
     ) {}
 
     async create(userId: string, sourceId: string | undefined, dto: CreateExerciseSetDto): Promise<ResponseBase> {
@@ -94,6 +98,7 @@ export class ExerciseSetService {
                                 type: dto.type,
                                 difficulty: dto.difficulty,
                                 count: 0,
+                                visibility: dto.visibility,
                             },
                         ],
                         { session }
@@ -139,6 +144,7 @@ export class ExerciseSetService {
                     type: dto.type,
                     difficulty: dto.difficulty,
                     count: 0,
+                    visibility: dto.visibility,
                 });
 
                 message = `Exercises et created with type ${exerciseSet.type}`;
@@ -152,11 +158,82 @@ export class ExerciseSetService {
         };
     }
 
+    /**
+     * Clones a public exercise set into the authenticated user's account.
+     * The source set is read via public access (visibility: PUBLIC).
+     * The cloned set defaults to PRIVATE visibility.
+     * @param userId - The authenticated user cloning the set.
+     * @param exerciseSetId - The public exercise set to clone.
+     * @param dto - Contains the fields inputted from user clonning the set set.
+     */
+    async clone(userId: string, exerciseSetId: string, dto: CloneExerciseSetDto): Promise<ResponseBase> {
+        const conflict = await this.db.ExerciseSet.findOne({ userId, title: dto.title });
+
+        if (conflict) {
+            throw new ConflictException(`An exercise set with the title "${dto.title}" already exists.`);
+        }
+
+        const { exerciseSet: sourceExerciseSet } = await this.readById(undefined, exerciseSetId);
+        const { exercises } = await this.exerciseService.readAllByExerciseSetId(undefined, exerciseSetId);
+
+        const session = await mongoose.startSession();
+
+        session.startTransaction();
+
+        try {
+            const [clonedSet] = await this.db.ExerciseSet.create(
+                [
+                    {
+                        userId: new mongoose.Types.ObjectId(userId),
+                        sourceType: ExerciseSetSourceType.INDEPENDENT,
+                        title: dto.title,
+                        type: sourceExerciseSet.type,
+                        difficulty: sourceExerciseSet.difficulty,
+                        count: 0,
+                        visibility: dto.visibility,
+                    },
+                ],
+                { session }
+            );
+
+            for (const exercise of exercises) {
+                const createDto: CreateExerciseDto = {
+                    type: exercise.type,
+                    difficulty: exercise.difficulty,
+                    prompt: exercise.prompt,
+                };
+
+                if (exercise.choices) {
+                    createDto.choices = exercise.choices;
+                }
+
+                if (exercise.correctChoiceIndex !== undefined) {
+                    createDto.correctChoiceIndex = exercise.correctChoiceIndex;
+                }
+
+                if (exercise.solution) {
+                    createDto.solution = exercise.solution;
+                }
+
+                await this.exerciseService.create(userId, clonedSet._id, createDto, session);
+            }
+
+            await session.commitTransaction();
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            await session.endSession();
+        }
+
+        return { isSuccess: true, message: 'Exercise set cloned' };
+    }
+
     async readAllByUserId(
         userId: string,
         readMultipleExerciseSetsFilterCriteriaDto: ReadMultipleExerciseSetsFilterCriteriaDto
     ): Promise<ReadAllExerciseSetsResponse> {
-        const filter: FilterQuery<ExerciseSetDocument> = {
+        const filter: mongoose.FilterQuery<ExerciseSetDocument> = {
             userId: new mongoose.Types.ObjectId(userId),
         };
 
@@ -201,22 +278,51 @@ export class ExerciseSetService {
         return { isSuccess: true, message: 'All exercise sets read', sources };
     }
 
+    /**
+     * Reads an exercise set by id.
+     * When userId is provided, validates ownership. When undefined, enforces visibility:PUBLIC.
+     * @param userId - The owner's id, or undefined for public access.
+     * @param exerciseSetId - The exercise set id.
+     * @param session - Optional MongoDB session.
+     */
     async readById(
-        userId: string,
-        id: string,
+        userId: string | undefined,
+        exerciseSetId: string,
         session?: mongoose.mongo.ClientSession
     ): Promise<ReadSingleExerciseSetResponse> {
-        const exerciseSet = await this.db.ExerciseSet.findOne({ _id: id, userId }).session(session ?? null);
+        const filter: FilterQuery<ExerciseSetDocument> = { _id: exerciseSetId };
+
+        if (userId) {
+            filter.userId = userId;
+        } else {
+            filter.visibility = ExerciseSetVisibility.PUBLIC;
+        }
+
+        const exerciseSet = await this.db.ExerciseSet.findOne(filter).session(session ?? null);
 
         if (!exerciseSet) {
-            throw new NotFoundException(`No exerciseSet found by id ${id} for this user.`);
+            throw new NotFoundException(`No exerciseSet found by id ${exerciseSetId}.`);
         }
 
         return {
             isSuccess: true,
-            message: `ExerciseSet read by id ${id}`,
+            message: `ExerciseSet read by id ${exerciseSetId}`,
             exerciseSet,
         };
+    }
+
+    /**
+     * Reads all public exercise sets belonging to a user identified by userName.
+     */
+    async readAllPublicByUserName(userName: string): Promise<ReadAllExerciseSetsResponse> {
+        const { user } = await this.userService.readPublicByUserName(userName);
+
+        const exerciseSets = await this.db.ExerciseSet.find({
+            userId: user._id,
+            visibility: ExerciseSetVisibility.PUBLIC,
+        });
+
+        return { isSuccess: true, message: 'Public exercise sets read', exerciseSets };
     }
 
     async updateById(
@@ -384,12 +490,23 @@ export class ExerciseSetService {
         return { isSuccess: true, message: 'exercise set deleted' };
     }
 
-    async evaluateAnswers(userId: string, dto: EvaluateAnswersDto): Promise<EvaluateAnswersResponse> {
+    /**
+     * Evaluates user answers against exercises.
+     * Supports both owned and public exercise sets.
+     * @param userId - The authenticated user evaluating answers (used for credit deduction).
+     * @param dto - The answers to evaluate.
+     * @param isPublicAccess - If true, skips ownership check on exercises (uses visibility: PUBLIC).
+     */
+    async evaluateAnswers(
+        userId: string,
+        dto: EvaluateAnswersDto,
+        isPublicAccess = false
+    ): Promise<EvaluateAnswersResponse> {
         const exerciseAnswerEvaluationResults: ExerciseAnswerEvaluationResult[] = [];
 
         for (const { id, answer } of dto.exercises) {
             try {
-                const { exercise } = await this.exerciseService.readById(userId, id);
+                const { exercise } = await this.exerciseService.readById(isPublicAccess ? undefined : userId, id);
 
                 const evaluatedAnswer = await this.exerciseService.evaluateAnswer(exercise, answer);
 
@@ -423,13 +540,16 @@ export class ExerciseSetService {
         };
     }
 
-    async getPdf(userId: string, id: string, withAnswers = false): Promise<GetPdfResponse> {
+    async getPdf(userId: string | undefined, id: string, withAnswers = false): Promise<GetPdfResponse> {
         const { exerciseSet } = await this.readById(userId, id);
         const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, id);
 
-        let sourceTypeTitle: string = ExerciseSetSourceType.INDEPENDENT;
+        let sourceTypeTitle: string =
+            exerciseSet.sourceType === ExerciseSetSourceType.INDEPENDENT
+                ? ExerciseSetSourceType.INDEPENDENT
+                : ExerciseSetSourceType.SOURCE;
 
-        if (exerciseSet.sourceType === ExerciseSetSourceType.SOURCE) {
+        if (userId && exerciseSet.sourceType === ExerciseSetSourceType.SOURCE) {
             const { source } = await this.sourceService.readById(userId, exerciseSet.sourceId);
 
             sourceTypeTitle = source.title;
@@ -533,10 +653,18 @@ export class ExerciseSetService {
         });
     }
 
+    /**
+     * Evaluates answers extracted from paper images.
+     * @param userId - The authenticated user (used for credit deduction).
+     * @param exerciseSetId - The exercise set to evaluate against.
+     * @param files - Uploaded paper images.
+     * @param isPublicAccess - If true, validates via visibility:PUBLIC instead of ownership.
+     */
     async evaluatePaperAnswers(
         userId: string,
         exerciseSetId: string,
-        files: Express.Multer.File[]
+        files: Express.Multer.File[],
+        isPublicAccess = false
     ): Promise<EvaluateAnswersResponse> {
         if (!files || files.length === 0) {
             throw new BadRequestException('At least one image file is required.');
@@ -550,9 +678,11 @@ export class ExerciseSetService {
             );
         }
 
-        await this.readById(userId, exerciseSetId);
+        const effectiveUserId = isPublicAccess ? undefined : userId;
 
-        const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, exerciseSetId);
+        await this.readById(effectiveUserId, exerciseSetId);
+
+        const { exercises } = await this.exerciseService.readAllByExerciseSetId(effectiveUserId, exerciseSetId);
 
         const exerciseSummary = exercises
             .map((exercise, index) => this.exerciseService.buildPaperExtractionPrompt(exercise, index + 1))
@@ -576,6 +706,6 @@ export class ExerciseSetService {
             evaluateAnswersDto.exercises.push({ id: exercise._id, answer: normalizedAnswer });
         }
 
-        return this.evaluateAnswers(userId, evaluateAnswersDto);
+        return this.evaluateAnswers(userId, evaluateAnswersDto, isPublicAccess);
     }
 }
