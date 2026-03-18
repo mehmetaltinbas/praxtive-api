@@ -1,5 +1,11 @@
-import { BadRequestException, Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { Model } from 'mongoose';
+import {
+    BadRequestException,
+    Inject,
+    Injectable,
+    InternalServerErrorException,
+    NotFoundException,
+} from '@nestjs/common';
+import mongoose from 'mongoose';
 import { PlanDocument } from 'src/billing/types/plan-document.interface';
 import { PlanName } from 'src/plan/enums/plan-name.enum';
 import { CreatePlanDto } from 'src/plan/types/dto/create-plan.dto.model';
@@ -8,7 +14,7 @@ import ResponseBase from 'src/shared/types/response-base.interface';
 
 @Injectable()
 export class PlanService {
-    constructor(@Inject('DB_MODELS') private db: Record<'Plan', Model<PlanDocument>>) {}
+    constructor(@Inject('DB_MODELS') private db: Record<'Plan', mongoose.Model<PlanDocument>>) {}
 
     async create(createPlanDto: CreatePlanDto): Promise<ResponseBase> {
         const plan = await this.db.Plan.create(createPlanDto);

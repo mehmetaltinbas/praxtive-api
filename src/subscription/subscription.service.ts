@@ -1,6 +1,6 @@
 import { Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import mongoose, { Model } from 'mongoose';
+import mongoose from 'mongoose';
 import { BillingService } from 'src/billing/billing.service';
 import { CreditTransactionType } from 'src/billing/enums/credit-transaction-type.enum';
 import { CreditTransactionService } from 'src/credit-transaction/credit-transaction.service';
@@ -17,7 +17,7 @@ import { UserService } from 'src/user/user.service';
 @Injectable()
 export class SubscriptionService {
     constructor(
-        @Inject('DB_MODELS') private db: Record<'Subscription', Model<SubscriptionDocument>>,
+        @Inject('DB_MODELS') private db: Record<'Subscription', mongoose.Model<SubscriptionDocument>>,
         private userService: UserService,
         private planService: PlanService,
         private creditTransactionService: CreditTransactionService,

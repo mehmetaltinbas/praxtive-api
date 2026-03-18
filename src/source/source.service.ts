@@ -1,5 +1,5 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { Model } from 'mongoose';
+import mongoose from 'mongoose';
 import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceTypeFactory } from 'src/source/strategies/type/source-type.factory';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
@@ -11,7 +11,7 @@ import { SourceDocument } from 'src/source/types/source-document.interface';
 @Injectable()
 export class SourceService {
     constructor(
-        @Inject('DB_MODELS') private db: Record<'Source', Model<SourceDocument>>,
+        @Inject('DB_MODELS') private db: Record<'Source', mongoose.Model<SourceDocument>>,
         private sourceTypeFactory: SourceTypeFactory
     ) {}
 

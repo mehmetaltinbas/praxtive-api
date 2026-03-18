@@ -1,5 +1,5 @@
 import { Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
-import mongoose, { Model } from 'mongoose';
+import mongoose from 'mongoose';
 import { CreditTransactionDocument } from 'src/billing/types/credit-transaction-document.interface';
 import { CreateCreditTransactionDto } from 'src/credit-transaction/types/dto/create-credit-transaction.dto';
 import ResponseBase from 'src/shared/types/response-base.interface';
@@ -8,7 +8,7 @@ import ResponseBase from 'src/shared/types/response-base.interface';
 export class CreditTransactionService {
     constructor(
         @Inject('DB_MODELS')
-        private db: Record<'CreditTransaction', Model<CreditTransactionDocument>>
+        private db: Record<'CreditTransaction', mongoose.Model<CreditTransactionDocument>>
     ) {}
 
     async create(
