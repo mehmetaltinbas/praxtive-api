@@ -1,12 +1,16 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import { GenerateAiExerciseSchema } from 'src/ai/types/generate-ai-exercise-schema.interface';
 import { EvaluateExerciseAnswerResponse } from 'src/ai/types/response/evaluate-exercise-answer.response';
 import { ExtractedPaperAnswer } from 'src/ai/types/response/extract-paper-answers.response';
 import { AiGeneratedExercise, AiGeneratedExercisesResponse } from 'src/ai/types/response/generate-exercises.response';
+import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
+import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 import { MCQ_CHOICES_COUNT } from 'src/exercise/constants/mcq-choices-count.constant';
 import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
+import { ExerciseService } from 'src/exercise/exercise.service';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
 import { ALLOWED_AUDIO_EXTRACTOR_MIMETYPES } from 'src/source/constants/allowed-audio-extractor-mimetypes.constant';
 import { SourceTextNode } from 'src/source/types/source-text-node/source-text-node.interface';
@@ -17,7 +21,10 @@ export class AiService {
     private readonly openaiClient: OpenAI;
     private readonly openaiModel = 'gpt-4.1-mini';
 
-    constructor(private configService: ConfigService) {
+    constructor(
+        private configService: ConfigService,
+        private exerciseService: ExerciseService
+    ) {
         this.openaiApiKey = this.configService.get<string>('OPENAI_API_KEY')!;
         this.openaiClient = new OpenAI({
             apiKey: this.openaiApiKey,
@@ -26,28 +33,56 @@ export class AiService {
 
     async generateExercises(
         text: string,
+        type: ExerciseSetType,
+        difficulty: ExerciseSetDifficulty,
+        count: number
+    ): Promise<AiGeneratedExercisesResponse> {
+        const exerciseTypes = Object.values(ExerciseType);
+        const exerciseDifficulties = Object.values(ExerciseDifficulty);
+
+        const isMixType = type === ExerciseSetType.MIX;
+        const isMixDifficulty = difficulty === ExerciseSetDifficulty.MIX;
+
+        const countPerGroup = new Map<string, { type: ExerciseType; difficulty: ExerciseDifficulty; count: number }>();
+
+        for (let i = 0; i < count; i++) {
+            const exerciseType = isMixType
+                ? exerciseTypes[Math.floor(Math.random() * exerciseTypes.length)]
+                : (type as unknown as ExerciseType);
+
+            const exerciseDifficulty = isMixDifficulty
+                ? exerciseDifficulties[Math.floor(Math.random() * exerciseDifficulties.length)]
+                : (difficulty as unknown as ExerciseDifficulty);
+
+            const key = `${exerciseType}-${exerciseDifficulty}`;
+            const group = countPerGroup.get(key);
+
+            if (group) {
+                group.count++;
+            } else {
+                countPerGroup.set(key, { type: exerciseType, difficulty: exerciseDifficulty, count: 1 });
+            }
+        }
+
+        const batchPromises = Array.from(countPerGroup.values()).map((group) =>
+            this.generateExercisesForSingleType(text, group.type, group.difficulty, group.count)
+        );
+
+        const batches = await Promise.all(batchPromises);
+        const exercises = batches.flat();
+
+        return { isSuccess: true, message: 'Exercises successfully generated.', exercises };
+    }
+
+    private async generateExercisesForSingleType(
+        text: string,
         type: ExerciseType,
         difficulty: ExerciseDifficulty,
         count: number
-    ): Promise<AiGeneratedExercisesResponse> {
+    ): Promise<AiGeneratedExercise[]> {
         const prompt = `Here is a document: "\n${text}\n"\nGenerate clear ${type} type, in ${difficulty} difficulty, ${count} number of relevant questions from the provided text to test comprehension.`;
 
-        const schema: {
-            type: string;
-            properties: {
-                items: {
-                    type: string;
-                    items: {
-                        type: string;
-                        properties: { [key: string]: unknown };
-                        required: string[];
-                        additionalProperties: boolean;
-                    };
-                };
-            };
-            required: string[];
-            additionalProperties: boolean;
-        } = {
+        const schema: GenerateAiExerciseSchema = {
             type: 'object',
             properties: {
                 items: {
@@ -68,59 +103,14 @@ export class AiService {
             additionalProperties: false,
         };
 
-        switch (type) {
-            case ExerciseType.MCQ: {
-                schema.properties.items.items.properties.choices = {
-                    type: 'array',
-                    minItems: MCQ_CHOICES_COUNT,
-                    maxItems: MCQ_CHOICES_COUNT,
-                    items: {
-                        type: 'string',
-                    },
-                };
+        this.exerciseService.buildRestOfGenerateAiExerciseSchema(schema, type);
 
-                schema.properties.items.items.properties.correctChoiceIndex = {
-                    type: 'integer',
-                    minimum: 0,
-                    maximum: MCQ_CHOICES_COUNT - 1,
-                };
-
-                schema.properties.items.items.required.push('choices');
-                schema.properties.items.items.required.push('correctChoiceIndex');
-
-                break;
-            }
-
-            case ExerciseType.TRUE_FALSE: {
-                schema.properties.items.items.properties.correctChoiceIndex = {
-                    type: 'integer',
-                    minimum: 0,
-                    maximum: 1,
-                    description: '0 indicates false, 1 indicates true',
-                };
-
-                schema.properties.items.items.required.push('correctChoiceIndex');
-
-                break;
-            }
-
-            case ExerciseType.OPEN_ENDED: {
-                schema.properties.items.items.properties.solution = {
-                    type: 'string',
-                };
-
-                schema.properties.items.items.required.push('solution');
-
-                break;
-            }
-
-            default: {
-                throw new BadRequestException(`Unsupported exercise type: ${type as string}`);
-            }
-        }
-
-        const exercises = (await this.sendPromptAndParseResponse<{ items: AiGeneratedExercise[] }>(prompt, schema))
-            .items;
+        const exercises = (
+            await this.sendPromptAndParseResponse<{ items: AiGeneratedExercise[] }>(
+                prompt,
+                schema as unknown as Record<string, unknown>
+            )
+        ).items;
 
         if (type === ExerciseType.MCQ) {
             exercises.forEach((exercise) => {
@@ -134,11 +124,7 @@ export class AiService {
             });
         }
 
-        return {
-            isSuccess: true,
-            message: 'Exercises successfully generated.',
-            exercises,
-        };
+        return exercises;
     }
 
     async evaluateExerciseAnswer(
