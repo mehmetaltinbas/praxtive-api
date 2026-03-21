@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
+import { GenerateAiExerciseSchema } from 'src/ai/types/generate-ai-exercise-schema.interface';
+import { AiGeneratedExercise } from 'src/ai/types/response/generate-exercises.response';
 import { MCQ_CHOICES_COUNT } from 'src/exercise/constants/mcq-choices-count.constant';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseTypeStrategy } from 'src/exercise/strategies/type/exercise-type-strategy.interface';
@@ -13,7 +15,32 @@ import { getAlphabetLetter } from 'src/shared/utils/get-alphabet-letter.util';
 export class MCQExerciseTypeStrategy implements ExerciseTypeStrategy {
     type = ExerciseType.MCQ;
 
-    constructor(private openaiService: AiService) {}
+    constructor(@Inject(forwardRef(() => AiService)) private openaiService: AiService) {}
+
+    buildRestOfGenerateAiExerciseSchema(schema: GenerateAiExerciseSchema): void {
+        schema.properties.items.items.properties.choices = {
+            type: 'array',
+            minItems: MCQ_CHOICES_COUNT,
+            maxItems: MCQ_CHOICES_COUNT,
+            items: {
+                type: 'string',
+            },
+        };
+
+        schema.properties.items.items.properties.correctChoiceIndex = {
+            type: 'integer',
+            minimum: 0,
+            maximum: MCQ_CHOICES_COUNT - 1,
+        };
+
+        schema.properties.items.items.required.push('choices');
+        schema.properties.items.items.required.push('correctChoiceIndex');
+    }
+
+    buildCreateExerciseDto(dto: CreateExerciseDto, exercise: AiGeneratedExercise): void {
+        dto.choices = exercise.choices;
+        dto.correctChoiceIndex = exercise.correctChoiceIndex;
+    }
 
     validateFields(fields: { choices?: string[]; correctChoiceIndex?: number; solution?: string }): void {
         if (!fields.choices || fields.choices.length !== MCQ_CHOICES_COUNT) {
@@ -50,6 +77,7 @@ export class MCQExerciseTypeStrategy implements ExerciseTypeStrategy {
 
     buildPaperExtractionPrompt(exerciseNumber: number, exercise: ExerciseDocument): string {
         const choiceLabels = exercise.choices!.map((c, i) => `${String.fromCharCode(65 + i)}) ${c}`);
+
         return `Exercise ${exerciseNumber} (MCQ): "${exercise.prompt}"\nChoices: ${choiceLabels.join(', ')}\nReturn the selected letter (A-E).`;
     }
 

@@ -79,8 +79,8 @@ export class ExerciseSetService {
             case ExerciseSetSourceType.SOURCE: {
                 const generateExercisesResponse = await this.aiService.generateExercises(
                     sourceText as string,
-                    dto.type as unknown as ExerciseType,
-                    dto.difficulty as unknown as ExerciseDifficulty,
+                    dto.type,
+                    dto.difficulty,
                     dto.count
                 );
 
@@ -106,22 +106,15 @@ export class ExerciseSetService {
                     );
 
                     for (const exercise of generateExercisesResponse.exercises) {
-                        const createDto: CreateExerciseDto = {
+                        const createExerciseDto: CreateExerciseDto = {
                             type: exercise.type,
                             difficulty: exercise.difficulty,
                             prompt: exercise.prompt,
                         };
 
-                        if (createDto.type === ExerciseType.MCQ) {
-                            createDto.choices = exercise.choices;
-                            createDto.correctChoiceIndex = exercise.correctChoiceIndex;
-                        } else if (createDto.type === ExerciseType.TRUE_FALSE) {
-                            createDto.correctChoiceIndex = exercise.correctChoiceIndex;
-                        } else if (createDto.type === ExerciseType.OPEN_ENDED) {
-                            createDto.solution = exercise.solution;
-                        }
+                        this.exerciseService.buildCreateExerciseDto(createExerciseDto, exercise);
 
-                        await this.exerciseService.create(userId, exerciseSet._id, createDto, session);
+                        await this.exerciseService.create(userId, exerciseSet._id, createExerciseDto, session);
                     }
 
                     await session.commitTransaction();

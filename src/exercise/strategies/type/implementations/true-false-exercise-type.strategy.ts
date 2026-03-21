@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
+import { GenerateAiExerciseSchema } from 'src/ai/types/generate-ai-exercise-schema.interface';
+import { AiGeneratedExercise } from 'src/ai/types/response/generate-exercises.response';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseTypeStrategy } from 'src/exercise/strategies/type/exercise-type-strategy.interface';
 import { EvaluateAnswerStrategyResponse } from 'src/exercise/strategies/type/types/evaluate-answer-strategy.response';
@@ -11,7 +13,22 @@ import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface
 export class TrueFalseExerciseTypeStrategy implements ExerciseTypeStrategy {
     type = ExerciseType.TRUE_FALSE;
 
-    constructor(private openaiService: AiService) {}
+    constructor(@Inject(forwardRef(() => AiService)) private openaiService: AiService) {}
+
+    buildRestOfGenerateAiExerciseSchema(schema: GenerateAiExerciseSchema): void {
+        schema.properties.items.items.properties.correctChoiceIndex = {
+            type: 'integer',
+            minimum: 0,
+            maximum: 1,
+            description: '0 indicates false, 1 indicates true',
+        };
+
+        schema.properties.items.items.required.push('correctChoiceIndex');
+    }
+
+    buildCreateExerciseDto(dto: CreateExerciseDto, exercise: AiGeneratedExercise): void {
+        dto.correctChoiceIndex = exercise.correctChoiceIndex;
+    }
 
     validateFields(fields: { choices?: string[]; correctChoiceIndex?: number; solution?: string }): void {
         if (

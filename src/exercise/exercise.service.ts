@@ -2,8 +2,11 @@ import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/commo
 import mongoose from 'mongoose';
 import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
+import { GenerateAiExerciseSchema } from 'src/ai/types/generate-ai-exercise-schema.interface';
+import { AiGeneratedExercise } from 'src/ai/types/response/generate-exercises.response';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { EXERCISE_TYPE_SPECIFIC_FIELDS_TO_UNSET } from 'src/exercise/constants/exercise-type-specific-fields-to-unset.constant';
+import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseTypeFactory } from 'src/exercise/strategies/type/exercise-type.factory';
 import { EvaluateAnswerStrategyResponse } from 'src/exercise/strategies/type/types/evaluate-answer-strategy.response';
 import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
@@ -19,8 +22,7 @@ export class ExerciseService {
     constructor(
         @Inject('DB_MODELS') private db: Record<'Exercise', mongoose.Model<ExerciseDocument>>,
         private exerciseTypeFactory: ExerciseTypeFactory,
-        @Inject(forwardRef(() => ExerciseSetService)) private exerciseSetService: ExerciseSetService,
-        private aiService: AiService
+        @Inject(forwardRef(() => ExerciseSetService)) private exerciseSetService: ExerciseSetService
     ) {}
 
     async create(
@@ -287,6 +289,18 @@ export class ExerciseService {
         }
 
         return { isSuccess: true, message: `exercise deleted by id: ${id}` };
+    }
+
+    buildRestOfGenerateAiExerciseSchema(schema: GenerateAiExerciseSchema, exerciseType: ExerciseType): void {
+        const strategy = this.exerciseTypeFactory.resolveStrategy(exerciseType);
+
+        return strategy.buildRestOfGenerateAiExerciseSchema(schema);
+    }
+
+    buildCreateExerciseDto(dto: CreateExerciseDto, exercise: AiGeneratedExercise): void {
+        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
+
+        return strategy.buildCreateExerciseDto(dto, exercise);
     }
 
     async evaluateAnswer(exercise: ExerciseDocument, answer: string): Promise<EvaluateAnswerStrategyResponse> {
