@@ -1,6 +1,8 @@
-import { IsEmail, IsNotEmpty, IsString, Matches } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, Matches, MinLength } from 'class-validator';
+import { MIN_USER_NAME_LENGTH } from 'src/user/constants/min-user-name-length.constant';
 
 export class SignUpUserDto {
+    @MinLength(MIN_USER_NAME_LENGTH)
     @Matches(/^\S+$/, { message: 'userName must not contain spaces' })
     @IsString()
     @IsNotEmpty()
