@@ -1,8 +1,9 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcrypt';
 import mongoose from 'mongoose';
 import ResponseBase from 'src/shared/types/response-base.interface';
+import { MIN_USER_NAME_LENGTH } from 'src/user/constants/min-user-name-length.constant';
 import { PUBLIC_USER_FIELDS } from 'src/user/constants/public-user-fields.constant';
 import { SignUpUserDto } from 'src/user/types/dto/sign-up-user.dto';
 import { UpdateUserPasswordDto } from 'src/user/types/dto/update-user-password.dto';
@@ -10,6 +11,7 @@ import { UpdateUserDto } from 'src/user/types/dto/update-user.dto';
 import { PublicUserDocument } from 'src/user/types/public-user-document.interface';
 import { ReadSinglePublicUserResponse } from 'src/user/types/response/read-single-public-user.response';
 import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user.response';
+import { SearchPublicUsersResponse } from 'src/user/types/response/search-public-users.response';
 import { UserDocument } from './types/user-document.interface';
 
 @Injectable()
@@ -174,5 +176,21 @@ export class UserService {
         }
 
         return { isSuccess: true, message: 'public user read', user: user as unknown as PublicUserDocument };
+    }
+
+    async searchByUserName(userName: string): Promise<SearchPublicUsersResponse> {
+        if (userName.length < MIN_USER_NAME_LENGTH) {
+            throw new BadRequestException(`userName must be at least ${MIN_USER_NAME_LENGTH} characters`);
+        }
+
+        const users = await this.db.User.find({ userName: { $regex: userName, $options: 'i' } }).select(
+            PUBLIC_USER_FIELDS.join(' ')
+        );
+
+        return {
+            isSuccess: true,
+            message: 'users searched by userName',
+            users: users as unknown as PublicUserDocument[],
+        };
     }
 }

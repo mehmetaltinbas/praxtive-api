@@ -7,6 +7,7 @@ import { UpdateUserPasswordDto } from 'src/user/types/dto/update-user-password.d
 import { UpdateUserDto } from 'src/user/types/dto/update-user.dto';
 import { ReadSinglePublicUserResponse } from 'src/user/types/response/read-single-public-user.response';
 import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user.response';
+import { SearchPublicUsersResponse } from 'src/user/types/response/search-public-users.response';
 import { AuthGuard } from '../auth/auth.guard';
 import ResponseBase from '../shared/types/response-base.interface';
 import { UserService } from './user.service';
@@ -64,6 +65,13 @@ export class UserController {
     @Get('read-public-by-id/:id')
     async readPublicById(@Param('id') id: string): Promise<ReadSinglePublicUserResponse> {
         const response = await this.userService.readPublicById(id);
+
+        return response;
+    }
+
+    @Get('search-by-user-name/:userName')
+    async searchByUserName(@Param('userName') userName: string): Promise<SearchPublicUsersResponse> {
+        const response = await this.userService.searchByUserName(userName);
 
         return response;
     }
