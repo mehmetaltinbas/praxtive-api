@@ -6,8 +6,8 @@ import { EvaluateAnswerStrategyResponse } from 'src/exercise/strategies/type/typ
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
 
 @Injectable()
-export class MCQExerciseSetTypeStrategy implements ExerciseSetTypeStrategy {
-    type = ExerciseSetType.MCQ;
+export class MultipleChoiceExerciseSetTypeStrategy implements ExerciseSetTypeStrategy {
+    type = ExerciseSetType.MULTIPLE_CHOICE;
 
     constructor(private openaiService: AiService) {}
 

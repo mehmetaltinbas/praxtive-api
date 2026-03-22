@@ -24,6 +24,7 @@
         "db:test:restart": "npm run db:test:down && npm run db:test:up",
         "db:test:rs:status": "docker exec extralyz-test-db mongosh --eval \"rs.status()\"",
         "db:test:rs:initiate": "docker exec extralyz-test-db mongosh --eval \"rs.initiate()\"",
+        "db:migrate:one-time-script": "dotenv -e .dev.local.env -- ts-node scripts/",
         "test": "dotenv -e .test.local.env -- jest",
         "test:watch": "dotenv -e .test.local.env -- jest --watch",
         "test:cov": "dotenv -e .test.local.env -- jest --coverage",

@@ -1,5 +1,5 @@
 import * as mongoose from 'mongoose';
-import { MCQ_CHOICES_COUNT } from 'src/exercise/constants/mcq-choices-count.constant';
+import { MULTIPLE_CHOICE_CHOICES_COUNT } from 'src/exercise/constants/multiple-choice-choices-count.constant';
 import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 
@@ -31,7 +31,7 @@ const schema = new mongoose.Schema(
         correctChoiceIndex: {
             type: Number,
             min: 0,
-            max: MCQ_CHOICES_COUNT - 1,
+            max: MULTIPLE_CHOICE_CHOICES_COUNT - 1,
             validate: {
                 validator: Number.isInteger,
                 message: 'Index must be an integer',

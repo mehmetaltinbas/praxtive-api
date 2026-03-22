@@ -7,7 +7,7 @@ import { ExtractedPaperAnswer } from 'src/ai/types/response/extract-paper-answer
 import { AiGeneratedExercise, AiGeneratedExercisesResponse } from 'src/ai/types/response/generate-exercises.response';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
-import { MCQ_CHOICES_COUNT } from 'src/exercise/constants/mcq-choices-count.constant';
+import { MULTIPLE_CHOICE_CHOICES_COUNT } from 'src/exercise/constants/multiple-choice-choices-count.constant';
 import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseService } from 'src/exercise/exercise.service';
@@ -162,10 +162,10 @@ export class AiService {
             )
         ).items;
 
-        if (type === ExerciseType.MCQ) {
+        if (type === ExerciseType.MULTIPLE_CHOICE) {
             exercises.forEach((exercise) => {
                 const correctChoiceIndex = exercise.correctChoiceIndex!;
-                const randomIndex = Math.floor(Math.random() * MCQ_CHOICES_COUNT);
+                const randomIndex = Math.floor(Math.random() * MULTIPLE_CHOICE_CHOICES_COUNT);
                 const temporaryElement = exercise.choices![randomIndex];
 
                 exercise.choices![randomIndex] = exercise.choices![correctChoiceIndex];

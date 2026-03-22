@@ -3,7 +3,7 @@ import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
 import { GenerateAiExerciseSchema } from 'src/ai/types/generate-ai-exercise-schema.interface';
 import { AiGeneratedExercise } from 'src/ai/types/response/generate-exercises.response';
-import { MCQ_CHOICES_COUNT } from 'src/exercise/constants/mcq-choices-count.constant';
+import { MULTIPLE_CHOICE_CHOICES_COUNT } from 'src/exercise/constants/multiple-choice-choices-count.constant';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseTypeStrategy } from 'src/exercise/strategies/type/exercise-type-strategy.interface';
 import { EvaluateAnswerStrategyResponse } from 'src/exercise/strategies/type/types/evaluate-answer-strategy.response';
@@ -12,16 +12,16 @@ import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface
 import { getAlphabetLetter } from 'src/shared/utils/get-alphabet-letter.util';
 
 @Injectable()
-export class MCQExerciseTypeStrategy implements ExerciseTypeStrategy {
-    type = ExerciseType.MCQ;
+export class MultipleChoiceExerciseTypeStrategy implements ExerciseTypeStrategy {
+    type = ExerciseType.MULTIPLE_CHOICE;
 
     constructor(@Inject(forwardRef(() => AiService)) private openaiService: AiService) {}
 
     buildRestOfGenerateAiExerciseSchema(schema: GenerateAiExerciseSchema): void {
         schema.properties.items.items.properties.choices = {
             type: 'array',
-            minItems: MCQ_CHOICES_COUNT,
-            maxItems: MCQ_CHOICES_COUNT,
+            minItems: MULTIPLE_CHOICE_CHOICES_COUNT,
+            maxItems: MULTIPLE_CHOICE_CHOICES_COUNT,
             items: {
                 type: 'string',
             },
@@ -30,7 +30,7 @@ export class MCQExerciseTypeStrategy implements ExerciseTypeStrategy {
         schema.properties.items.items.properties.correctChoiceIndex = {
             type: 'integer',
             minimum: 0,
-            maximum: MCQ_CHOICES_COUNT - 1,
+            maximum: MULTIPLE_CHOICE_CHOICES_COUNT - 1,
         };
 
         schema.properties.items.items.required.push('choices');
@@ -43,15 +43,15 @@ export class MCQExerciseTypeStrategy implements ExerciseTypeStrategy {
     }
 
     validateFields(fields: { choices?: string[]; correctChoiceIndex?: number; solution?: string }): void {
-        if (!fields.choices || fields.choices.length !== MCQ_CHOICES_COUNT) {
+        if (!fields.choices || fields.choices.length !== MULTIPLE_CHOICE_CHOICES_COUNT) {
             throw new BadRequestException(
-                `${ExerciseType.MCQ} exercises must have exactly ${MCQ_CHOICES_COUNT} choices`
+                `${ExerciseType.MULTIPLE_CHOICE} exercises must have exactly ${MULTIPLE_CHOICE_CHOICES_COUNT} choices`
             );
         }
 
         if (fields.correctChoiceIndex === undefined || fields.correctChoiceIndex < 0 || fields.correctChoiceIndex > 4) {
             throw new BadRequestException(
-                `${ExerciseType.MCQ} exercises must have a correctChoiceIndex between 0 and 4`
+                `${ExerciseType.MULTIPLE_CHOICE} exercises must have a correctChoiceIndex between 0 and 4`
             );
         }
     }
@@ -85,7 +85,7 @@ export class MCQExerciseTypeStrategy implements ExerciseTypeStrategy {
         const letter = rawAnswer.trim().toUpperCase();
         const index = letter.charCodeAt(0) - 65;
 
-        if (index >= 0 && index < MCQ_CHOICES_COUNT) {
+        if (index >= 0 && index < MULTIPLE_CHOICE_CHOICES_COUNT) {
             return index.toString();
         }
 
