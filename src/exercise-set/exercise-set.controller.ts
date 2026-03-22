@@ -13,6 +13,7 @@ import {
     UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { MAX_PAPER_EVALUATION_UPLOAD_COUNT } from 'src/exercise-set/constants/max-paper-evaluation-upload-count.constant';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
@@ -37,6 +38,7 @@ import { ReadSingleExerciseSetResponse } from './types/response/read-single-exer
 export class ExerciseSetController {
     constructor(private exerciseSetService: ExerciseSetService) {}
 
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
     @Post('create')
     async createIndependent(@User() user: JwtPayload, @Body() dto: CreateExerciseSetDto): Promise<ResponseBase> {
         const response = await this.exerciseSetService.create(user.sub, undefined, dto);
@@ -44,6 +46,7 @@ export class ExerciseSetController {
         return response;
     }
 
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
     @Post('create/:sourceId')
     async createBySourceId(
         @User() user: JwtPayload,
@@ -55,6 +58,7 @@ export class ExerciseSetController {
         return response;
     }
 
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
     @Post('generate-additional/:exerciseSetId')
     async generateAdditionalExercises(
         @User() user: JwtPayload,
@@ -133,6 +137,7 @@ export class ExerciseSetController {
         return response;
     }
 
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
     @Post('evaluate-answers')
     async evaluateAnswers(
         @User() user: JwtPayload,
@@ -143,6 +148,7 @@ export class ExerciseSetController {
         return response;
     }
 
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
     @Get('get-pdf/:id')
     async getPdf(
         @User() user: JwtPayload,
@@ -154,6 +160,7 @@ export class ExerciseSetController {
         return response;
     }
 
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
     @Post('evaluate-paper-answers/:id')
     @UseInterceptors(FilesInterceptor('files', MAX_PAPER_EVALUATION_UPLOAD_COUNT))
     async evaluatePaperAnswers(

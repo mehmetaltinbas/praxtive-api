@@ -1,4 +1,5 @@
 import { UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import {
     ConnectedSocket,
     MessageBody,
@@ -16,6 +17,7 @@ import User from 'src/shared/custom-decorators/user.decorator';
 import { SourceService } from 'src/source/source.service';
 import { SourceDocument } from 'src/source/types/source-document.interface';
 
+@SkipThrottle()
 @UseGuards(AuthGuard)
 @WebSocketGateway({
     cors: {
@@ -46,7 +48,7 @@ export class EventsGateway implements OnGatewayConnection {
         if (client.user?.sub) {
             const response = await this.sourceService.readAllByUserId(client.user.sub);
 
-            return response.sources!;
+            return response.sources;
         } else {
             return [];
         }

@@ -12,6 +12,7 @@ import {
     UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from 'src/auth/auth.guard';
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import User from 'src/shared/custom-decorators/user.decorator';
@@ -27,6 +28,7 @@ import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-
 export class SourceController {
     constructor(private sourceService: SourceService) {}
 
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
     @Post('create')
     @UseInterceptors(FileInterceptor('file'))
     async create(

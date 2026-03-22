@@ -10,6 +10,7 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Throttle } from '@nestjs/throttler';
 import { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { AuthService } from 'src/auth/auth.service';
@@ -23,6 +24,7 @@ export class AuthController {
         private configService: ConfigService
     ) {}
 
+    @Throttle({ default: { limit: 5, ttl: 60000 } })
     @HttpCode(200)
     @Post('sign-in')
     async signIn(

@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { EventsModule } from 'src/events/events.module';
 import { AiModule } from './ai/ai.module';
 import { AuthModule } from './auth/auth.module';
@@ -19,6 +21,12 @@ import { UserModule } from './user/user.module';
         ConfigModule.forRoot({
             isGlobal: true,
         }),
+        ThrottlerModule.forRoot([
+            {
+                ttl: 60000,
+                limit: 60,
+            },
+        ]),
         ScheduleModule.forRoot(),
         DbConnectionModule,
         DbModelsModule,
@@ -34,6 +42,11 @@ import { UserModule } from './user/user.module';
         CreditTransactionModule,
     ],
     controllers: [],
-    providers: [],
+    providers: [
+        {
+            provide: APP_GUARD,
+            useClass: ThrottlerGuard,
+        },
+    ],
 })
 export class AppModule {}
