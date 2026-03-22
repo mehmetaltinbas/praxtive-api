@@ -26,6 +26,7 @@ import User from '../shared/custom-decorators/user.decorator';
 import ResponseBase from '../shared/types/response-base.interface';
 import { ExerciseSetService } from './exercise-set.service';
 import { CreateExerciseSetDto } from './types/dto/create-exercise-set.dto';
+import { GenerateAdditionalExercisesDto } from './types/dto/generate-additional-exercises.dto';
 import { ReadAllExerciseSetsGroupedBySourcesResponse } from './types/response/read-all-exercise-sets-grouped-by-sources.response';
 import { ReadAllExerciseSetsResponse } from './types/response/read-all-exercise-sets.response';
 import { ReadSingleExerciseSetResponse } from './types/response/read-single-exercise-set.response';
@@ -49,6 +50,17 @@ export class ExerciseSetController {
         @Body() createExerciseSetDto: CreateExerciseSetDto
     ): Promise<ResponseBase> {
         const response = await this.exerciseSetService.create(user.sub, sourceId, createExerciseSetDto);
+
+        return response;
+    }
+
+    @Post('generate-additional/:exerciseSetId')
+    async generateAdditionalExercises(
+        @User() user: JwtPayload,
+        @Param('exerciseSetId') exerciseSetId: string,
+        @Body() dto: GenerateAdditionalExercisesDto
+    ): Promise<ResponseBase> {
+        const response = await this.exerciseSetService.generateAdditionalExercises(user.sub, exerciseSetId, dto);
 
         return response;
     }

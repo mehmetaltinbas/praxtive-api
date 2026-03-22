@@ -74,13 +74,63 @@ export class AiService {
         return { isSuccess: true, message: 'Exercises successfully generated.', exercises };
     }
 
+    async generateAdditionalExercises(
+        text: string,
+        type: ExerciseSetType,
+        difficulty: ExerciseSetDifficulty,
+        count: number,
+        existingExercisePrompts: string[]
+    ): Promise<AiGeneratedExercisesResponse> {
+        const exerciseTypes = Object.values(ExerciseType);
+        const exerciseDifficulties = Object.values(ExerciseDifficulty);
+
+        const isMixType = type === ExerciseSetType.MIX;
+        const isMixDifficulty = difficulty === ExerciseSetDifficulty.MIX;
+
+        const countPerGroup = new Map<string, { type: ExerciseType; difficulty: ExerciseDifficulty; count: number }>();
+
+        for (let i = 0; i < count; i++) {
+            const exerciseType = isMixType
+                ? exerciseTypes[Math.floor(Math.random() * exerciseTypes.length)]
+                : (type as unknown as ExerciseType);
+
+            const exerciseDifficulty = isMixDifficulty
+                ? exerciseDifficulties[Math.floor(Math.random() * exerciseDifficulties.length)]
+                : (difficulty as unknown as ExerciseDifficulty);
+
+            const key = `${exerciseType}-${exerciseDifficulty}`;
+            const group = countPerGroup.get(key);
+
+            if (group) {
+                group.count++;
+            } else {
+                countPerGroup.set(key, { type: exerciseType, difficulty: exerciseDifficulty, count: 1 });
+            }
+        }
+
+        const batchPromises = Array.from(countPerGroup.values()).map((group) =>
+            this.generateExercisesForSingleType(text, group.type, group.difficulty, group.count, existingExercisePrompts)
+        );
+
+        const batches = await Promise.all(batchPromises);
+        const exercises = batches.flat();
+
+        return { isSuccess: true, message: 'Additional exercises successfully generated.', exercises };
+    }
+
     private async generateExercisesForSingleType(
         text: string,
         type: ExerciseType,
         difficulty: ExerciseDifficulty,
-        count: number
+        count: number,
+        existingExercisePrompts?: string[]
     ): Promise<AiGeneratedExercise[]> {
-        const prompt = `Here is a document: "\n${text}\n"\nGenerate clear ${type} type, in ${difficulty} difficulty, ${count} number of relevant questions from the provided text to test comprehension.`;
+        let prompt = `Here is a document: "\n${text}\n"\nGenerate clear ${type} type, in ${difficulty} difficulty, ${count} number of relevant questions from the provided text to test comprehension.`;
+
+        if (existingExercisePrompts && existingExercisePrompts.length > 0) {
+            const existingList = existingExercisePrompts.map((p, i) => `${i + 1}. ${p}`).join('\n');
+            prompt += `\n\nThe following questions have already been generated from this document. Generate NEW questions that cover DIFFERENT parts and topics of the text not yet tested by these existing questions:\n\nExisting questions:\n${existingList}`;
+        }
 
         const schema: GenerateAiExerciseSchema = {
             type: 'object',

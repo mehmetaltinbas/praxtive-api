@@ -20,6 +20,7 @@ import { ExerciseSetTypeFactory } from 'src/exercise-set/strategies/type/exercis
 import { CloneExerciseSetDto } from 'src/exercise-set/types/dto/clone-exercise-set.dto';
 import { CreateExerciseSetDto } from 'src/exercise-set/types/dto/create-exercise-set.dto';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
+import { GenerateAdditionalExercisesDto } from 'src/exercise-set/types/dto/generate-additional-exercises.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
 import { UpdateExerciseSetDto } from 'src/exercise-set/types/dto/update-exercise-set.dto';
 import { ExerciseSetDocument } from 'src/exercise-set/types/exercise-set-document.interface';
@@ -149,6 +150,65 @@ export class ExerciseSetService {
         return {
             isSuccess: true,
             message,
+        };
+    }
+
+    async generateAdditionalExercises(
+        userId: string,
+        exerciseSetId: string,
+        dto: GenerateAdditionalExercisesDto
+    ): Promise<ResponseBase> {
+        const { exerciseSet } = await this.readById(userId, exerciseSetId);
+
+        if (exerciseSet.sourceType !== ExerciseSetSourceType.SOURCE) {
+            throw new BadRequestException('Additional exercises can only be generated for SOURCE type exercise sets.');
+        }
+
+        const { source } = await this.sourceService.readById(userId, exerciseSet.sourceId);
+        const sourceText = source.rawText;
+
+        const { exercises: existingExercises } = await this.exerciseService.readAllByExerciseSetId(
+            userId,
+            exerciseSetId
+        );
+        const existingPrompts = existingExercises.map((e) => e.prompt);
+
+        const { exercises: generatedExercises } = await this.aiService.generateAdditionalExercises(
+            sourceText,
+            dto.type,
+            dto.difficulty,
+            dto.count,
+            existingPrompts
+        );
+
+        const session = await mongoose.startSession();
+
+        session.startTransaction();
+
+        try {
+            for (const exercise of generatedExercises) {
+                const createExerciseDto: CreateExerciseDto = {
+                    type: exercise.type,
+                    difficulty: exercise.difficulty,
+                    prompt: exercise.prompt,
+                };
+
+                this.exerciseService.buildCreateExerciseDto(createExerciseDto, exercise);
+
+                await this.exerciseService.create(userId, exerciseSetId, createExerciseDto, session);
+            }
+
+            await session.commitTransaction();
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            await session.endSession();
+        }
+
+        return {
+            isSuccess: true,
+            message: `${generatedExercises.length} additional exercises generated.`,
         };
     }
 
