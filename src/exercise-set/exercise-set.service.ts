@@ -17,6 +17,7 @@ import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-sourc
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 import { ExerciseSetVisibility } from 'src/exercise-set/enums/exercise-set-visibility.enum';
 import { ExerciseSetTypeFactory } from 'src/exercise-set/strategies/type/exercise-set-type.factory';
+import { ChangeSourceDto } from 'src/exercise-set/types/dto/change-source.dto';
 import { CloneExerciseSetDto } from 'src/exercise-set/types/dto/clone-exercise-set.dto';
 import { CreateExerciseSetDto } from 'src/exercise-set/types/dto/create-exercise-set.dto';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
@@ -419,6 +420,30 @@ export class ExerciseSetService {
         }
 
         return { isSuccess: true, message: 'exercise set updated' };
+    }
+
+    async changeSource(userId: string, exerciseSetId: string, dto: ChangeSourceDto): Promise<ResponseBase> {
+        await this.readById(userId, exerciseSetId);
+
+        const update: Record<string, unknown> = {
+            sourceType: dto.sourceType,
+        };
+
+        if (dto.sourceType === ExerciseSetSourceType.SOURCE) {
+            await this.sourceService.readById(userId, dto.sourceId!);
+
+            update.sourceId = new mongoose.Types.ObjectId(dto.sourceId!);
+        } else {
+            update.sourceId = null;
+        }
+
+        const updated = await this.db.ExerciseSet.findByIdAndUpdate(exerciseSetId, { $set: update }, { new: true });
+
+        if (!updated) {
+            throw new NotFoundException('Exercise set not found.');
+        }
+
+        return { isSuccess: true, message: 'Exercise set source updated.' };
     }
 
     async reorder(userId: string, id: string, dto: ReorderExercisesDto): Promise<ResponseBase> {

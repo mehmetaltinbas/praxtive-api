@@ -16,6 +16,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { MAX_PAPER_EVALUATION_UPLOAD_COUNT } from 'src/exercise-set/constants/max-paper-evaluation-upload-count.constant';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
+import { ChangeSourceDto } from 'src/exercise-set/types/dto/change-source.dto';
 import { UpdateExerciseSetDto } from 'src/exercise-set/types/dto/update-exercise-set.dto';
 import { EvaluateAnswersResponse } from 'src/exercise-set/types/response/evaluate-answers.response';
 import { GetPdfResponse } from 'src/exercise-set/types/response/get-pdf.response';
@@ -103,6 +104,15 @@ export class ExerciseSetController {
         const response = await this.exerciseSetService.updateById(user.sub, id, dto);
 
         return response;
+    }
+
+    @Patch('change-source/:id')
+    async changeSource(
+        @User() user: JwtPayload,
+        @Param('id') id: string,
+        @Body() dto: ChangeSourceDto
+    ): Promise<ResponseBase> {
+        return this.exerciseSetService.changeSource(user.sub, id, dto);
     }
 
     @Post('reorder/:id')
