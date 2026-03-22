@@ -181,8 +181,8 @@ export class AiService {
         exercise: ExerciseDocument,
         customPrompt: string
     ): Promise<EvaluateExerciseAnswerResponse> {
-        const prompt = `Evaluate user's answer and provide feedback for this ${exercise.type} type exercise. \n
-            Score is must be between 0-100. \n
+        const prompt = `Evaluate user's answer and provide a brief feedback (with simple understandable English) for this ${exercise.type} type exercise. \n
+            Score must be between 0-100. \n
             Exercise prompt (stem): ${exercise.prompt} \n\n
             ${customPrompt}`;
 
