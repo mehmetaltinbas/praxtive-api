@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { EventsModule } from 'src/events/events.module';
@@ -12,6 +13,7 @@ import { DbConnectionModule } from './db/db-connection.module';
 import { DbModelsModule } from './db/db-models.module';
 import { ExerciseSetModule } from './exercise-set/exercise-set.module';
 import { ExerciseModule } from './exercise/exercise.module';
+import { PaymentModule } from './payment/payment.module';
 import { PlanModule } from './plan/plan.module';
 import { SourceModule } from './source/source.module';
 import { UserModule } from './user/user.module';
@@ -27,6 +29,7 @@ import { UserModule } from './user/user.module';
                 limit: 60,
             },
         ]),
+        EventEmitterModule.forRoot(),
         ScheduleModule.forRoot(),
         DbConnectionModule,
         DbModelsModule,
@@ -38,6 +41,7 @@ import { UserModule } from './user/user.module';
         AiModule,
         EventsModule,
         BillingModule,
+        PaymentModule,
         PlanModule,
         CreditTransactionModule,
     ],

@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import bcrypt from 'bcrypt';
 import mongoose from 'mongoose';
 import ResponseBase from 'src/shared/types/response-base.interface';
@@ -18,7 +19,8 @@ import { UserDocument } from './types/user-document.interface';
 export class UserService {
     constructor(
         @Inject('DB_MODELS') private db: Record<'User', mongoose.Model<UserDocument>>,
-        private configService: ConfigService
+        private configService: ConfigService,
+        private eventEmitter: EventEmitter2
     ) {}
 
     async create(dto: SignUpUserDto): Promise<ResponseBase> {
@@ -36,6 +38,8 @@ export class UserService {
             passwordHash,
             ...restOfSignUpUserDto,
         });
+
+        this.eventEmitter.emit('user.created', { userId: user._id.toString() });
 
         return { isSuccess: true, message: 'user created' };
     }
