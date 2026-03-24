@@ -4,4 +4,5 @@ export enum SubscriptionStatus {
     EXPIRED = 'expired',
     PENDING_ACTIVATE = 'pendingActivate',
     UPGRADED_FROM = 'upgradedFrom',
+    GRACE_PERIOD = 'gracePeriod',
 }
