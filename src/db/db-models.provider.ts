@@ -1,5 +1,6 @@
 import { Mongoose } from 'mongoose';
 import { CreditTransactionModel } from 'src/db/models/credit-transaction.model';
+import { PaymentModel } from 'src/db/models/payment.model';
 import { PlanModel } from 'src/db/models/plan.model';
 import { SubscriptionModel } from 'src/db/models/subscription.model';
 import { ExerciseSetModel } from './models/exercise-set.model';
@@ -19,6 +20,7 @@ export const dbModelsProvider = {
             Plan: PlanModel,
             Subscription: SubscriptionModel,
             CreditTransaction: CreditTransactionModel,
+            Payment: PaymentModel,
             Source: SourceModel,
             ExerciseSet: ExerciseSetModel,
             Exercise: ExerciseModel,
