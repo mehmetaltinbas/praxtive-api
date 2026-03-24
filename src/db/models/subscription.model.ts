@@ -7,13 +7,22 @@ const schema = new mongoose.Schema(
         nextBillingDate: { type: Date, required: true },
         status: {
             type: String,
-            enum: ['active', 'canceled', 'expired', 'pendingActivate', 'upgradedFrom'],
+            enum: ['active', 'canceled', 'expired', 'pendingActivate', 'upgradedFrom', 'gracePeriod'],
         },
         startedAt: { type: Date },
         canceledAt: { type: Date },
         endedAt: { type: Date },
+        paymentRetryCount: { type: Number, default: 0 },
+        lastPaymentAttempt: { type: Date },
+        gracePeriodEnd: { type: Date },
+        lastPaymentProvider: { type: String, enum: ['stripe', 'iyzico'] },
+        lastPaymentMethodToken: { type: String },
     },
     { timestamps: true }
 );
+
+schema.index({ user: 1 }, { unique: true, partialFilterExpression: { status: 'active' } });
+schema.index({ user: 1 }, { unique: true, partialFilterExpression: { status: 'canceled' } });
+schema.index({ user: 1 }, { unique: true, partialFilterExpression: { status: 'pendingActivate' } });
 
 export const SubscriptionModel = mongoose.model('Subscription', schema);
