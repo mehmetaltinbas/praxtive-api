@@ -182,7 +182,14 @@ export class AiService {
         customPrompt: string
     ): Promise<EvaluateExerciseAnswerResponse> {
         const prompt = `Evaluate user's answer and provide a brief feedback (with simple understandable English) for this ${exercise.type} type exercise. \n
-            Score must be between 0-100. \n
+            \n
+            \t Rules \n
+            - Score must be between 0-100. \n
+            - Do NOT penalize for grammar, incomplete sentences, or writing style. \n
+            - ONLY evaluate based on conceptual correctness compared to the correct answer. \n
+            - If the core meaning matches the correct answer, award full score. \n
+            - Focus purely on whether the user's answer conveys the correct meaning, not how it's written. \n
+            \n
             Exercise prompt (stem): ${exercise.prompt} \n\n
             ${customPrompt}`;
 
