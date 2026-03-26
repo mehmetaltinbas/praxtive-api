@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose from 'mongoose';
 import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceTypeFactory } from 'src/source/strategies/type/source-type.factory';
@@ -22,7 +22,10 @@ export class SourceService {
         const conflict = await this.db.Source.findOne({ userId, title });
 
         if (conflict) {
-            throw new ConflictException(`A source with the title "${title}" already exists.`);
+            return {
+                isSuccess: false,
+                message: `A source with the title "${title}" already exists.`,
+            };
         }
 
         await this.db.Source.create({
@@ -68,7 +71,10 @@ export class SourceService {
             });
 
             if (conflict) {
-                throw new ConflictException(`Another source already uses the title "${title}".`);
+                return {
+                    isSuccess: false,
+                    message: `A source with the title "${title}" already exists.`,
+                };
             }
         }
 

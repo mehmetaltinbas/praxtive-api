@@ -63,7 +63,10 @@ export class ExerciseSetService {
         const conflict = await this.db.ExerciseSet.findOne({ userId, title: dto.title });
 
         if (conflict) {
-            throw new ConflictException(`An exercise set with the title "${dto.title}" already exists.`);
+            return {
+                isSuccess: false,
+                message: `An exercise set with the title "${dto.title}" already exists.`,
+            };
         }
 
         if (sourceId) {
@@ -231,7 +234,10 @@ export class ExerciseSetService {
         const conflict = await this.db.ExerciseSet.findOne({ userId, title: dto.title });
 
         if (conflict) {
-            throw new ConflictException(`An exercise set with the title "${dto.title}" already exists.`);
+            return {
+                isSuccess: false,
+                message: `An exercise set with the title "${dto.title}" already exists.`,
+            };
         }
 
         const { exercises } = await this.exerciseService.readAllByExerciseSetId(undefined, exerciseSetId);
