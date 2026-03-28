@@ -6,7 +6,6 @@ import { SourceTypeStrategy } from 'src/source/strategies/type/source-type-strat
 import { ExtractionResult } from 'src/source/strategies/type/types/extraction-result.response';
 import { removeEmptyBlockNodes } from 'src/source/strategies/type/utils/remove-empty-block-nodes.util';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
-import { Express } from 'express';
 
 @Injectable()
 export class AudioSourceTypeStrategy implements SourceTypeStrategy {

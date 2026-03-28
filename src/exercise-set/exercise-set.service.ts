@@ -592,18 +592,16 @@ export class ExerciseSetService {
         dto: EvaluateAnswersDto,
         isPublicAccess = false
     ): Promise<EvaluateAnswersResponse> {
-        const exerciseAnswerEvaluationResults: ExerciseAnswerEvaluationResult[] = [];
-
-        for (const { id, answer } of dto.exercises) {
-            try {
+        const results = await Promise.allSettled(
+            dto.exercises.map(async ({ id, answer }) => {
                 const { exercise } = await this.exerciseService.readById(isPublicAccess ? undefined : userId, id);
 
                 const evaluatedAnswer = await this.exerciseService.evaluateAnswer(exercise, answer);
 
                 if (!evaluatedAnswer.isSuccess || evaluatedAnswer.score === undefined || !evaluatedAnswer.feedback)
-                    continue;
+                    return null;
 
-                exerciseAnswerEvaluationResults.push({
+                return {
                     exerciseId: id,
                     exerciseType: exercise.type,
                     solution: exercise.solution,
@@ -611,11 +609,13 @@ export class ExerciseSetService {
                     score: evaluatedAnswer.score,
                     feedback: evaluatedAnswer.feedback,
                     userAnswer: answer,
-                });
-            } catch {
-                continue;
-            }
-        }
+                } as ExerciseAnswerEvaluationResult;
+            })
+        );
+
+        const exerciseAnswerEvaluationResults = results
+            .filter((r): r is PromiseFulfilledResult<ExerciseAnswerEvaluationResult> => r.status === 'fulfilled' && r.value !== null)
+            .map((r) => r.value);
 
         let totalOfAllScores = 0;
 
