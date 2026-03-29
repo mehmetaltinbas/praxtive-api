@@ -109,7 +109,13 @@ export class AiService {
         }
 
         const batchPromises = Array.from(countPerGroup.values()).map((group) =>
-            this.generateExercisesForSingleType(text, group.type, group.difficulty, group.count, existingExercisePrompts)
+            this.generateExercisesForSingleType(
+                text,
+                group.type,
+                group.difficulty,
+                group.count,
+                existingExercisePrompts
+            )
         );
 
         const batches = await Promise.all(batchPromises);
@@ -129,6 +135,7 @@ export class AiService {
 
         if (existingExercisePrompts && existingExercisePrompts.length > 0) {
             const existingList = existingExercisePrompts.map((p, i) => `${i + 1}. ${p}`).join('\n');
+
             prompt += `\n\nThe following questions have already been generated from this document. Generate NEW questions that cover DIFFERENT parts and topics of the text not yet tested by these existing questions:\n\nExisting questions:\n${existingList}`;
         }
 
@@ -181,17 +188,18 @@ export class AiService {
         exercise: ExerciseDocument,
         customPrompt: string
     ): Promise<EvaluateExerciseAnswerResponse> {
-        const prompt = `Evaluate user's answer and provide a brief feedback (with simple understandable English) for this ${exercise.type} type exercise. \n
-            \n
-            \t Rules \n
-            - Score must be between 0-100. \n
-            - Do NOT penalize for grammar, incomplete sentences, or writing style. \n
-            - ONLY evaluate based on conceptual correctness compared to the correct answer. \n
-            - If the core meaning matches the correct answer, award full score. \n
-            - Focus purely on whether the user's answer conveys the correct meaning, not how it's written. \n
-            \n
-            Exercise prompt (stem): ${exercise.prompt} \n\n
-            ${customPrompt}`;
+        const prompt = `Evaluate the user's answer and provide brief feedback in simple English for this ${exercise.type} exercise.
+            ### Evaluation Rules:
+            - **Scoring:** Assign a score from 0-100.
+            - **Content over Form:** Score purely on conceptual accuracy. Do NOT penalize for grammar, spelling, or incomplete sentences.
+            - **Meaning Matching:** Award a full score if the core concept matches the correct answer, even if phrased differently.
+            - **Strict Focus:** Evaluate the *intent* and *logic* of the answer, not the writing style.
+            - **Feedback:** Be concise. Specifically highlight what is missing or what was misunderstood.
+
+            ### Context:
+            - **Exercise Stem:** ${exercise.prompt}
+            - ${customPrompt}
+        `;
 
         const schema = {
             type: 'object',
