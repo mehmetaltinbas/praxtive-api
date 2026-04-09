@@ -1,6 +1,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose from 'mongoose';
 import ResponseBase from 'src/shared/types/response-base.interface';
+import { CreateSourceResponse } from 'src/source/types/response/create-source.response';
 import { SourceTypeFactory } from 'src/source/strategies/type/source-type.factory';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
 import { UpdateSourceDto } from 'src/source/types/dto/update-source.dto';
@@ -15,7 +16,7 @@ export class SourceService {
         private sourceTypeFactory: SourceTypeFactory
     ) {}
 
-    async create(userId: string, dto: CreateSourceDto, file?: Express.Multer.File): Promise<ResponseBase> {
+    async create(userId: string, dto: CreateSourceDto, file?: Express.Multer.File): Promise<CreateSourceResponse> {
         const strategy = this.sourceTypeFactory.resolveStrategy(dto.type);
         const { text, title } = await strategy.extract(dto, file);
 
@@ -28,14 +29,14 @@ export class SourceService {
             };
         }
 
-        await this.db.Source.create({
+        const created = await this.db.Source.create({
             userId,
             type: dto.type,
             title,
             rawText: text,
         });
 
-        return { isSuccess: true, message: 'source created' };
+        return { isSuccess: true, message: 'source created', sourceId: created._id.toString() };
     }
 
     async readById(userId: string, id: string): Promise<ReadSingleSourceResponse> {

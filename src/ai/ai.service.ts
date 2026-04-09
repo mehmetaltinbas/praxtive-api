@@ -407,6 +407,53 @@ export class AiService {
         return result.items;
     }
 
+    async generateLectureNotes(
+        exerciseData: { prompt: string; answer: string }[]
+    ): Promise<{ title: string; rawText: string }> {
+        const exerciseList = exerciseData.map((e, i) => `${i + 1}. Q: ${e.prompt}\n   A: ${e.answer}`).join('\n');
+
+        const prompt = `You are an expert educator. Based on the following exercise questions and their correct answers, generate lecture notes.
+            Exercises:
+            ${exerciseList}
+
+            Instructions:
+            - Generate a concise, descriptive title for the overall lecture notes based on the whole exercise set.
+            - For EACH exercise, generate a subtitle and its corresponding content that explains the concept being tested.
+            - The content for each exercise should teach the underlying concept and explain why the answer is correct.
+            - Return the notes as an array of sections, one per exercise, each with a subtitle and content.
+        `;
+
+        const schema = {
+            type: 'object',
+            properties: {
+                title: { type: 'string' },
+                sections: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            subtitle: { type: 'string' },
+                            content: { type: 'string' },
+                        },
+                        required: ['subtitle', 'content'],
+                        additionalProperties: false,
+                    },
+                },
+            },
+            required: ['title', 'sections'],
+            additionalProperties: false,
+        };
+
+        const result = await this.sendPromptAndParseResponse<{
+            title: string;
+            sections: { subtitle: string; content: string }[];
+        }>(prompt, schema);
+
+        const rawText = result.sections.map((s) => `${s.subtitle}\n${s.content}`).join('\n\n');
+
+        return { title: result.title, rawText };
+    }
+
     private async sendPromptAndParseResponse<T>(prompt: string, schema: { [key: string]: unknown }): Promise<T> {
         const response = await this.openaiClient.responses.create({
             model: this.openaiModel,

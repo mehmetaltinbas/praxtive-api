@@ -23,12 +23,14 @@ import { CreateExerciseSetDto } from 'src/exercise-set/types/dto/create-exercise
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { GenerateAdditionalExercisesDto } from 'src/exercise-set/types/dto/generate-additional-exercises.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
+import { SaveGeneratedNotesDto } from 'src/exercise-set/types/dto/save-generated-notes.dto';
 import { UpdateExerciseSetDto } from 'src/exercise-set/types/dto/update-exercise-set.dto';
 import { ExerciseSetDocument } from 'src/exercise-set/types/exercise-set-document.interface';
 import {
     EvaluateAnswersResponse,
     ExerciseAnswerEvaluationResult,
 } from 'src/exercise-set/types/response/evaluate-answers.response';
+import { GenerateNotesResponse } from 'src/exercise-set/types/response/generate-notes.response';
 import { GetPdfResponse } from 'src/exercise-set/types/response/get-pdf.response';
 import { ReadAllExerciseSetsGroupedBySourcesResponse } from 'src/exercise-set/types/response/read-all-exercise-sets-grouped-by-sources.response';
 import { ReadAllExerciseSetsResponse } from 'src/exercise-set/types/response/read-all-exercise-sets.response';
@@ -40,6 +42,7 @@ import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
 import { ReorderExercisesDto } from 'src/exercise/types/dto/reorder-exercises.dto';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
 import ResponseBase from 'src/shared/types/response-base.interface';
+import { SourceType } from 'src/source/enums/source-type.enum';
 import { SourceService } from 'src/source/source.service';
 import { ExtendedSourceDocument } from 'src/source/types/extended-source-document.interface';
 import { UserService } from 'src/user/user.service';
@@ -214,6 +217,59 @@ export class ExerciseSetService {
             isSuccess: true,
             message: `${generatedExercises.length} additional exercises generated.`,
         };
+    }
+
+    async generateLectureNotes(userId: string, exerciseSetId: string): Promise<GenerateNotesResponse> {
+        await this.readById(userId, exerciseSetId);
+
+        const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, exerciseSetId);
+
+        if (exercises.length === 0) {
+            throw new BadRequestException('Cannot generate lecture notes for an exercise set with no exercises.');
+        }
+
+        const exerciseData = exercises.map((exercise) => {
+            let answer: string;
+
+            switch (exercise.type) {
+                case ExerciseType.MULTIPLE_CHOICE:
+                    answer = exercise.choices![exercise.correctChoiceIndex!];
+                    break;
+                case ExerciseType.TRUE_FALSE:
+                    answer = exercise.correctChoiceIndex === 1 ? 'True' : 'False';
+                    break;
+                case ExerciseType.OPEN_ENDED:
+                    answer = exercise.solution ?? '';
+                    break;
+            }
+
+            return { prompt: exercise.prompt, answer };
+        });
+
+        const { title, rawText } = await this.aiService.generateLectureNotes(exerciseData);
+
+        return { isSuccess: true, message: 'Lecture notes generated.', title, rawText };
+    }
+
+    async saveGeneratedNotes(userId: string, exerciseSetId: string, dto: SaveGeneratedNotesDto): Promise<ResponseBase> {
+        await this.readById(userId, exerciseSetId);
+
+        const createResponse = await this.sourceService.create(userId, {
+            type: SourceType.RAW_TEXT,
+            title: dto.title,
+            rawText: dto.rawText,
+        });
+
+        if (!createResponse.isSuccess) {
+            return createResponse;
+        }
+
+        await this.changeSource(userId, exerciseSetId, {
+            sourceType: ExerciseSetSourceType.SOURCE,
+            sourceId: createResponse.sourceId!,
+        });
+
+        return { isSuccess: true, message: 'Notes saved and linked to exercise set.' };
     }
 
     /**
@@ -614,7 +670,10 @@ export class ExerciseSetService {
         );
 
         const exerciseAnswerEvaluationResults = results
-            .filter((r): r is PromiseFulfilledResult<ExerciseAnswerEvaluationResult> => r.status === 'fulfilled' && r.value !== null)
+            .filter(
+                (r): r is PromiseFulfilledResult<ExerciseAnswerEvaluationResult> =>
+                    r.status === 'fulfilled' && r.value !== null
+            )
             .map((r) => r.value);
 
         let totalOfAllScores = 0;

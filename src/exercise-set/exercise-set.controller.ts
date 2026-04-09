@@ -29,6 +29,8 @@ import ResponseBase from '../shared/types/response-base.interface';
 import { ExerciseSetService } from './exercise-set.service';
 import { CreateExerciseSetDto } from './types/dto/create-exercise-set.dto';
 import { GenerateAdditionalExercisesDto } from './types/dto/generate-additional-exercises.dto';
+import { SaveGeneratedNotesDto } from './types/dto/save-generated-notes.dto';
+import { GenerateNotesResponse } from './types/response/generate-notes.response';
 import { ReadAllExerciseSetsGroupedBySourcesResponse } from './types/response/read-all-exercise-sets-grouped-by-sources.response';
 import { ReadAllExerciseSetsResponse } from './types/response/read-all-exercise-sets.response';
 import { ReadSingleExerciseSetResponse } from './types/response/read-single-exercise-set.response';
@@ -68,6 +70,25 @@ export class ExerciseSetController {
         const response = await this.exerciseSetService.generateAdditionalExercises(user.sub, exerciseSetId, dto);
 
         return response;
+    }
+
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
+    @Post('generate-notes/:exerciseSetId')
+    async generateLectureNotes(
+        @User() user: JwtPayload,
+        @Param('exerciseSetId') exerciseSetId: string
+    ): Promise<GenerateNotesResponse> {
+        return this.exerciseSetService.generateLectureNotes(user.sub, exerciseSetId);
+    }
+
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
+    @Post('save-generated-notes/:exerciseSetId')
+    async saveGeneratedNotes(
+        @User() user: JwtPayload,
+        @Param('exerciseSetId') exerciseSetId: string,
+        @Body() dto: SaveGeneratedNotesDto
+    ): Promise<ResponseBase> {
+        return this.exerciseSetService.saveGeneratedNotes(user.sub, exerciseSetId, dto);
     }
 
     @Get('read-by-id/:id')
