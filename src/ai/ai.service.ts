@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { GenerateAiExerciseSchema } from 'src/ai/types/generate-ai-exercise-schema.interface';
@@ -23,7 +23,7 @@ export class AiService {
 
     constructor(
         private configService: ConfigService,
-        private exerciseService: ExerciseService
+        @Inject(forwardRef(() => ExerciseService)) private exerciseService: ExerciseService
     ) {
         this.openaiApiKey = this.configService.get<string>('OPENAI_API_KEY')!;
         this.openaiClient = new OpenAI({
@@ -182,6 +182,58 @@ export class AiService {
         }
 
         return exercises;
+    }
+
+    async generateSingleExerciseWithContext(
+        context: string,
+        type: ExerciseType,
+        difficulty: ExerciseDifficulty
+    ): Promise<Omit<AiGeneratedExercise, 'order'>> {
+        const prompt = `Here is some context provided by the user: "\n${context}\n"\nGenerate a clear ${type} type, in ${difficulty} difficulty, single relevant question from the provided context to test comprehension.`;
+
+        const schema: GenerateAiExerciseSchema = {
+            type: 'object',
+            properties: {
+                items: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            prompt: { type: 'string' },
+                            type: { type: 'string', enum: [type] },
+                            difficulty: { type: 'string', enum: [difficulty] },
+                        },
+                        required: ['prompt', 'type', 'difficulty'],
+                        additionalProperties: false,
+                    },
+                },
+            },
+            required: ['items'],
+            additionalProperties: false,
+        };
+
+        this.exerciseService.buildRestOfGenerateAiExerciseSchema(schema, type);
+
+        const exercise = (
+            await this.sendPromptAndParseResponse<{ items: AiGeneratedExercise[] }>(
+                prompt,
+                schema as unknown as Record<string, unknown>
+            )
+        ).items[0];
+
+        if (type === ExerciseType.MULTIPLE_CHOICE) {
+            const correctChoiceIndex = exercise.correctChoiceIndex!;
+            const randomIndex = Math.floor(Math.random() * MULTIPLE_CHOICE_CHOICES_COUNT);
+            const temporaryElement = exercise.choices![randomIndex];
+
+            exercise.choices![randomIndex] = exercise.choices![correctChoiceIndex];
+            exercise.choices![correctChoiceIndex] = temporaryElement;
+            exercise.correctChoiceIndex = randomIndex;
+        }
+
+        const { order, ...exerciseWithoutOrder } = exercise;
+
+        return exerciseWithoutOrder;
     }
 
     async evaluateExerciseAnswer(

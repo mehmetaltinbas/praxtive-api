@@ -4,8 +4,10 @@ import { AuthGuard } from 'src/auth/auth.guard';
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import { ExerciseService } from 'src/exercise/exercise.service';
 import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
+import { GenerateExerciseWithContextDto } from 'src/exercise/types/dto/generate-exercise-with-context.dto';
 import { TransferExerciseDto } from 'src/exercise/types/dto/transfer-exercise.dto';
 import { UpdateExerciseDto } from 'src/exercise/types/dto/update-exercise.dto';
+import { GenerateExerciseWithContextResponse } from 'src/exercise/types/response/generate-exercise-with-context.response';
 import { ReadMultipleExercisesResponse } from 'src/exercise/types/response/read-multiple-exercises.response';
 import { ReadSingleExerciseResponse } from 'src/exercise/types/response/read-single-exercise.response';
 import User from 'src/shared/custom-decorators/user.decorator';
@@ -20,9 +22,20 @@ export class ExerciseController {
     async createByExerciseSetId(
         @User() user: JwtPayload,
         @Param('exerciseSetId') exerciseSetId: string,
-        @Body() createExerciseDto: CreateExerciseDto
+        @Body() dto: CreateExerciseDto
     ): Promise<ResponseBase> {
-        const response = await this.exerciseService.create(user.sub, exerciseSetId, createExerciseDto);
+        const response = await this.exerciseService.create(user.sub, exerciseSetId, dto);
+
+        return response;
+    }
+
+    @Post('generate-with-context/:exerciseSetId')
+    async generateWithContext(
+        @User() user: JwtPayload,
+        @Param('exerciseSetId') exerciseSetId: string,
+        @Body() dto: GenerateExerciseWithContextDto
+    ): Promise<GenerateExerciseWithContextResponse> {
+        const response = await this.exerciseService.generateWithContext(user.sub, exerciseSetId, dto);
 
         return response;
     }
