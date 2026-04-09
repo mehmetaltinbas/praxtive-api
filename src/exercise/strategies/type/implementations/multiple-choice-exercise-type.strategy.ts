@@ -103,7 +103,7 @@ export class MultipleChoiceExerciseTypeStrategy implements ExerciseTypeStrategy 
         usableWidth: number,
         availableHeight: number
     ): void {
-        let requiredHeight = document.heightOfString(`${index + 1} - ${exercise.prompt}`, { width: usableWidth });
+        let requiredHeight = document.heightOfString(exercise.prompt, { width: usableWidth });
 
         // Add space for the 1 line break
         requiredHeight += document.currentLineHeight();
@@ -121,10 +121,8 @@ export class MultipleChoiceExerciseTypeStrategy implements ExerciseTypeStrategy 
         }
 
         document
-            .font('Times-Bold')
-            .fontSize(12)
-            .text(`${index + 1} - `, { continued: true })
             .font('Times-Roman')
+            .fontSize(12)
             .text(exercise.prompt);
 
         // Draw the 1 line break

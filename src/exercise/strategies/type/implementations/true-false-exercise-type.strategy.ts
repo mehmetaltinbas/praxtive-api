@@ -84,7 +84,7 @@ export class TrueFalseExerciseTypeStrategy implements ExerciseTypeStrategy {
         usableWidth: number,
         availableHeight: number
     ): void {
-        let requiredHeight = document.heightOfString(`${index + 1} - ${exercise.prompt}`, { width: usableWidth });
+        let requiredHeight = document.heightOfString(exercise.prompt, { width: usableWidth });
 
         requiredHeight += document.currentLineHeight();
 
@@ -97,10 +97,8 @@ export class TrueFalseExerciseTypeStrategy implements ExerciseTypeStrategy {
         }
 
         document
-            .font('Times-Bold')
-            .fontSize(12)
-            .text(`${index + 1} - `, { continued: true })
             .font('Times-Roman')
+            .fontSize(12)
             .text(exercise.prompt);
 
         document.moveDown(1);

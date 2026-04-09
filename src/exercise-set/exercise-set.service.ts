@@ -763,13 +763,29 @@ export class ExerciseSetService {
             const usableWidth = document.page.width - document.page.margins.left - document.page.margins.right;
 
             exercises.forEach((exercise, index) => {
-                document.font('Times-Roman').fontSize(12);
+                if (index > 0) {
+                    document.moveDown(1.5);
+                }
 
+                // Draw "N ————————————————"
+                const numberText = `${index + 1} `;
+
+                document.font('Times-Bold').fontSize(12).text(numberText);
+                const numberWidth = document.widthOfString(numberText);
+                const lineY = document.y - document.currentLineHeight() / 2;
+
+                document
+                    .moveTo(document.page.margins.left + numberWidth, lineY)
+                    .lineTo(document.page.width - document.page.margins.right, lineY)
+                    .strokeColor('#333333')
+                    .lineWidth(1)
+                    .stroke();
+                document.moveDown(0.5);
+
+                document.font('Times-Roman').fontSize(12);
                 const availableHeight = document.page.height - document.page.margins.bottom - document.y;
 
                 this.exerciseService.drawExerciseToPdf(exercise, index, document, usableWidth, availableHeight);
-
-                document.moveDown(3);
             });
 
             if (withAnswers) {
@@ -778,7 +794,26 @@ export class ExerciseSetService {
                 document.moveDown(1);
 
                 exercises.forEach((exercise, index) => {
-                    const lineHeight = 14 + 21; // approximate line + moveDown(1.5)
+                    if (index > 0) {
+                        document.moveDown(1.5);
+                    }
+
+                    // Draw "N ————————————————"
+                    const numberText = `${index + 1} `;
+
+                    document.font('Times-Bold').fontSize(12).text(numberText);
+                    const numberWidth = document.widthOfString(numberText);
+                    const lineY = document.y - document.currentLineHeight() / 2;
+
+                    document
+                        .moveTo(document.page.margins.left + numberWidth, lineY)
+                        .lineTo(document.page.width - document.page.margins.right, lineY)
+                        .strokeColor('#333333')
+                        .lineWidth(1)
+                        .stroke();
+                    document.moveDown(0.5);
+
+                    const lineHeight = 14 + 21;
                     const availableHeight = document.page.height - document.page.margins.bottom - document.y;
 
                     if (availableHeight < lineHeight) {
@@ -787,14 +822,7 @@ export class ExerciseSetService {
 
                     const answer = this.exerciseService.getCorrectAnswerText(exercise);
 
-                    document
-                        .font('Times-Bold')
-                        .fontSize(12)
-                        .text(`${index + 1} - `, { continued: true })
-                        .font('Times-Roman')
-                        .text(answer);
-
-                    document.moveDown(1.5);
+                    document.font('Times-Roman').fontSize(12).text(answer);
                 });
             }
 

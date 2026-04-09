@@ -71,7 +71,7 @@ export class OpenEndedExerciseTypeStrategy implements ExerciseTypeStrategy {
         usableWidth: number,
         availableHeight: number
     ): void {
-        let requiredHeight = document.heightOfString(`${index + 1} - ${exercise.prompt}`, { width: usableWidth });
+        let requiredHeight = document.heightOfString(exercise.prompt, { width: usableWidth });
         const solutionHeight = document.heightOfString(exercise.solution || '', { width: usableWidth });
 
         requiredHeight += solutionHeight + document.currentLineHeight();
@@ -83,10 +83,8 @@ export class OpenEndedExerciseTypeStrategy implements ExerciseTypeStrategy {
         }
 
         document
-            .font('Times-Bold')
-            .fontSize(12)
-            .text(`${index + 1} - `, { continued: true })
             .font('Times-Roman')
+            .fontSize(12)
             .text(exercise.prompt);
 
         document.y += solutionHeight + document.currentLineHeight();
