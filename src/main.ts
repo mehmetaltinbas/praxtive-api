@@ -2,6 +2,7 @@ import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './shared/filters/all-exceptions.filter';
 
@@ -10,6 +11,7 @@ async function bootstrap(): Promise<void> {
     const configService = app.get(ConfigService);
     const port = configService.get<number>('PORT') || 4001;
 
+    app.use(helmet());
     app.useGlobalFilters(new AllExceptionsFilter());
     app.useGlobalPipes(
         new ValidationPipe({
