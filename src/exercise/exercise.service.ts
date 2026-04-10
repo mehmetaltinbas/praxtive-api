@@ -342,15 +342,20 @@ export class ExerciseService {
         return strategy.getCorrectAnswerText(exercise);
     }
 
+    getRequiredHeight(exercise: ExerciseDocument, document: typeof PDFDocument, usableWidth: number): number {
+        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
+
+        return strategy.getRequiredHeight(exercise, document, usableWidth);
+    }
+
     drawExerciseToPdf(
         exercise: ExerciseDocument,
         index: number,
         document: typeof PDFDocument,
-        usableWidth: number,
-        availableHeight: number
+        usableWidth: number
     ): void {
         const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
 
-        strategy.drawExerciseToPdf(exercise, index, document, usableWidth, availableHeight);
+        strategy.drawExerciseToPdf(exercise, index, document, usableWidth);
     }
 }

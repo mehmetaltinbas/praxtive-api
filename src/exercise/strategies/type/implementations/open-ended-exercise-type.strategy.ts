@@ -64,13 +64,7 @@ export class OpenEndedExerciseTypeStrategy implements ExerciseTypeStrategy {
         return exercise.solution ?? '';
     }
 
-    drawExerciseToPdf(
-        exercise: ExerciseDocument,
-        index: number,
-        document: typeof PDFDocument,
-        usableWidth: number,
-        availableHeight: number
-    ): void {
+    getRequiredHeight(exercise: ExerciseDocument, document: typeof PDFDocument, usableWidth: number): number {
         let requiredHeight = document.heightOfString(exercise.prompt, { width: usableWidth });
         const solutionHeight = document.heightOfString(exercise.solution || '', { width: usableWidth });
 
@@ -78,15 +72,21 @@ export class OpenEndedExerciseTypeStrategy implements ExerciseTypeStrategy {
 
         requiredHeight += document.currentLineHeight();
 
-        if (requiredHeight > availableHeight) {
-            document.addPage();
-        }
+        return requiredHeight;
+    }
 
+    drawExerciseToPdf(
+        exercise: ExerciseDocument,
+        index: number,
+        document: typeof PDFDocument,
+        usableWidth: number
+    ): void {
         document
             .font('Times-Roman')
             .fontSize(12)
             .text(exercise.prompt);
 
+        const solutionHeight = document.heightOfString(exercise.solution || '', { width: usableWidth });
         document.y += solutionHeight + document.currentLineHeight();
     }
 }

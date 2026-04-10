@@ -767,6 +767,21 @@ export class ExerciseSetService {
                     document.moveDown(1.5);
                 }
 
+                // Calculate header height (number text line + moveDown(0.5) space)
+                document.font('Times-Bold').fontSize(12);
+                const headerHeight = document.currentLineHeight() + document.currentLineHeight() * 0.5;
+
+                // Calculate exercise content height
+                document.font('Times-Roman').fontSize(12);
+                const contentHeight = this.exerciseService.getRequiredHeight(exercise, document, usableWidth);
+
+                // Check if total fits BEFORE drawing anything
+                const availableHeight = document.page.height - document.page.margins.bottom - document.y;
+
+                if (headerHeight + contentHeight > availableHeight) {
+                    document.addPage();
+                }
+
                 // Draw "N ————————————————"
                 const numberText = `${index + 1} `;
 
@@ -783,9 +798,7 @@ export class ExerciseSetService {
                 document.moveDown(0.5);
 
                 document.font('Times-Roman').fontSize(12);
-                const availableHeight = document.page.height - document.page.margins.bottom - document.y;
-
-                this.exerciseService.drawExerciseToPdf(exercise, index, document, usableWidth, availableHeight);
+                this.exerciseService.drawExerciseToPdf(exercise, index, document, usableWidth);
             });
 
             if (withAnswers) {
@@ -796,6 +809,23 @@ export class ExerciseSetService {
                 exercises.forEach((exercise, index) => {
                     if (index > 0) {
                         document.moveDown(1.5);
+                    }
+
+                    const answer = this.exerciseService.getCorrectAnswerText(exercise);
+
+                    // Calculate header height (number text line + moveDown(0.5) space)
+                    document.font('Times-Bold').fontSize(12);
+                    const headerHeight = document.currentLineHeight() + document.currentLineHeight() * 0.5;
+
+                    // Calculate answer text height
+                    document.font('Times-Roman').fontSize(12);
+                    const answerHeight = document.heightOfString(answer, { width: usableWidth });
+
+                    // Check if total fits BEFORE drawing anything
+                    const availableHeight = document.page.height - document.page.margins.bottom - document.y;
+
+                    if (headerHeight + answerHeight > availableHeight) {
+                        document.addPage();
                     }
 
                     // Draw "N ————————————————"
@@ -812,15 +842,6 @@ export class ExerciseSetService {
                         .lineWidth(1)
                         .stroke();
                     document.moveDown(0.5);
-
-                    const lineHeight = 14 + 21;
-                    const availableHeight = document.page.height - document.page.margins.bottom - document.y;
-
-                    if (availableHeight < lineHeight) {
-                        document.addPage();
-                    }
-
-                    const answer = this.exerciseService.getCorrectAnswerText(exercise);
 
                     document.font('Times-Roman').fontSize(12).text(answer);
                 });
