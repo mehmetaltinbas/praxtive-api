@@ -18,7 +18,7 @@ schema.index({ userId: 1, title: 1 }, { unique: true });
 schema.post('findOneAndDelete', async function (document: SourceDocument) {
     if (document) {
         const associatedExerciseSetDocuments = await ExerciseSetModel.find({
-            sourceId: document._id,
+            contextId: document._id,
         });
 
         await Promise.all([

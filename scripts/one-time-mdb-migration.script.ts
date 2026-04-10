@@ -4,65 +4,65 @@ const DB_CONNECTION = process.env.DB_CONNECTION;
 const DB_NAME = process.env.DB_NAME;
 const DRY_RUN = process.argv.includes('--dry-run');
 
+/**
+ * CONFIGURATION: Fill these in for each specific migration
+ */
+const COLLECTION_NAME = 'exercisesets'; // Change as needed
+const FILTER = { 
+    // Example: { sourceType: { $exists: true } }
+};
+const UPDATE_OPERATION = { 
+    // Example: { $rename: { "sourceType": "contextType" } }
+};
+
 async function migrate(): Promise<void> {
-    if (!DB_CONNECTION) {
-        throw new Error('DB_CONNECTION env variable is required');
+    if (!DB_CONNECTION || !DB_NAME) {
+        throw new Error('DB_CONNECTION and DB_NAME env variables are required');
     }
 
-    if (!DB_NAME) {
-        throw new Error('DB_NAME env variable is required');
-    }
-
-    console.log(`Connecting to ${DB_NAME}...`);
+    console.log(`--- MIGRATION START ---`);
+    console.log(`Target DB: ${DB_NAME}`);
+    console.log(`Collection: ${COLLECTION_NAME}`);
+    
     const connection = await mongoose.connect(DB_CONNECTION, { dbName: DB_NAME });
     const db = connection.connection.db;
+    if (!db) throw new Error('Failed to get database instance');
 
-    if (!db) {
-        throw new Error('Failed to get database instance');
-    }
+    const collection = db.collection(COLLECTION_NAME);
 
-    const exercisesCollection = db.collection('exercises');
-    const exerciseSetsCollection = db.collection('exercisesets');
-
-    const exerciseCount = await exercisesCollection.countDocuments({ type: 'mcq' });
-    const exerciseSetCount = await exerciseSetsCollection.countDocuments({ type: 'mcq' });
-
-    console.log(`Found ${exerciseCount} exercises with type 'mcq'`);
-    console.log(`Found ${exerciseSetCount} exercise sets with type 'mcq'`);
+    // 1. Check for documents
+    const count = await collection.countDocuments(FILTER);
+    console.log(`Documents matching filter: ${count}`);
 
     if (DRY_RUN) {
-        console.log('[DRY RUN] No changes made.');
+        console.log('[DRY RUN] No changes were applied to the database.');
         await mongoose.disconnect();
         return;
     }
 
-    if (exerciseCount === 0 && exerciseSetCount === 0) {
-        console.log('Nothing to migrate.');
+    if (count === 0) {
+        console.log('No documents found matching the criteria. Skipping.');
         await mongoose.disconnect();
         return;
     }
 
+    // 2. Execute Transaction
     const session = await connection.startSession();
-
     try {
         await session.withTransaction(async () => {
-            const exerciseResult = await exercisesCollection.updateMany(
-                { type: 'mcq' },
-                { $set: { type: 'multipleChoice' } },
-                { session },
+            const result = await collection.updateMany(
+                FILTER,
+                UPDATE_OPERATION,
+                { session }
             );
 
-            const exerciseSetResult = await exerciseSetsCollection.updateMany(
-                { type: 'mcq' },
-                { $set: { type: 'multipleChoice' } },
-                { session },
-            );
-
-            console.log(`Updated ${exerciseResult.modifiedCount} exercises`);
-            console.log(`Updated ${exerciseSetResult.modifiedCount} exercise sets`);
+            console.log(`Successfully modified ${result.modifiedCount} documents.`);
         });
-
-        console.log('Migration completed successfully.');
+        console.log('--- MIGRATION COMPLETED SUCCESSFULLY ---');
+    } catch (error) {
+        console.error('!!! MIGRATION FAILED - Transaction Aborted !!!');
+        console.error('Error Details:', error);
+        throw error;
     } finally {
         await session.endSession();
         await mongoose.disconnect();
@@ -70,10 +70,6 @@ async function migrate(): Promise<void> {
 }
 
 migrate().catch((err) => {
-    console.error('Migration failed:', err);
+    console.error('Process exited with error:', err);
     process.exit(1);
 });
-
-// ROLLBACK (run manually if needed):
-// db.exercises.updateMany({ type: 'multipleChoice' }, { $set: { type: 'mcq' } })
-// db.exercisesets.updateMany({ type: 'multipleChoice' }, { $set: { type: 'mcq' } })

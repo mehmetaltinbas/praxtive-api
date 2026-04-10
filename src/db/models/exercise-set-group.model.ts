@@ -13,7 +13,7 @@ const schema = new mongoose.Schema(
 schema.post('findOneAndDelete', async function (document: ExerciseSetGroupDocument) {
     if (document) {
         const associatedExerciseSetDocuments = await ExerciseSetModel.find({
-            sourceId: document._id,
+            contextId: document._id,
         });
 
         await Promise.all([

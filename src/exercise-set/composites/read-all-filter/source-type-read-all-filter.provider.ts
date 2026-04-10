@@ -14,8 +14,8 @@ export class SourceTypeReadAllFilter implements ExerciseSetReadAllFilter {
         readMultipleExerciseSetsFilterCriteriaDto: ReadMultipleExerciseSetsFilterCriteriaDto,
         filterQuery: FilterQuery<ExerciseSetDocument>
     ): FilterQuery<ExerciseSetDocument> {
-        if (readMultipleExerciseSetsFilterCriteriaDto.sourceType) {
-            filterQuery.sourceType = readMultipleExerciseSetsFilterCriteriaDto.sourceType;
+        if (readMultipleExerciseSetsFilterCriteriaDto.contextType) {
+            filterQuery.contextType = readMultipleExerciseSetsFilterCriteriaDto.contextType;
         }
 
         return filterQuery;

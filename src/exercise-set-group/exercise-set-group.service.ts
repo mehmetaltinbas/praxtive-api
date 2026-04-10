@@ -18,7 +18,7 @@ export class ExerciseSetGroupService {
         if (conflict) {
             return {
                 isSuccess: false,
-                message: `An exercise set group with the title "${dto.title}" already exists.`,
+                message: `You already have an exercise set group with the title "${dto.title}".`,
             };
         }
 

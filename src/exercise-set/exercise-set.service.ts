@@ -10,14 +10,15 @@ import {
 import mongoose, { FilterQuery } from 'mongoose';
 import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
+import { ExerciseSetGroupService } from 'src/exercise-set-group/exercise-set-group.service';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
 import { ALLOWED_PAPER_IMAGE_MIMETYPES } from 'src/exercise-set/constants/allowed-paper-image-mimetypes.constant';
+import { ExerciseSetContextType } from 'src/exercise-set/enums/exercise-set-context-type.enum';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
-import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 import { ExerciseSetVisibility } from 'src/exercise-set/enums/exercise-set-visibility.enum';
 import { ExerciseSetTypeFactory } from 'src/exercise-set/strategies/type/exercise-set-type.factory';
-import { ChangeSourceDto } from 'src/exercise-set/types/dto/change-source.dto';
+import { ChangeExerciseSetContextDto } from 'src/exercise-set/types/dto/change-exercise-set-context.dto';
 import { CloneExerciseSetDto } from 'src/exercise-set/types/dto/clone-exercise-set.dto';
 import { CreateExerciseSetDto } from 'src/exercise-set/types/dto/create-exercise-set.dto';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
@@ -43,7 +44,6 @@ import { ReorderExercisesDto } from 'src/exercise/types/dto/reorder-exercises.dt
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
 import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceType } from 'src/source/enums/source-type.enum';
-import { ExerciseSetGroupService } from 'src/exercise-set-group/exercise-set-group.service';
 import { SourceService } from 'src/source/source.service';
 import { ExtendedSourceDocument } from 'src/source/types/extended-source-document.interface';
 import { UserService } from 'src/user/user.service';
@@ -78,15 +78,15 @@ export class ExerciseSetService {
             const readSingleSourceResponse = await this.sourceService.readById(userId, sourceId);
 
             sourceText = readSingleSourceResponse.source.rawText;
-            sourceType = ExerciseSetSourceType.SOURCE;
+            sourceType = ExerciseSetContextType.SOURCE;
         } else {
-            sourceType = ExerciseSetSourceType.INDEPENDENT;
+            sourceType = ExerciseSetContextType.INDEPENDENT;
         }
 
         let message = '';
 
         switch (sourceType) {
-            case ExerciseSetSourceType.SOURCE: {
+            case ExerciseSetContextType.SOURCE: {
                 const generateExercisesResponse = await this.aiService.generateExercises(
                     sourceText as string,
                     dto.type,
@@ -103,8 +103,8 @@ export class ExerciseSetService {
                         [
                             {
                                 userId: new mongoose.Types.ObjectId(userId),
-                                sourceType,
-                                sourceId,
+                                contextType: sourceType,
+                                contextId: sourceId,
                                 title: dto.title,
                                 type: dto.type,
                                 difficulty: dto.difficulty,
@@ -140,10 +140,10 @@ export class ExerciseSetService {
                 break;
             }
 
-            case ExerciseSetSourceType.INDEPENDENT: {
+            case ExerciseSetContextType.INDEPENDENT: {
                 const exerciseSet = await this.db.ExerciseSet.create({
                     userId: new mongoose.Types.ObjectId(userId),
-                    sourceType,
+                    contextType: sourceType,
                     title: dto.title,
                     type: dto.type,
                     difficulty: dto.difficulty,
@@ -169,11 +169,11 @@ export class ExerciseSetService {
     ): Promise<ResponseBase> {
         const { exerciseSet } = await this.readById(userId, exerciseSetId);
 
-        if (exerciseSet.sourceType !== ExerciseSetSourceType.SOURCE) {
+        if (exerciseSet.contextType !== ExerciseSetContextType.SOURCE) {
             throw new BadRequestException('Additional exercises can only be generated for SOURCE type exercise sets.');
         }
 
-        const { source } = await this.sourceService.readById(userId, exerciseSet.sourceId);
+        const { source } = await this.sourceService.readById(userId, exerciseSet.contextId);
         const sourceText = source.rawText;
 
         const { exercises: existingExercises } = await this.exerciseService.readAllByExerciseSetId(
@@ -266,9 +266,9 @@ export class ExerciseSetService {
             return createResponse;
         }
 
-        await this.changeSource(userId, exerciseSetId, {
-            sourceType: ExerciseSetSourceType.SOURCE,
-            sourceId: createResponse.sourceId!,
+        await this.changeContext(userId, exerciseSetId, {
+            contextType: ExerciseSetContextType.SOURCE,
+            contextId: createResponse.sourceId!,
         });
 
         return { isSuccess: true, message: 'Notes saved and linked to exercise set.' };
@@ -309,7 +309,7 @@ export class ExerciseSetService {
                 [
                     {
                         userId: new mongoose.Types.ObjectId(userId),
-                        sourceType: ExerciseSetSourceType.INDEPENDENT,
+                        contextType: ExerciseSetContextType.INDEPENDENT,
                         title: dto.title,
                         type: sourceExerciseSet.type,
                         difficulty: sourceExerciseSet.difficulty,
@@ -364,13 +364,13 @@ export class ExerciseSetService {
         const response = await this.sourceService.readAllByUserId(userId);
 
         if (
-            readMultipleExerciseSetsFilterCriteriaDto.sourceType === ExerciseSetSourceType.SOURCE &&
+            readMultipleExerciseSetsFilterCriteriaDto.contextType === ExerciseSetContextType.SOURCE &&
             response.sources &&
             response.sources.length !== 0
         ) {
             const sourceIds = response.sources.map((s) => s._id);
 
-            filter.sourceId = { $in: sourceIds };
+            filter.contextId = { $in: sourceIds };
         }
 
         const refinedFilter = this.exerciseSetReadAllFilterCompositeProvider.filter(
@@ -389,7 +389,7 @@ export class ExerciseSetService {
 
         for (const source of sourcesResponse.sources) {
             const exerciseSetsOfSource = await this.db.ExerciseSet.find({
-                sourceId: source._id,
+                contextId: source._id,
             });
             const extendedSource: ExtendedSourceDocument = {
                 ...(source.toObject() as Omit<ExtendedSourceDocument, 'exerciseSets'>),
@@ -486,23 +486,27 @@ export class ExerciseSetService {
         return { isSuccess: true, message: 'exercise set updated' };
     }
 
-    async changeSource(userId: string, exerciseSetId: string, dto: ChangeSourceDto): Promise<ResponseBase> {
+    async changeContext(
+        userId: string,
+        exerciseSetId: string,
+        dto: ChangeExerciseSetContextDto
+    ): Promise<ResponseBase> {
         await this.readById(userId, exerciseSetId);
 
-        const update: Record<string, unknown> = {
-            sourceType: dto.sourceType,
+        const update: Partial<ExerciseSetDocument> = {
+            contextType: dto.contextType,
         };
 
-        if (dto.sourceType === ExerciseSetSourceType.SOURCE) {
-            await this.sourceService.readById(userId, dto.sourceId!);
+        if (dto.contextType === ExerciseSetContextType.SOURCE) {
+            await this.sourceService.readById(userId, dto.contextId!);
 
-            update.sourceId = new mongoose.Types.ObjectId(dto.sourceId!);
-        } else if (dto.sourceType === ExerciseSetSourceType.GROUP) {
-            await this.exerciseSetGroupService.readById(userId, dto.sourceId!);
+            update.contextId = dto.contextId;
+        } else if (dto.contextType === ExerciseSetContextType.GROUP) {
+            await this.exerciseSetGroupService.readById(userId, dto.contextId!);
 
-            update.sourceId = new mongoose.Types.ObjectId(dto.sourceId!);
+            update.contextId = dto.contextId;
         } else {
-            update.sourceId = null;
+            update.contextId = undefined;
         }
 
         const updated = await this.db.ExerciseSet.findByIdAndUpdate(exerciseSetId, { $set: update }, { new: true });
@@ -700,12 +704,12 @@ export class ExerciseSetService {
         const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, id);
 
         let sourceTypeTitle: string =
-            exerciseSet.sourceType === ExerciseSetSourceType.INDEPENDENT
-                ? ExerciseSetSourceType.INDEPENDENT
-                : ExerciseSetSourceType.SOURCE;
+            exerciseSet.contextType === ExerciseSetContextType.INDEPENDENT
+                ? ExerciseSetContextType.INDEPENDENT
+                : ExerciseSetContextType.SOURCE;
 
-        if (userId && exerciseSet.sourceType === ExerciseSetSourceType.SOURCE) {
-            const { source } = await this.sourceService.readById(userId, exerciseSet.sourceId);
+        if (userId && exerciseSet.contextType === ExerciseSetContextType.SOURCE) {
+            const { source } = await this.sourceService.readById(userId, exerciseSet.contextId);
 
             sourceTypeTitle = source.title;
         }
