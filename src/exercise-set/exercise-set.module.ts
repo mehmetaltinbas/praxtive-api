@@ -4,6 +4,8 @@ import { exerciseSetReadAllFilterProviders } from 'src/exercise-set/composites/r
 import { ExerciseSetController } from 'src/exercise-set/exercise-set.controller';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { PublicExerciseSetController } from 'src/exercise-set/public-exercise-set.controller';
+import { ExerciseSetContextTypeStrategiesBarrel } from 'src/exercise-set/strategies/context-type/exercise-set-context-type-strategies.barrel';
+import { ExerciseSetContextTypeFactory } from 'src/exercise-set/strategies/context-type/exercise-set-context-type.factory';
 import { ExerciseSetTypeStrategiesBarrel } from 'src/exercise-set/strategies/type/exercise-set-type-strategies.barrel';
 import { ExerciseSetTypeFactory } from 'src/exercise-set/strategies/type/exercise-set-type.factory';
 import { ExerciseModule } from 'src/exercise/exercise.module';
@@ -18,6 +20,8 @@ import { UserModule } from 'src/user/user.module';
         ExerciseSetService,
         ExerciseSetTypeFactory,
         ...ExerciseSetTypeStrategiesBarrel,
+        ExerciseSetContextTypeFactory,
+        ...ExerciseSetContextTypeStrategiesBarrel,
         ...exerciseSetReadAllFilterProviders,
     ],
     exports: [ExerciseSetService],

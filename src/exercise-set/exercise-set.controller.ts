@@ -14,26 +14,26 @@ import {
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
+import { AuthGuard } from 'src/auth/auth.guard';
+import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import { MAX_PAPER_EVALUATION_UPLOAD_COUNT } from 'src/exercise-set/constants/max-paper-evaluation-upload-count.constant';
+import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { ChangeExerciseSetContextDto } from 'src/exercise-set/types/dto/change-exercise-set-context.dto';
+import { CreateExerciseSetDto } from 'src/exercise-set/types/dto/create-exercise-set.dto';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
+import { GenerateAdditionalExercisesDto } from 'src/exercise-set/types/dto/generate-additional-exercises.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
+import { SaveGeneratedNotesDto } from 'src/exercise-set/types/dto/save-generated-notes.dto';
 import { UpdateExerciseSetDto } from 'src/exercise-set/types/dto/update-exercise-set.dto';
 import { EvaluateAnswersResponse } from 'src/exercise-set/types/response/evaluate-answers.response';
+import { GenerateNotesResponse } from 'src/exercise-set/types/response/generate-notes.response';
 import { GetPdfResponse } from 'src/exercise-set/types/response/get-pdf.response';
+import { ReadAllExerciseSetsGroupedBySourcesResponse } from 'src/exercise-set/types/response/read-all-exercise-sets-grouped-by-sources.response';
+import { ReadAllExerciseSetsResponse } from 'src/exercise-set/types/response/read-all-exercise-sets.response';
+import { ReadSingleExerciseSetResponse } from 'src/exercise-set/types/response/read-single-exercise-set.response';
 import { ReorderExercisesDto } from 'src/exercise/types/dto/reorder-exercises.dto';
-import { AuthGuard } from '../auth/auth.guard';
-import JwtPayload from '../auth/types/jwt-payload.interface';
-import User from '../shared/custom-decorators/user.decorator';
-import ResponseBase from '../shared/types/response-base.interface';
-import { ExerciseSetService } from './exercise-set.service';
-import { CreateExerciseSetDto } from './types/dto/create-exercise-set.dto';
-import { GenerateAdditionalExercisesDto } from './types/dto/generate-additional-exercises.dto';
-import { SaveGeneratedNotesDto } from './types/dto/save-generated-notes.dto';
-import { GenerateNotesResponse } from './types/response/generate-notes.response';
-import { ReadAllExerciseSetsGroupedBySourcesResponse } from './types/response/read-all-exercise-sets-grouped-by-sources.response';
-import { ReadAllExerciseSetsResponse } from './types/response/read-all-exercise-sets.response';
-import { ReadSingleExerciseSetResponse } from './types/response/read-single-exercise-set.response';
+import User from 'src/shared/custom-decorators/user.decorator';
+import ResponseBase from 'src/shared/types/response-base.interface';
 
 @Controller('exercise-set')
 @UseGuards(AuthGuard)
@@ -49,15 +49,13 @@ export class ExerciseSetController {
     }
 
     @Throttle({ default: { limit: 10, ttl: 60000 } })
-    @Post('create/:sourceId')
-    async createBySourceId(
+    @Post('create/:contextId')
+    async createByContextId(
         @User() user: JwtPayload,
-        @Param('sourceId') sourceId: string | undefined,
-        @Body() createExerciseSetDto: CreateExerciseSetDto
+        @Param('contextId') contextId: string | undefined,
+        @Body() dto: CreateExerciseSetDto
     ): Promise<ResponseBase> {
-        const response = await this.exerciseSetService.create(user.sub, sourceId, createExerciseSetDto);
-
-        return response;
+        return await this.exerciseSetService.create(user.sub, contextId, dto);
     }
 
     @Throttle({ default: { limit: 10, ttl: 60000 } })

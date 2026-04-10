@@ -10,10 +10,10 @@ import {
 import mongoose, { FilterQuery } from 'mongoose';
 import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
-import { ExerciseSetGroupService } from 'src/exercise-set-group/exercise-set-group.service';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
 import { ALLOWED_PAPER_IMAGE_MIMETYPES } from 'src/exercise-set/constants/allowed-paper-image-mimetypes.constant';
 import { ExerciseSetContextType } from 'src/exercise-set/enums/exercise-set-context-type.enum';
+import { ExerciseSetContextTypeFactory } from 'src/exercise-set/strategies/context-type/exercise-set-context-type.factory';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 import { ExerciseSetVisibility } from 'src/exercise-set/enums/exercise-set-visibility.enum';
@@ -55,16 +55,13 @@ export class ExerciseSetService {
         @Inject(forwardRef(() => ExerciseService)) private exerciseService: ExerciseService,
         private aiService: AiService,
         private sourceService: SourceService,
-        private exerciseSetGroupService: ExerciseSetGroupService,
         private exerciseSetTypeFactory: ExerciseSetTypeFactory,
+        private exerciseSetContextTypeFactory: ExerciseSetContextTypeFactory,
         private exerciseSetReadAllFilterCompositeProvider: ExerciseSetReadAllFilterCompositeProvider,
         private userService: UserService
     ) {}
 
-    async create(userId: string, sourceId: string | undefined, dto: CreateExerciseSetDto): Promise<ResponseBase> {
-        let sourceText;
-        let sourceType;
-
+    async create(userId: string, contextId: string | undefined, dto: CreateExerciseSetDto): Promise<ResponseBase> {
         const conflict = await this.db.ExerciseSet.findOne({ userId, title: dto.title });
 
         if (conflict) {
@@ -74,92 +71,80 @@ export class ExerciseSetService {
             };
         }
 
-        if (sourceId) {
-            const readSingleSourceResponse = await this.sourceService.readById(userId, sourceId);
+        const contextType = contextId ? dto.contextType : ExerciseSetContextType.INDEPENDENT;
+        const strategy = this.exerciseSetContextTypeFactory.resolveStrategy(contextType);
+        const createContext = await strategy.resolveCreateContext(userId, contextId);
 
-            sourceText = readSingleSourceResponse.source.rawText;
-            sourceType = ExerciseSetContextType.SOURCE;
-        } else {
-            sourceType = ExerciseSetContextType.INDEPENDENT;
-        }
+        if (createContext.sourceText) {
+            const generateExercisesResponse = await this.aiService.generateExercises(
+                createContext.sourceText,
+                dto.type,
+                dto.difficulty,
+                dto.count
+            );
 
-        let message = '';
+            const session = await mongoose.startSession();
 
-        switch (sourceType) {
-            case ExerciseSetContextType.SOURCE: {
-                const generateExercisesResponse = await this.aiService.generateExercises(
-                    sourceText as string,
-                    dto.type,
-                    dto.difficulty,
-                    dto.count
+            session.startTransaction();
+
+            try {
+                const [exerciseSet] = await this.db.ExerciseSet.create(
+                    [
+                        {
+                            userId: new mongoose.Types.ObjectId(userId),
+                            contextType: createContext.contextType,
+                            contextId: createContext.contextId,
+                            title: dto.title,
+                            type: dto.type,
+                            difficulty: dto.difficulty,
+                            count: 0,
+                            visibility: dto.visibility,
+                        },
+                    ],
+                    { session }
                 );
 
-                const session = await mongoose.startSession();
+                for (const exercise of generateExercisesResponse.exercises) {
+                    const createExerciseDto: CreateExerciseDto = {
+                        type: exercise.type,
+                        difficulty: exercise.difficulty,
+                        prompt: exercise.prompt,
+                    };
 
-                session.startTransaction();
+                    this.exerciseService.buildCreateExerciseDto(createExerciseDto, exercise);
 
-                try {
-                    const [exerciseSet] = await this.db.ExerciseSet.create(
-                        [
-                            {
-                                userId: new mongoose.Types.ObjectId(userId),
-                                contextType: sourceType,
-                                contextId: sourceId,
-                                title: dto.title,
-                                type: dto.type,
-                                difficulty: dto.difficulty,
-                                count: 0,
-                                visibility: dto.visibility,
-                            },
-                        ],
-                        { session }
-                    );
-
-                    for (const exercise of generateExercisesResponse.exercises) {
-                        const createExerciseDto: CreateExerciseDto = {
-                            type: exercise.type,
-                            difficulty: exercise.difficulty,
-                            prompt: exercise.prompt,
-                        };
-
-                        this.exerciseService.buildCreateExerciseDto(createExerciseDto, exercise);
-
-                        await this.exerciseService.create(userId, exerciseSet._id, createExerciseDto, session);
-                    }
-
-                    await session.commitTransaction();
-
-                    message = `Exercise set created, type: ${exerciseSet.type}, difficulty: ${exerciseSet.difficulty}, exercise count: ${generateExercisesResponse.exercises.length}.`;
-                } catch (error) {
-                    await session.abortTransaction();
-                    throw error;
-                } finally {
-                    await session.endSession();
+                    await this.exerciseService.create(userId, exerciseSet._id, createExerciseDto, session);
                 }
 
-                break;
-            }
+                await session.commitTransaction();
 
-            case ExerciseSetContextType.INDEPENDENT: {
-                const exerciseSet = await this.db.ExerciseSet.create({
-                    userId: new mongoose.Types.ObjectId(userId),
-                    contextType: sourceType,
-                    title: dto.title,
-                    type: dto.type,
-                    difficulty: dto.difficulty,
-                    count: 0,
-                    visibility: dto.visibility,
-                });
-
-                message = `Exercises et created with type ${exerciseSet.type}`;
-                break;
+                return {
+                    isSuccess: true,
+                    message: `Exercise set created, type: ${exerciseSet.type}, difficulty: ${exerciseSet.difficulty}, exercise count: ${generateExercisesResponse.exercises.length}.`,
+                };
+            } catch (error) {
+                await session.abortTransaction();
+                throw error;
+            } finally {
+                await session.endSession();
             }
+        } else {
+            const exerciseSet = await this.db.ExerciseSet.create({
+                userId: new mongoose.Types.ObjectId(userId),
+                contextType: createContext.contextType,
+                contextId: createContext.contextId,
+                title: dto.title,
+                type: dto.type,
+                difficulty: dto.difficulty,
+                count: 0,
+                visibility: dto.visibility,
+            });
+
+            return {
+                isSuccess: true,
+                message: `Exercise set created with type ${exerciseSet.type}`,
+            };
         }
-
-        return {
-            isSuccess: true,
-            message,
-        };
     }
 
     async generateAdditionalExercises(
@@ -169,12 +154,8 @@ export class ExerciseSetService {
     ): Promise<ResponseBase> {
         const { exerciseSet } = await this.readById(userId, exerciseSetId);
 
-        if (exerciseSet.contextType !== ExerciseSetContextType.SOURCE) {
-            throw new BadRequestException('Additional exercises can only be generated for SOURCE type exercise sets.');
-        }
-
-        const { source } = await this.sourceService.readById(userId, exerciseSet.contextId);
-        const sourceText = source.rawText;
+        const contextStrategy = this.exerciseSetContextTypeFactory.resolveStrategy(exerciseSet.contextType);
+        const { sourceText } = await contextStrategy.resolveAdditionalExercisesContext(userId, exerciseSet.contextId);
 
         const { exercises: existingExercises } = await this.exerciseService.readAllByExerciseSetId(
             userId,
@@ -493,23 +474,14 @@ export class ExerciseSetService {
     ): Promise<ResponseBase> {
         await this.readById(userId, exerciseSetId);
 
-        const update: Partial<ExerciseSetDocument> = {
-            contextType: dto.contextType,
-        };
+        const strategy = this.exerciseSetContextTypeFactory.resolveStrategy(dto.contextType);
+        const { contextId } = await strategy.resolveChangeContext(userId, dto.contextId);
 
-        if (dto.contextType === ExerciseSetContextType.SOURCE) {
-            await this.sourceService.readById(userId, dto.contextId!);
-
-            update.contextId = dto.contextId;
-        } else if (dto.contextType === ExerciseSetContextType.GROUP) {
-            await this.exerciseSetGroupService.readById(userId, dto.contextId!);
-
-            update.contextId = dto.contextId;
-        } else {
-            update.contextId = undefined;
-        }
-
-        const updated = await this.db.ExerciseSet.findByIdAndUpdate(exerciseSetId, { $set: update }, { new: true });
+        const updated = await this.db.ExerciseSet.findByIdAndUpdate(
+            exerciseSetId,
+            { $set: { contextType: dto.contextType, contextId } },
+            { new: true }
+        );
 
         if (!updated) {
             throw new NotFoundException('Exercise set not found.');
@@ -703,16 +675,8 @@ export class ExerciseSetService {
         const { exerciseSet } = await this.readById(userId, id);
         const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, id);
 
-        let sourceTypeTitle: string =
-            exerciseSet.contextType === ExerciseSetContextType.INDEPENDENT
-                ? ExerciseSetContextType.INDEPENDENT
-                : ExerciseSetContextType.SOURCE;
-
-        if (userId && exerciseSet.contextType === ExerciseSetContextType.SOURCE) {
-            const { source } = await this.sourceService.readById(userId, exerciseSet.contextId);
-
-            sourceTypeTitle = source.title;
-        }
+        const contextStrategy = this.exerciseSetContextTypeFactory.resolveStrategy(exerciseSet.contextType);
+        const sourceTypeTitle = await contextStrategy.resolvePdfContextTitle(userId, exerciseSet.contextId);
 
         return new Promise((resolve, reject) => {
             const document = new PDFDocument({ margins: { top: 36, bottom: 36, left: 72, right: 72 } });
