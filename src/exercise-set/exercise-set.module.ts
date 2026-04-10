@@ -7,11 +7,12 @@ import { PublicExerciseSetController } from 'src/exercise-set/public-exercise-se
 import { ExerciseSetTypeStrategiesBarrel } from 'src/exercise-set/strategies/type/exercise-set-type-strategies.barrel';
 import { ExerciseSetTypeFactory } from 'src/exercise-set/strategies/type/exercise-set-type.factory';
 import { ExerciseModule } from 'src/exercise/exercise.module';
+import { ExerciseSetGroupModule } from 'src/exercise-set-group/exercise-set-group.module';
 import { SourceModule } from 'src/source/source.module';
 import { UserModule } from 'src/user/user.module';
 
 @Module({
-    imports: [forwardRef(() => ExerciseModule), AiModule, SourceModule, UserModule],
+    imports: [forwardRef(() => ExerciseModule), AiModule, SourceModule, ExerciseSetGroupModule, UserModule],
     controllers: [ExerciseSetController, PublicExerciseSetController],
     providers: [
         ExerciseSetService,

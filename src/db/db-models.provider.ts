@@ -1,5 +1,6 @@
 import { Mongoose } from 'mongoose';
 import { CreditTransactionModel } from 'src/db/models/credit-transaction.model';
+import { ExerciseSetGroupModel } from 'src/db/models/exercise-set-group.model';
 import { PlanModel } from 'src/db/models/plan.model';
 import { SubscriptionModel } from 'src/db/models/subscription.model';
 import { ExerciseSetModel } from './models/exercise-set.model';
@@ -20,6 +21,7 @@ export const dbModelsProvider = {
             Subscription: SubscriptionModel,
             CreditTransaction: CreditTransactionModel,
             Source: SourceModel,
+            ExerciseSetGroup: ExerciseSetGroupModel,
             ExerciseSet: ExerciseSetModel,
             Exercise: ExerciseModel,
         };

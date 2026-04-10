@@ -15,6 +15,6 @@ export class YoutubeVideoSourceTypeStrategy implements SourceTypeStrategy {
         const url = dto.url!;
 
         // send request to an enternal python fastapi application
-        throw new Error('Not implemented');
+        throw new Error('Source creation from YouTube video URLs has not implemented yet.');
     }
 }

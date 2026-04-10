@@ -43,6 +43,7 @@ import { ReorderExercisesDto } from 'src/exercise/types/dto/reorder-exercises.dt
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
 import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceType } from 'src/source/enums/source-type.enum';
+import { ExerciseSetGroupService } from 'src/exercise-set-group/exercise-set-group.service';
 import { SourceService } from 'src/source/source.service';
 import { ExtendedSourceDocument } from 'src/source/types/extended-source-document.interface';
 import { UserService } from 'src/user/user.service';
@@ -54,6 +55,7 @@ export class ExerciseSetService {
         @Inject(forwardRef(() => ExerciseService)) private exerciseService: ExerciseService,
         private aiService: AiService,
         private sourceService: SourceService,
+        private exerciseSetGroupService: ExerciseSetGroupService,
         private exerciseSetTypeFactory: ExerciseSetTypeFactory,
         private exerciseSetReadAllFilterCompositeProvider: ExerciseSetReadAllFilterCompositeProvider,
         private userService: UserService
@@ -493,6 +495,10 @@ export class ExerciseSetService {
 
         if (dto.sourceType === ExerciseSetSourceType.SOURCE) {
             await this.sourceService.readById(userId, dto.sourceId!);
+
+            update.sourceId = new mongoose.Types.ObjectId(dto.sourceId!);
+        } else if (dto.sourceType === ExerciseSetSourceType.GROUP) {
+            await this.exerciseSetGroupService.readById(userId, dto.sourceId!);
 
             update.sourceId = new mongoose.Types.ObjectId(dto.sourceId!);
         } else {

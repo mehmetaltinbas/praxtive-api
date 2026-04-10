@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { EventsModule } from 'src/events/events.module';
+import { ExerciseSetGroupModule } from 'src/exercise-set-group/exercise-set-group.module';
 import { AiModule } from './ai/ai.module';
 import { AuthModule } from './auth/auth.module';
 import { BillingModule } from './billing/billing.module';
@@ -33,6 +34,7 @@ import { UserModule } from './user/user.module';
         UserModule,
         AuthModule,
         SourceModule,
+        ExerciseSetGroupModule,
         ExerciseSetModule,
         ExerciseModule,
         AiModule,

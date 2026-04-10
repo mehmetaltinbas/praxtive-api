@@ -9,6 +9,6 @@ export class ChangeSourceDto {
 
     @IsMongoId()
     @IsNotEmpty()
-    @ValidateIf((o: ExerciseSetDocument) => o.sourceType === ExerciseSetSourceType.SOURCE)
+    @ValidateIf((o: ExerciseSetDocument) => o.sourceType === ExerciseSetSourceType.SOURCE || o.sourceType === ExerciseSetSourceType.GROUP)
     readonly sourceId?: string;
 }
