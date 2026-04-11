@@ -11,6 +11,7 @@ import { BillingModule } from './billing/billing.module';
 import { CreditTransactionModule } from './credit-transaction/credit-transaction.module';
 import { DbConnectionModule } from './db/db-connection.module';
 import { DbModelsModule } from './db/db-models.module';
+import { EmailModule } from './email/email.module';
 import { ExerciseSetModule } from './exercise-set/exercise-set.module';
 import { ExerciseModule } from './exercise/exercise.module';
 import { PlanModule } from './plan/plan.module';
@@ -31,6 +32,7 @@ import { UserModule } from './user/user.module';
         ScheduleModule.forRoot(),
         DbConnectionModule,
         DbModelsModule,
+        EmailModule,
         UserModule,
         AuthModule,
         SourceModule,

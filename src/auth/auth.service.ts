@@ -1,29 +1,82 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+    BadRequestException,
+    ConflictException,
+    Inject,
+    Injectable,
+    NotFoundException,
+    UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
-import { SignInDto } from 'src/auth/types/auth-dtos';
-import { SignInResponse } from 'src/auth/types/auth-responses';
+// eslint-disable-next-line no-redeclare
+import crypto from 'crypto';
+import mongoose from 'mongoose';
+import { ResendVerificationDto } from 'src/auth/types/dto/resend-verification.dto';
+import { SignInDto } from 'src/auth/types/dto/sign-in.dto';
+import { SignUpDto } from 'src/auth/types/dto/sign-up.dto';
+import { VerifyEmailDto } from 'src/auth/types/dto/verify-email.dto';
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
+import { SignInResponse } from 'src/auth/types/response/sign-in.response';
+import { EmailService } from 'src/email/email.service';
 import ResponseBase from 'src/shared/types/response-base.interface';
-import { UserService } from 'src/user/user.service';
+import { UserDocument } from 'src/user/types/user-document.interface';
 
 @Injectable()
 export class AuthService {
     constructor(
-        private userService: UserService,
+        @Inject('DB_MODELS') private db: Record<'User', mongoose.Model<UserDocument>>,
         private jwtService: JwtService,
-        private configService: ConfigService
+        private configService: ConfigService,
+        private emailService: EmailService
     ) {}
 
+    async signUp(dto: SignUpDto): Promise<ResponseBase> {
+        const { userName, email, password, ...rest } = dto;
+
+        const userByUserName = await this.db.User.findOne({ userName }).select('passwordHash isEmailVerified email');
+
+        if (userByUserName) {
+            if (!userByUserName.isEmailVerified) {
+                const isMatch = await bcrypt.compare(password, userByUserName.passwordHash);
+
+                if (isMatch) {
+                    console.log('userByUserName: ', userByUserName);
+                    await this.generateAndSendVerificationCode(userByUserName);
+
+                    return { isSuccess: true, message: 'verification email resent' };
+                }
+            }
+
+            throw new ConflictException('Username is already taken');
+        }
+
+        const userByEmail = await this.db.User.findOne({ email }).select('_id');
+
+        if (userByEmail) {
+            throw new ConflictException('Email is already taken');
+        }
+
+        const passwordHash = await bcrypt.hash(password, 10);
+        const user = await this.db.User.create({
+            userName,
+            passwordHash,
+            email,
+            ...rest,
+        });
+
+        console.log('user that just created in signUp: ', user);
+        await this.generateAndSendVerificationCode(user);
+
+        return { isSuccess: true, message: 'user created, verification email sent' };
+    }
+
     async signIn(signInUserDto: SignInDto): Promise<SignInResponse> {
-        let user;
+        const user = await this.db.User.findOne({ userName: signInUserDto.userName }).select(
+            'passwordHash isEmailVerified userName email'
+        );
 
-        try {
-            const readSingleUserResponse = await this.userService.readPasswordHasByUserName(signInUserDto.userName);
-
-            user = readSingleUserResponse.user;
-        } catch {
+        if (!user) {
             throw new UnauthorizedException('invalid userName');
         }
 
@@ -31,6 +84,17 @@ export class AuthService {
 
         if (!isMatch) {
             throw new UnauthorizedException('invalid password');
+        }
+
+        if (!user.isEmailVerified) {
+            await this.generateAndSendVerificationCode(user);
+
+            return {
+                isSuccess: false,
+                message: 'Email not verified. A new verification code has been sent.',
+                isEmailVerificationRequired: true,
+                email: user.email,
+            };
         }
 
         const payload: JwtPayload = {
@@ -44,7 +108,83 @@ export class AuthService {
             message: 'user signed in',
             jwt,
             userId: user._id,
+            isEmailVerificationRequired: false,
         };
+    }
+
+    async verifyEmail(dto: VerifyEmailDto): Promise<ResponseBase> {
+        const user = await this.db.User.findOne({
+            $or: [{ email: dto.email }, { pendingEmail: dto.email }],
+        }).select('isEmailVerified pendingEmail verificationCode verificationCodeExpiresAt');
+
+        if (!user) {
+            throw new NotFoundException('user not found');
+        }
+
+        if (user.verificationCode !== dto.code) {
+            throw new BadRequestException('invalid verification code');
+        }
+
+        if (!user.verificationCodeExpiresAt || user.verificationCodeExpiresAt < new Date()) {
+            throw new BadRequestException('verification code has expired');
+        }
+
+        const isPendingEmailChange = user.pendingEmail === dto.email;
+
+        if (isPendingEmailChange) {
+            await this.db.User.updateOne(
+                { _id: user._id },
+                {
+                    $set: {
+                        email: user.pendingEmail,
+                        pendingEmail: null,
+                        verificationCode: null,
+                        verificationCodeExpiresAt: null,
+                    },
+                }
+            );
+
+            return { isSuccess: true, message: 'email updated' };
+        }
+
+        if (user.isEmailVerified) {
+            throw new BadRequestException('email is already verified');
+        }
+
+        await this.db.User.updateOne(
+            { _id: user._id },
+            {
+                $set: {
+                    isEmailVerified: true,
+                    verificationCode: null,
+                    verificationCodeExpiresAt: null,
+                },
+            }
+        );
+
+        return { isSuccess: true, message: 'email verified' };
+    }
+
+    async resendVerification(dto: ResendVerificationDto): Promise<ResponseBase> {
+        const user = await this.db.User.findOne({
+            $or: [{ email: dto.email }, { pendingEmail: dto.email }],
+        }).select('isEmailVerified email pendingEmail');
+
+        if (!user) {
+            throw new NotFoundException('user not found');
+        }
+
+        const isPendingEmailChange = user.pendingEmail === dto.email;
+
+        if (!isPendingEmailChange && user.isEmailVerified) {
+            throw new BadRequestException('email is already verified');
+        }
+
+        const targetEmail = isPendingEmailChange ? user.pendingEmail! : user.email;
+
+        await this.generateAndSendVerificationCode(user, targetEmail);
+
+        return { isSuccess: true, message: 'verification email resent' };
     }
 
     async authorize(): Promise<ResponseBase> {
@@ -53,5 +193,17 @@ export class AuthService {
 
     signOut(): ResponseBase {
         return { isSuccess: true, message: 'user signed out' };
+    }
+
+    private async generateAndSendVerificationCode(user: UserDocument, targetEmail?: string): Promise<void> {
+        const code = crypto.randomInt(100000, 999999).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+        await this.db.User.updateOne(
+            { _id: user._id },
+            { $set: { verificationCode: code, verificationCodeExpiresAt: expiresAt } }
+        );
+
+        await this.emailService.sendVerificationEmail(targetEmail ?? user.email, code);
     }
 }

@@ -8,6 +8,10 @@ const schema = new mongoose.Schema(
         email: { type: String, unique: true, required: true },
         passwordHash: { type: String, required: true },
         creditBalance: { type: Number, required: true, default: 50 },
+        isEmailVerified: { type: Boolean, required: true, default: false },
+        pendingEmail: { type: String, default: null },
+        verificationCode: { type: String, default: null },
+        verificationCodeExpiresAt: { type: Date, default: null },
     },
     { timestamps: true }
 );
