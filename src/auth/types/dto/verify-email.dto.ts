@@ -1,12 +1,13 @@
-import { IsEmail, IsNotEmpty, IsString, Length } from 'class-validator';
+import { IsEmail, IsInt, IsNotEmpty, Max, Min } from 'class-validator';
 
 export class VerifyEmailDto {
     @IsEmail()
     @IsNotEmpty()
     readonly email!: string;
 
-    @Length(6, 6)
-    @IsString()
+    @Min(100000)
+    @Max(999999)
+    @IsInt()
     @IsNotEmpty()
-    readonly code!: string;
+    readonly code!: number;
 }

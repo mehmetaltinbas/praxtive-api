@@ -10,8 +10,6 @@ export class PublicExerciseController {
     async readAllPublicByExerciseSetId(
         @Param('exerciseSetId') exerciseSetId: string
     ): Promise<ReadMultipleExercisesResponse> {
-        const response = await this.exerciseService.readAllByExerciseSetId(undefined, exerciseSetId);
-
-        return response;
+        return await this.exerciseService.readAllByExerciseSetId(undefined, exerciseSetId);
     }
 }

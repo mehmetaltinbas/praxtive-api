@@ -12,7 +12,9 @@ import bcrypt from 'bcrypt';
 // eslint-disable-next-line no-redeclare
 import crypto from 'crypto';
 import mongoose from 'mongoose';
+import { ForgotPasswordDto } from 'src/auth/types/dto/forgot-password.dto';
 import { ResendVerificationDto } from 'src/auth/types/dto/resend-verification.dto';
+import { ResetPasswordDto } from 'src/auth/types/dto/reset-password.dto';
 import { SignInDto } from 'src/auth/types/dto/sign-in.dto';
 import { SignUpDto } from 'src/auth/types/dto/sign-up.dto';
 import { VerifyEmailDto } from 'src/auth/types/dto/verify-email.dto';
@@ -187,6 +189,53 @@ export class AuthService {
         return { isSuccess: true, message: 'verification email resent' };
     }
 
+    async forgotPassword(dto: ForgotPasswordDto): Promise<ResponseBase> {
+        const user = await this.db.User.findOne({ email: dto.email }).select('_id email');
+
+        if (!user) {
+            throw new NotFoundException('no account exists with that email');
+        }
+
+        await this.generateAndSendPasswordResetCode(user);
+
+        return { isSuccess: true, message: 'password reset code sent' };
+    }
+
+    async resetPassword(dto: ResetPasswordDto): Promise<ResponseBase> {
+        const user = await this.db.User.findOne({ email: dto.email }).select(
+            'verificationCode verificationCodeExpiresAt'
+        );
+
+        if (!user) {
+            throw new NotFoundException('no account exists with that email');
+        }
+
+        if (user.verificationCode !== dto.code) {
+            throw new BadRequestException('invalid code');
+        }
+
+        if (!user.verificationCodeExpiresAt || user.verificationCodeExpiresAt < new Date()) {
+            throw new BadRequestException('code has expired');
+        }
+
+        const passwordHash = await bcrypt.hash(dto.newPassword, 10);
+
+        await this.db.User.updateOne(
+            { _id: user._id },
+            {
+                $set: {
+                    passwordHash,
+                    isEmailVerified: true,
+                    verificationCode: null,
+                    verificationCodeExpiresAt: null,
+                    pendingEmail: null,
+                },
+            }
+        );
+
+        return { isSuccess: true, message: 'password reset successfully' };
+    }
+
     async authorize(): Promise<ResponseBase> {
         return { isSuccess: true, message: 'authorized' };
     }
@@ -196,7 +245,7 @@ export class AuthService {
     }
 
     private async generateAndSendVerificationCode(user: UserDocument, targetEmail?: string): Promise<void> {
-        const code = crypto.randomInt(100000, 999999).toString();
+        const code = crypto.randomInt(100000, 999999);
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
         await this.db.User.updateOne(
@@ -205,5 +254,17 @@ export class AuthService {
         );
 
         await this.emailService.sendVerificationEmail(targetEmail ?? user.email, code);
+    }
+
+    private async generateAndSendPasswordResetCode(user: UserDocument): Promise<void> {
+        const code = crypto.randomInt(100000, 999999);
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+        await this.db.User.updateOne(
+            { _id: user._id },
+            { $set: { verificationCode: code, verificationCodeExpiresAt: expiresAt } }
+        );
+
+        await this.emailService.sendPasswordResetEmail(user.email, code);
     }
 }

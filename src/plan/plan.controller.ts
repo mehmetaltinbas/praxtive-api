@@ -17,9 +17,6 @@ export class PlanController {
 
     @Get('read-by-name/:planName')
     async readByName(@Param('planName') planName: PlanName): Promise<ReadSinglePlanResponse> {
-        console.log(planName);
-        const response = await this.planService.readByName(planName);
-
-        return response;
+        return await this.planService.readByName(planName);
     }
 }

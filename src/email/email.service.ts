@@ -19,13 +19,23 @@ export class EmailService {
         });
     }
 
-    async sendVerificationEmail(to: string, code: string): Promise<void> {
+    async sendVerificationEmail(to: string, code: number): Promise<void> {
         await this.transporter.sendMail({
             from: this.configService.get<string>('SMTP_FROM'),
             to,
             subject: `Your ${APP_NAME} verification code`,
             text: `Your verification code is: ${code}\n\nThis code expires in 10 minutes.`,
             html: `<p>Your verification code is: <strong>${code}</strong></p><p>This code expires in 10 minutes.</p>`,
+        });
+    }
+
+    async sendPasswordResetEmail(to: string, code: number): Promise<void> {
+        await this.transporter.sendMail({
+            from: this.configService.get<string>('SMTP_FROM'),
+            to,
+            subject: `Your ${APP_NAME} password reset code`,
+            text: `Your password reset code is: ${code}\n\nThis code expires in 10 minutes.`,
+            html: `<p>Your password reset code is: <strong>${code}</strong></p><p>This code expires in 10 minutes.</p>`,
         });
     }
 }

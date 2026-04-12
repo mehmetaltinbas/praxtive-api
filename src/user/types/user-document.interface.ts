@@ -8,6 +8,6 @@ export interface UserDocument extends MongooseDocument {
     creditBalance: number;
     isEmailVerified: boolean;
     pendingEmail: string | null;
-    verificationCode: string | null;
+    verificationCode: number | null;
     verificationCodeExpiresAt: Date | null;
 }

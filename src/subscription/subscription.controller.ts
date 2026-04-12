@@ -17,9 +17,7 @@ export class SubscriptionController {
     @Get('test')
     async test(): Promise<any> {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const response = await this.subscriptionService.test();
-
-        return response;
+        return await this.subscriptionService.test();
     }
 
     @Post('upgrade')
@@ -27,9 +25,7 @@ export class SubscriptionController {
         @User() user: JwtPayload,
         @Body() upgradeSubscriptionDto: UpgradeSubscriptionDto
     ): Promise<ResponseBase> {
-        const response = await this.subscriptionService.upgrade(user.sub, upgradeSubscriptionDto);
-
-        return response;
+        return await this.subscriptionService.upgrade(user.sub, upgradeSubscriptionDto);
     }
 
     @Post('check-price-to-pay-on-upgrade')
@@ -37,9 +33,7 @@ export class SubscriptionController {
         @User() user: JwtPayload,
         @Body() upgradeSubscriptionDto: UpgradeSubscriptionDto
     ): Promise<CheckPriceToPayOnUpgradeSubscriptionResponse> {
-        const response = await this.subscriptionService.checkPriceToPayOnUpgrade(user.sub, upgradeSubscriptionDto);
-
-        return response;
+        return await this.subscriptionService.checkPriceToPayOnUpgrade(user.sub, upgradeSubscriptionDto);
     }
 
     @Post('downgrade')
@@ -47,15 +41,11 @@ export class SubscriptionController {
         @User() user: JwtPayload,
         @Body() downgradeSubscriptionDto: DowngradeSubscriptionDto
     ): Promise<ResponseBase> {
-        const response = await this.subscriptionService.downgrade(user.sub, downgradeSubscriptionDto);
-
-        return response;
+        return await this.subscriptionService.downgrade(user.sub, downgradeSubscriptionDto);
     }
 
     @Post('cancel-downgrade')
     async cancelDowngrade(@User() user: JwtPayload): Promise<ResponseBase> {
-        const response = await this.subscriptionService.cancelDowngrade(user.sub);
-
-        return response;
+        return await this.subscriptionService.cancelDowngrade(user.sub);
     }
 }

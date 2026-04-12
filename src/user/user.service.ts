@@ -85,7 +85,7 @@ export class UserService {
                 throw new ConflictException('Email is already taken by another user');
             }
 
-            const code = crypto.randomInt(100000, 999999).toString();
+            const code = crypto.randomInt(100000, 999999);
             const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
             const updateFields: Record<string, any> = {

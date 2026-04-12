@@ -19,53 +19,39 @@ export class UserController {
     @Get('read-by-token')
     @UseGuards(AuthGuard)
     async readByToken(@User() user: JwtPayload): Promise<ReadSingleUserResponse> {
-        const response = await this.userService.readById(user.sub);
-
-        return response;
+        return await this.userService.readById(user.sub);
     }
 
     @Patch('update-by-token')
     @UseGuards(AuthGuard)
     async updateById(@User() user: JwtPayload, @Body() updateUserDto: UpdateUserDto): Promise<UpdateUserResponse> {
-        const response = await this.userService.updateById(user.sub, updateUserDto);
-
-        return response;
+        return await this.userService.updateById(user.sub, updateUserDto);
     }
 
     @Patch('update-password')
     @UseGuards(AuthGuard)
     async updatePassword(@User() user: JwtPayload, @Body() dto: UpdateUserPasswordDto): Promise<ResponseBase> {
-        const response = await this.userService.updatePassword(user.sub, dto);
-
-        return response;
+        return await this.userService.updatePassword(user.sub, dto);
     }
 
     @Delete('delete-by-token')
     @UseGuards(AuthGuard)
     async deleteByToken(@User() user: JwtPayload): Promise<ResponseBase> {
-        const response = await this.userService.deleteById(user.sub);
-
-        return response;
+        return await this.userService.deleteById(user.sub);
     }
 
     @Get('read-by-user-name/:userName')
     async readPublicByUserName(@Param('userName') userName: string): Promise<ReadSinglePublicUserResponse> {
-        const response = await this.userService.readPublicByUserName(userName);
-
-        return response;
+        return await this.userService.readPublicByUserName(userName);
     }
 
     @Get('read-public-by-id/:id')
     async readPublicById(@Param('id') id: string): Promise<ReadSinglePublicUserResponse> {
-        const response = await this.userService.readPublicById(id);
-
-        return response;
+        return await this.userService.readPublicById(id);
     }
 
     @Get('search-by-user-name/:userName')
     async searchByUserName(@Param('userName') userName: string): Promise<SearchPublicUsersResponse> {
-        const response = await this.userService.searchByUserName(userName);
-
-        return response;
+        return await this.userService.searchByUserName(userName);
     }
 }
