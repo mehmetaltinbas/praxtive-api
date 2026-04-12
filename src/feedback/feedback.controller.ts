@@ -14,8 +14,6 @@ export class FeedbackController {
     @UseGuards(AuthGuard)
     @Post('create')
     async create(@User() user: JwtPayload, @Body() dto: CreateFeedbackDto): Promise<ResponseBase> {
-        console.log('does it hit?');
-
         return this.feedbackService.create(user.sub, dto);
     }
 }

@@ -38,7 +38,17 @@ export async function cleanDb(mongoose: Mongoose): Promise<void> {
         throw new Error('Models not initialized');
     }
 
-    await models.User.deleteMany({});
+    await Promise.all([
+        models.User.deleteMany({}),
+        models.Plan.deleteMany({}),
+        models.Subscription.deleteMany({}),
+        models.CreditTransaction.deleteMany({}),
+        models.Source.deleteMany({}),
+        models.ExerciseSetGroup.deleteMany({}),
+        models.ExerciseSet.deleteMany({}),
+        models.Exercise.deleteMany({}),
+        models.Feedback.deleteMany({}),
+    ]);
 
     console.log(`\ndb cleaned\n`);
 }

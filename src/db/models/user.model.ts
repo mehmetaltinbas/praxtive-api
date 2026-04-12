@@ -1,5 +1,10 @@
 import * as mongoose from 'mongoose';
+import { CreditTransactionModel } from 'src/db/models/credit-transaction.model';
+import { ExerciseSetGroupModel } from 'src/db/models/exercise-set-group.model';
+import { ExerciseSetModel } from 'src/db/models/exercise-set.model';
+import { FeedbackModel } from 'src/db/models/feedback.model';
 import { SourceModel } from 'src/db/models/source.model';
+import { SubscriptionModel } from 'src/db/models/subscription.model';
 import { UserDocument } from 'src/user/types/user-document.interface';
 
 const schema = new mongoose.Schema(
@@ -18,13 +23,27 @@ const schema = new mongoose.Schema(
 );
 
 schema.post('findOneAndDelete', async function (document: UserDocument) {
-    if (document) {
-        const associatedSourceDocuments = await SourceModel.find({ userId: document._id });
+    if (!document) return;
 
-        await Promise.all(
-            associatedSourceDocuments.map((sourceDocument) => SourceModel.findByIdAndDelete(sourceDocument._id))
-        );
-    }
+    await Promise.all([
+        SubscriptionModel.deleteMany({ user: document._id }),
+        CreditTransactionModel.deleteMany({ user: document._id }),
+        FeedbackModel.deleteMany({ userId: document._id }),
+    ]);
+
+    const [groups, sources] = await Promise.all([
+        ExerciseSetGroupModel.find({ userId: document._id }),
+        SourceModel.find({ userId: document._id }),
+    ]);
+
+    await Promise.all([
+        ...groups.map((group) => ExerciseSetGroupModel.findByIdAndDelete(group._id)),
+        ...sources.map((source) => SourceModel.findByIdAndDelete(source._id)),
+    ]);
+
+    const orphanExerciseSets = await ExerciseSetModel.find({ userId: document._id });
+
+    await Promise.all(orphanExerciseSets.map((exerciseSet) => ExerciseSetModel.findByIdAndDelete(exerciseSet._id)));
 });
 
 export const UserModel = mongoose.model('User', schema);
