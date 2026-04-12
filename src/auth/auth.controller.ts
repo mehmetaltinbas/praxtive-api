@@ -15,6 +15,7 @@ import { Request as ExpressRequest, Response as ExpressResponse } from 'express'
 import { AuthGuard } from 'src/auth/auth.guard';
 import { AuthService } from 'src/auth/auth.service';
 import { ForgotPasswordDto } from 'src/auth/types/dto/forgot-password.dto';
+import { GoogleSignInDto } from 'src/auth/types/dto/google-sign-in.dto';
 import { ResendVerificationDto } from 'src/auth/types/dto/resend-verification.dto';
 import { ResetPasswordDto } from 'src/auth/types/dto/reset-password.dto';
 import { SignInDto } from 'src/auth/types/dto/sign-in.dto';
@@ -45,6 +46,32 @@ export class AuthController {
 
         const { jwt, userId, ...safeResponse } = response;
 
+        if (jwt) {
+            this.setJwtCookie(res, jwt);
+        }
+
+        return res.json(safeResponse);
+    }
+
+    @Throttle({ default: { limit: 5, ttl: 60000 } })
+    @HttpCode(200)
+    @Post('google-sign-in')
+    async signInWithGoogle(
+        @BodyDecorator() dto: GoogleSignInDto,
+        @Res() res: ExpressResponse
+    ): Promise<ExpressResponse<any, Record<string, any>>> {
+        const response = await this.authService.signInWithGoogle(dto);
+
+        const { jwt, userId, ...safeResponse } = response;
+
+        if (jwt) {
+            this.setJwtCookie(res, jwt);
+        }
+
+        return res.json(safeResponse);
+    }
+
+    private setJwtCookie(res: ExpressResponse, jwt: string): void {
         const jwtCookieName = this.configService.get<string>('JWT_COOKIE_NAME');
 
         if (!jwtCookieName) {
@@ -59,8 +86,6 @@ export class AuthController {
             secure: isProduction,
             sameSite: isProduction ? 'none' : 'lax',
         });
-
-        return res.json(safeResponse);
     }
 
     @Throttle({ default: { limit: 5, ttl: 60000 } })

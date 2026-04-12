@@ -3,6 +3,7 @@ import {
     ConflictException,
     Inject,
     Injectable,
+    InternalServerErrorException,
     NotFoundException,
     UnauthorizedException,
 } from '@nestjs/common';
@@ -11,8 +12,10 @@ import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
 // eslint-disable-next-line no-redeclare
 import crypto from 'crypto';
+import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import mongoose from 'mongoose';
 import { ForgotPasswordDto } from 'src/auth/types/dto/forgot-password.dto';
+import { GoogleSignInDto } from 'src/auth/types/dto/google-sign-in.dto';
 import { ResendVerificationDto } from 'src/auth/types/dto/resend-verification.dto';
 import { ResetPasswordDto } from 'src/auth/types/dto/reset-password.dto';
 import { SignInDto } from 'src/auth/types/dto/sign-in.dto';
@@ -26,12 +29,16 @@ import { UserDocument } from 'src/user/types/user-document.interface';
 
 @Injectable()
 export class AuthService {
+    private readonly googleClient: OAuth2Client;
+
     constructor(
         @Inject('DB_MODELS') private db: Record<'User', mongoose.Model<UserDocument>>,
         private jwtService: JwtService,
         private configService: ConfigService,
         private emailService: EmailService
-    ) {}
+    ) {
+        this.googleClient = new OAuth2Client(this.configService.get<string>('GOOGLE_CLIENT_ID'));
+    }
 
     async signUp(dto: SignUpDto): Promise<ResponseBase> {
         const { userName, email, password, ...rest } = dto;
@@ -39,7 +46,7 @@ export class AuthService {
         const userByUserName = await this.db.User.findOne({ userName }).select('passwordHash isEmailVerified email');
 
         if (userByUserName) {
-            if (!userByUserName.isEmailVerified) {
+            if (!userByUserName.isEmailVerified && userByUserName.passwordHash) {
                 const isMatch = await bcrypt.compare(password, userByUserName.passwordHash);
 
                 if (isMatch) {
@@ -53,10 +60,17 @@ export class AuthService {
             throw new ConflictException('Username is already taken');
         }
 
-        const userByEmail = await this.db.User.findOne({ email }).select('_id');
+        const userByEmail = await this.db.User.findOne({ email }).select('_id isEmailVerified');
 
         if (userByEmail) {
-            throw new ConflictException('Email is already taken');
+            if (userByEmail.isEmailVerified) {
+                throw new ConflictException('Email is already taken');
+            }
+
+            // Unverified squatter — never proved ownership. Evict so this legitimate
+            // signUp can proceed. The post('findOneAndDelete') hook cleans up associated
+            // Source records.
+            await this.db.User.findOneAndDelete({ _id: userByEmail._id });
         }
 
         const passwordHash = await bcrypt.hash(password, 10);
@@ -67,7 +81,6 @@ export class AuthService {
             ...rest,
         });
 
-        console.log('user that just created in signUp: ', user);
         await this.generateAndSendVerificationCode(user);
 
         return { isSuccess: true, message: 'user created, verification email sent' };
@@ -80,6 +93,10 @@ export class AuthService {
 
         if (!user) {
             throw new UnauthorizedException('invalid userName');
+        }
+
+        if (!user.passwordHash) {
+            throw new UnauthorizedException('This account uses Google sign-in');
         }
 
         const isMatch = await bcrypt.compare(signInUserDto.password, user.passwordHash);
@@ -190,15 +207,140 @@ export class AuthService {
     }
 
     async forgotPassword(dto: ForgotPasswordDto): Promise<ResponseBase> {
-        const user = await this.db.User.findOne({ email: dto.email }).select('_id email');
+        const user = await this.db.User.findOne({ email: dto.email }).select('_id email googleId');
 
         if (!user) {
             throw new NotFoundException('no account exists with that email');
         }
 
+        if (user.googleId) {
+            throw new BadRequestException('This account uses Google sign-in');
+        }
+
         await this.generateAndSendPasswordResetCode(user);
 
         return { isSuccess: true, message: 'password reset code sent' };
+    }
+
+    async signInWithGoogle(dto: GoogleSignInDto): Promise<SignInResponse> {
+        const payload = await this.verifyGoogleCredential(dto.credential);
+
+        const email = payload.email!;
+        const googleId = payload.sub;
+        const googleName = payload.name ?? payload.given_name ?? null;
+
+        let user = await this.db.User.findOne({ googleId }).select('_id userName');
+
+        if (!user) {
+            const existingByEmail = await this.db.User.findOne({ email }).select(
+                '_id isEmailVerified passwordHash googleId'
+            );
+
+            if (existingByEmail) {
+                if (!existingByEmail.isEmailVerified) {
+                    await this.db.User.findOneAndDelete({ _id: existingByEmail._id });
+                } else if (existingByEmail.passwordHash) {
+                    throw new ConflictException(
+                        'An account with this email already exists. Sign in with your password.'
+                    );
+                } else {
+                    throw new ConflictException('An account with this email already exists.');
+                }
+            }
+
+            user = await this.createGoogleUser(email, googleId, googleName);
+        }
+
+        const jwtPayload: JwtPayload = {
+            sub: user._id,
+            userName: user.userName,
+        };
+        const jwt = await this.jwtService.signAsync(jwtPayload);
+
+        return {
+            isSuccess: true,
+            message: 'signed in successfully',
+            jwt,
+            userId: user._id,
+            isEmailVerificationRequired: false,
+        };
+    }
+
+    private async verifyGoogleCredential(credential: string): Promise<TokenPayload> {
+        try {
+            const ticket = await this.googleClient.verifyIdToken({
+                idToken: credential,
+                audience: this.configService.get<string>('GOOGLE_CLIENT_ID'),
+            });
+            const payload = ticket.getPayload();
+
+            if (!payload || !payload.email || payload.email_verified !== true) {
+                throw new Error('missing or unverified email');
+            }
+
+            return payload;
+        } catch {
+            throw new UnauthorizedException('invalid google credential');
+        }
+    }
+
+    private async createGoogleUser(
+        email: string,
+        googleId: string,
+        googleName: string | null
+    ): Promise<mongoose.HydratedDocument<UserDocument>> {
+        for (let attempt = 0; attempt < 5; attempt++) {
+            const userName = await this.generateUniqueUserName(email, googleName, attempt > 0);
+
+            try {
+                return await this.db.User.create({
+                    userName,
+                    email,
+                    googleId,
+                    passwordHash: null,
+                    isEmailVerified: true,
+                });
+            } catch (err) {
+                if (this.isUserNameDuplicateKeyError(err)) continue;
+
+                throw err;
+            }
+        }
+
+        throw new InternalServerErrorException('could not allocate unique username');
+    }
+
+    private isUserNameDuplicateKeyError(err: unknown): boolean {
+        if (!(err instanceof mongoose.mongo.MongoServerError)) return false;
+        if (err.code !== 11000) return false;
+
+        const { keyPattern, keyValue } = err;
+
+        return (
+            (typeof keyPattern === 'object' && keyPattern !== null && 'userName' in keyPattern) ||
+            (typeof keyValue === 'object' && keyValue !== null && 'userName' in keyValue)
+        );
+    }
+
+    private async generateUniqueUserName(
+        email: string,
+        googleName: string | null,
+        forceSuffix = false
+    ): Promise<string> {
+        const base =
+            (googleName ?? email.split('@')[0])
+                .toLowerCase()
+                .replace(/[^a-z0-9]/g, '')
+                .slice(0, 20) || 'user';
+
+        for (let attempt = 0; attempt < 5; attempt++) {
+            const candidate = attempt === 0 && !forceSuffix ? base : `${base}${crypto.randomInt(1000, 9999)}`;
+            const exists = await this.db.User.exists({ userName: candidate });
+
+            if (!exists) return candidate;
+        }
+
+        return `${base}${Date.now()}`;
     }
 
     async resetPassword(dto: ResetPasswordDto): Promise<ResponseBase> {

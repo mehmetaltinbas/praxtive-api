@@ -56,7 +56,7 @@ export class UserService {
     ): Promise<UpdateUserResponse> {
         const { userName, email } = dto;
 
-        const currentUser = await this.db.User.findById(id).select('email');
+        const currentUser = await this.db.User.findById(id).select('email googleId');
 
         if (!currentUser) {
             throw new NotFoundException('user not found');
@@ -76,6 +76,10 @@ export class UserService {
         const isEmailChange = email && email !== currentUser.email;
 
         if (isEmailChange) {
+            if (currentUser.googleId) {
+                throw new BadRequestException('Email is managed by your Google account');
+            }
+
             const existingEmailUser = await this.db.User.findOne({
                 email,
                 _id: { $ne: id },
@@ -127,6 +131,10 @@ export class UserService {
 
         if (!user) {
             throw new NotFoundException('User not found');
+        }
+
+        if (!user.passwordHash) {
+            throw new BadRequestException('This account uses Google sign-in');
         }
 
         const isMatch = await bcrypt.compare(dto.oldPassword, user.passwordHash);

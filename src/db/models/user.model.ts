@@ -6,7 +6,8 @@ const schema = new mongoose.Schema(
     {
         userName: { type: String, unique: true, required: true },
         email: { type: String, unique: true, required: true },
-        passwordHash: { type: String, required: true },
+        passwordHash: { type: String, default: null },
+        googleId: { type: String, unique: true, sparse: true, default: null },
         creditBalance: { type: Number, required: true, default: 50 },
         isEmailVerified: { type: Boolean, required: true, default: false },
         pendingEmail: { type: String, default: null },
