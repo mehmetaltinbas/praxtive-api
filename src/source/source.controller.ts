@@ -20,6 +20,7 @@ import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceService } from 'src/source/source.service';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
 import { UpdateSourceDto } from 'src/source/types/dto/update-source.dto';
+import { GetPdfResponse } from 'src/source/types/response/get-pdf.response';
 import { ReadAllSourcesResponse } from 'src/source/types/response/read-all-sources.response';
 import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-source.response';
 
@@ -61,5 +62,11 @@ export class SourceController {
     @Delete('delete-by-id/:id')
     async deleteById(@User() user: JwtPayload, @Param('id') id: string): Promise<ResponseBase> {
         return await this.sourceService.deleteById(user.sub, id);
+    }
+
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
+    @Get('get-pdf/:id')
+    async getPdf(@User() user: JwtPayload, @Param('id') id: string): Promise<GetPdfResponse> {
+        return await this.sourceService.getPdf(user.sub, id);
     }
 }

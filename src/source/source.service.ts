@@ -1,13 +1,19 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose from 'mongoose';
+import PDFDocument from 'pdfkit';
 import ResponseBase from 'src/shared/types/response-base.interface';
-import { CreateSourceResponse } from 'src/source/types/response/create-source.response';
+import { FontSize } from 'src/source/enums/font-size.enum';
 import { SourceTypeFactory } from 'src/source/strategies/type/source-type.factory';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
 import { UpdateSourceDto } from 'src/source/types/dto/update-source.dto';
+import { CreateSourceResponse } from 'src/source/types/response/create-source.response';
+import { GetPdfResponse } from 'src/source/types/response/get-pdf.response';
 import { ReadAllSourcesResponse } from 'src/source/types/response/read-all-sources.response';
 import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-source.response';
 import { SourceDocument } from 'src/source/types/source-document.interface';
+import { InlineNode } from 'src/source/types/source-text-node/inline-node.interface';
+import { SourceTextNode } from 'src/source/types/source-text-node/source-text-node.interface';
+import { Styles } from 'src/source/types/source-text-node/styles.interface';
 
 @Injectable()
 export class SourceService {
@@ -107,5 +113,95 @@ export class SourceService {
         }
 
         return { isSuccess: true, message: 'source deleted' };
+    }
+
+    async getPdf(userId: string, id: string): Promise<GetPdfResponse> {
+        const { source } = await this.readById(userId, id);
+
+        let node: SourceTextNode | null = null;
+        try {
+            node = JSON.parse(source.rawText) as SourceTextNode;
+        } catch {
+            node = null;
+        }
+
+        return new Promise((resolve, reject) => {
+            const document = new PDFDocument({ margins: { top: 36, bottom: 36, left: 72, right: 72 } });
+            const buffers: Buffer[] = [];
+
+            document.on('data', buffers.push.bind(buffers));
+            document.on('error', reject);
+            document.on('end', () => {
+                const finalBuffer = Buffer.concat(buffers);
+
+                resolve({
+                    isSuccess: true,
+                    message: 'PDF generated successfully.',
+                    pdfBase64: finalBuffer.toString('base64'),
+                });
+            });
+
+            document.font('Times-Bold').fontSize(16).text(source.title, { align: 'center' });
+            document.moveDown(1);
+
+            if (node && Array.isArray(node.content)) {
+                node.content.forEach((block) => {
+                    const inlines: InlineNode[] = Array.isArray(block?.content) ? block.content : [];
+
+                    if (inlines.length === 0) {
+                        document.moveDown(0.5);
+                        return;
+                    }
+
+                    inlines.forEach((inline, idx) => {
+                        const { font, fontSize } = this.resolveInlineFont(inline.styles);
+                        const isLast = idx === inlines.length - 1;
+
+                        document
+                            .font(font)
+                            .fontSize(fontSize)
+                            .text(inline.text ?? '', { continued: !isLast });
+                    });
+
+                    document.moveDown(0.5);
+                });
+            } else {
+                document.font('Times-Roman').fontSize(12).text(source.rawText ?? '');
+            }
+
+            document.end();
+        });
+    }
+
+    private resolveInlineFont(styles: Styles | undefined): { font: string; fontSize: number } {
+        const bold = styles?.bold ?? false;
+        const italic = styles?.italic ?? false;
+
+        let font: string;
+        if (bold && italic) {
+            font = 'Times-BoldItalic';
+        } else if (bold) {
+            font = 'Times-Bold';
+        } else if (italic) {
+            font = 'Times-Italic';
+        } else {
+            font = 'Times-Roman';
+        }
+
+        let fontSize: number;
+        switch (styles?.fontSize) {
+            case FontSize.TITLE:
+                fontSize = 18;
+                break;
+            case FontSize.SUB_TITLE:
+                fontSize = 14;
+                break;
+            case FontSize.BODY:
+            default:
+                fontSize = 12;
+                break;
+        }
+
+        return { font, fontSize };
     }
 }
