@@ -2,7 +2,6 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose from 'mongoose';
 import PDFDocument from 'pdfkit';
 import ResponseBase from 'src/shared/types/response-base.interface';
-import { FontSize } from 'src/source/enums/font-size.enum';
 import { SourceTypeFactory } from 'src/source/strategies/type/source-type.factory';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
 import { UpdateSourceDto } from 'src/source/types/dto/update-source.dto';
@@ -11,9 +10,7 @@ import { GetPdfResponse } from 'src/source/types/response/get-pdf.response';
 import { ReadAllSourcesResponse } from 'src/source/types/response/read-all-sources.response';
 import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-source.response';
 import { SourceDocument } from 'src/source/types/source-document.interface';
-import { InlineNode } from 'src/source/types/source-text-node/inline-node.interface';
-import { SourceTextNode } from 'src/source/types/source-text-node/source-text-node.interface';
-import { Styles } from 'src/source/types/source-text-node/styles.interface';
+import { TipTapDoc, TipTapMark, TipTapTextNode } from 'src/source/types/tiptap-doc.interface';
 
 @Injectable()
 export class SourceService {
@@ -118,11 +115,11 @@ export class SourceService {
     async getPdf(userId: string, id: string): Promise<GetPdfResponse> {
         const { source } = await this.readById(userId, id);
 
-        let node: SourceTextNode | null = null;
+        let doc: TipTapDoc | null = null;
         try {
-            node = JSON.parse(source.rawText) as SourceTextNode;
+            doc = JSON.parse(source.rawText) as TipTapDoc;
         } catch {
-            node = null;
+            doc = null;
         }
 
         return new Promise((resolve, reject) => {
@@ -144,23 +141,23 @@ export class SourceService {
             document.font('Times-Bold').fontSize(16).text(source.title, { align: 'center' });
             document.moveDown(1);
 
-            if (node && Array.isArray(node.content)) {
-                node.content.forEach((block) => {
-                    const inlines: InlineNode[] = Array.isArray(block?.content) ? block.content : [];
+            if (doc && doc.type === 'doc' && Array.isArray(doc.content)) {
+                doc.content.forEach((paragraph) => {
+                    const textNodes: TipTapTextNode[] = Array.isArray(paragraph?.content) ? paragraph.content : [];
 
-                    if (inlines.length === 0) {
+                    if (textNodes.length === 0) {
                         document.moveDown(0.5);
                         return;
                     }
 
-                    inlines.forEach((inline, idx) => {
-                        const { font, fontSize } = this.resolveInlineFont(inline.styles);
-                        const isLast = idx === inlines.length - 1;
+                    textNodes.forEach((textNode, idx) => {
+                        const font = this.resolveFont(textNode.marks);
+                        const isLast = idx === textNodes.length - 1;
 
                         document
                             .font(font)
-                            .fontSize(fontSize)
-                            .text(inline.text ?? '', { continued: !isLast });
+                            .fontSize(12)
+                            .text(textNode.text ?? '', { continued: !isLast });
                     });
 
                     document.moveDown(0.5);
@@ -173,35 +170,14 @@ export class SourceService {
         });
     }
 
-    private resolveInlineFont(styles: Styles | undefined): { font: string; fontSize: number } {
-        const bold = styles?.bold ?? false;
-        const italic = styles?.italic ?? false;
+    private resolveFont(marks: TipTapMark[] | undefined): string {
+        const types = new Set((marks ?? []).map((m) => m.type));
+        const bold = types.has('bold');
+        const italic = types.has('italic');
 
-        let font: string;
-        if (bold && italic) {
-            font = 'Times-BoldItalic';
-        } else if (bold) {
-            font = 'Times-Bold';
-        } else if (italic) {
-            font = 'Times-Italic';
-        } else {
-            font = 'Times-Roman';
-        }
-
-        let fontSize: number;
-        switch (styles?.fontSize) {
-            case FontSize.TITLE:
-                fontSize = 18;
-                break;
-            case FontSize.SUB_TITLE:
-                fontSize = 14;
-                break;
-            case FontSize.BODY:
-            default:
-                fontSize = 12;
-                break;
-        }
-
-        return { font, fontSize };
+        if (bold && italic) return 'Times-BoldItalic';
+        if (bold) return 'Times-Bold';
+        if (italic) return 'Times-Italic';
+        return 'Times-Roman';
     }
 }

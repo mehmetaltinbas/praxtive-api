@@ -13,7 +13,6 @@ import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseService } from 'src/exercise/exercise.service';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
 import { ALLOWED_AUDIO_EXTRACTOR_MIMETYPES } from 'src/source/constants/allowed-audio-extractor-mimetypes.constant';
-import { SourceTextNode } from 'src/source/types/source-text-node/source-text-node.interface';
 
 @Injectable()
 export class AiService {
@@ -288,64 +287,6 @@ export class AiService {
         });
 
         return transcription.text;
-    }
-
-    async convertTextIntoSourceTextNode(text: string): Promise<SourceTextNode> {
-        const prompt = `
-            Convert the following plain text into a structured document node in a most meaningful way.
-
-            Rules:
-            - Split the text into block nodes for next lines.
-            - Each block contains inline nodes (words or phrases that share the same style).
-            - Detect formatting intent: headings/titles → fontSize "title"; subtitles → fontSize "subTitle"; body text → fontSize "body".
-            - Default styles: fontSize "body", bold false, italic false.
-
-            Text:
-            """${text}"""
-        `;
-
-        const schema = {
-            type: 'object',
-            properties: {
-                content: {
-                    type: 'array',
-                    items: {
-                        type: 'object',
-                        properties: {
-                            content: {
-                                type: 'array',
-                                items: {
-                                    type: 'object',
-                                    properties: {
-                                        text: { type: 'string' },
-                                        styles: {
-                                            type: 'object',
-                                            properties: {
-                                                fontSize: { type: 'string', enum: ['title', 'subTitle', 'body'] },
-                                                bold: { type: 'boolean' },
-                                                italic: { type: 'boolean' },
-                                            },
-                                            required: ['fontSize', 'bold', 'italic'],
-                                            additionalProperties: false,
-                                        },
-                                    },
-                                    required: ['text', 'styles'],
-                                    additionalProperties: false,
-                                },
-                            },
-                        },
-                        required: ['content'],
-                        additionalProperties: false,
-                    },
-                },
-            },
-            required: ['content'],
-            additionalProperties: false,
-        };
-
-        const response = await this.sendPromptAndParseResponse<SourceTextNode>(prompt, schema);
-
-        return response;
     }
 
     async extractAnswersFromPaperImages(
