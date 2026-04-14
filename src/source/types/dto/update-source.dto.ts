@@ -1,4 +1,5 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { SourceVisibility } from 'src/source/enums/source-visibility.enum';
 
 export class UpdateSourceDto {
     @IsString()
@@ -8,4 +9,8 @@ export class UpdateSourceDto {
     @IsString()
     @IsOptional()
     readonly rawText?: string;
+
+    @IsEnum(SourceVisibility)
+    @IsOptional()
+    readonly visibility?: SourceVisibility;
 }

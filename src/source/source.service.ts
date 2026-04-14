@@ -1,7 +1,8 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import mongoose from 'mongoose';
+import mongoose, { FilterQuery } from 'mongoose';
 import PDFDocument from 'pdfkit';
 import ResponseBase from 'src/shared/types/response-base.interface';
+import { SourceVisibility } from 'src/source/enums/source-visibility.enum';
 import { SourceTypeFactory } from 'src/source/strategies/type/source-type.factory';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
 import { UpdateSourceDto } from 'src/source/types/dto/update-source.dto';
@@ -11,12 +12,14 @@ import { ReadAllSourcesResponse } from 'src/source/types/response/read-all-sourc
 import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-source.response';
 import { SourceDocument } from 'src/source/types/source-document.interface';
 import { TipTapDoc, TipTapMark, TipTapTextNode } from 'src/source/types/tiptap-doc.interface';
+import { UserService } from 'src/user/user.service';
 
 @Injectable()
 export class SourceService {
     constructor(
         @Inject('DB_MODELS') private db: Record<'Source', mongoose.Model<SourceDocument>>,
-        private sourceTypeFactory: SourceTypeFactory
+        private sourceTypeFactory: SourceTypeFactory,
+        private userService: UserService
     ) {}
 
     async create(userId: string, dto: CreateSourceDto, file?: Express.Multer.File): Promise<CreateSourceResponse> {
@@ -37,13 +40,22 @@ export class SourceService {
             type: dto.type,
             title,
             rawText: text,
+            visibility: dto.visibility,
         });
 
         return { isSuccess: true, message: 'source created', sourceId: created._id.toString() };
     }
 
-    async readById(userId: string, id: string): Promise<ReadSingleSourceResponse> {
-        const source = await this.db.Source.findOne({ _id: id, userId });
+    async readById(userId: string | undefined, id: string): Promise<ReadSingleSourceResponse> {
+        const filter: FilterQuery<SourceDocument> = { _id: id };
+
+        if (userId) {
+            filter.userId = userId;
+        } else {
+            filter.visibility = SourceVisibility.PUBLIC;
+        }
+
+        const source = await this.db.Source.findOne(filter);
 
         if (!source) {
             throw new NotFoundException(`source not found by id ${id}`);
@@ -60,6 +72,17 @@ export class SourceService {
             message: `all sources read associated by userId: ${userId}`,
             sources,
         };
+    }
+
+    async readAllPublicByUserName(userName: string): Promise<ReadAllSourcesResponse> {
+        const { user } = await this.userService.readPublicByUserName(userName);
+
+        const sources = await this.db.Source.find({
+            userId: user._id,
+            visibility: SourceVisibility.PUBLIC,
+        });
+
+        return { isSuccess: true, message: 'Public sources read', sources };
     }
 
     async updateById(userId: string, id: string, dto: UpdateSourceDto): Promise<ResponseBase> {
@@ -112,10 +135,11 @@ export class SourceService {
         return { isSuccess: true, message: 'source deleted' };
     }
 
-    async getPdf(userId: string, id: string): Promise<GetPdfResponse> {
+    async getPdf(userId: string | undefined, id: string): Promise<GetPdfResponse> {
         const { source } = await this.readById(userId, id);
 
         let doc: TipTapDoc | null = null;
+
         try {
             doc = JSON.parse(source.rawText) as TipTapDoc;
         } catch {
@@ -147,6 +171,7 @@ export class SourceService {
 
                     if (textNodes.length === 0) {
                         document.moveDown(0.5);
+
                         return;
                     }
 
@@ -163,7 +188,10 @@ export class SourceService {
                     document.moveDown(0.5);
                 });
             } else {
-                document.font('Times-Roman').fontSize(12).text(source.rawText ?? '');
+                document
+                    .font('Times-Roman')
+                    .fontSize(12)
+                    .text(source.rawText ?? '');
             }
 
             document.end();
@@ -178,6 +206,7 @@ export class SourceService {
         if (bold && italic) return 'Times-BoldItalic';
         if (bold) return 'Times-Bold';
         if (italic) return 'Times-Italic';
+
         return 'Times-Roman';
     }
 }

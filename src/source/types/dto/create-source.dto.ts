@@ -1,5 +1,6 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString, IsUrl, ValidateIf } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 import { SourceType } from 'src/source/enums/source-type.enum';
+import { SourceVisibility } from 'src/source/enums/source-visibility.enum';
 
 export class CreateSourceDto {
     @IsEnum(SourceType)
@@ -9,6 +10,10 @@ export class CreateSourceDto {
     @IsString()
     @IsOptional()
     readonly title?: string;
+
+    @IsEnum(SourceVisibility)
+    @IsNotEmpty()
+    readonly visibility!: SourceVisibility;
 
     @IsString()
     @IsNotEmpty()

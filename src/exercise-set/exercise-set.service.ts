@@ -13,10 +13,10 @@ import { AiService } from 'src/ai/ai.service';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
 import { ALLOWED_PAPER_IMAGE_MIMETYPES } from 'src/exercise-set/constants/allowed-paper-image-mimetypes.constant';
 import { ExerciseSetContextType } from 'src/exercise-set/enums/exercise-set-context-type.enum';
-import { ExerciseSetContextTypeFactory } from 'src/exercise-set/strategies/context-type/exercise-set-context-type.factory';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 import { ExerciseSetVisibility } from 'src/exercise-set/enums/exercise-set-visibility.enum';
+import { ExerciseSetContextTypeFactory } from 'src/exercise-set/strategies/context-type/exercise-set-context-type.factory';
 import { ExerciseSetTypeFactory } from 'src/exercise-set/strategies/type/exercise-set-type.factory';
 import { ChangeExerciseSetContextDto } from 'src/exercise-set/types/dto/change-exercise-set-context.dto';
 import { CloneExerciseSetDto } from 'src/exercise-set/types/dto/clone-exercise-set.dto';
@@ -44,6 +44,7 @@ import { ReorderExercisesDto } from 'src/exercise/types/dto/reorder-exercises.dt
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
 import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceType } from 'src/source/enums/source-type.enum';
+import { SourceVisibility } from 'src/source/enums/source-visibility.enum';
 import { SourceService } from 'src/source/source.service';
 import { ExtendedSourceDocument } from 'src/source/types/extended-source-document.interface';
 import { UserService } from 'src/user/user.service';
@@ -241,6 +242,7 @@ export class ExerciseSetService {
             type: SourceType.RAW_TEXT,
             title: dto.title,
             rawText: dto.rawText,
+            visibility: SourceVisibility.PRIVATE,
         });
 
         if (!createResponse.isSuccess) {

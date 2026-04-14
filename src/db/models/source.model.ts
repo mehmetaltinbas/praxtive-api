@@ -1,6 +1,7 @@
 import * as mongoose from 'mongoose';
 import { ExerciseSetModel } from 'src/db/models/exercise-set.model';
 import { SourceType } from 'src/source/enums/source-type.enum';
+import { SourceVisibility } from 'src/source/enums/source-visibility.enum';
 import { SourceDocument } from 'src/source/types/source-document.interface';
 
 const schema = new mongoose.Schema(
@@ -9,6 +10,11 @@ const schema = new mongoose.Schema(
         type: { type: String, enum: Object.values(SourceType), required: true },
         title: { type: String, required: true },
         rawText: String,
+        visibility: {
+            type: String,
+            enum: Object.values(SourceVisibility),
+            default: SourceVisibility.PRIVATE,
+        },
     },
     { timestamps: true }
 );
