@@ -1,1 +1,1 @@
-export const APP_NAME = 'Praxis';
+export const APP_NAME = 'Extralyz';
