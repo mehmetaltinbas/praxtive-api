@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { GenerateAiExerciseSchema } from 'src/ai/types/generate-ai-exercise-schema.interface';
@@ -13,7 +13,6 @@ import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseService } from 'src/exercise/exercise.service';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
 import { ALLOWED_AUDIO_EXTRACTOR_MIMETYPES } from 'src/source/constants/allowed-audio-extractor-mimetypes.constant';
-import { SourceTextNode } from 'src/source/types/source-text-node/source-text-node.interface';
 
 @Injectable()
 export class AiService {
@@ -23,7 +22,7 @@ export class AiService {
 
     constructor(
         private configService: ConfigService,
-        private exerciseService: ExerciseService
+        @Inject(forwardRef(() => ExerciseService)) private exerciseService: ExerciseService
     ) {
         this.openaiApiKey = this.configService.get<string>('OPENAI_API_KEY')!;
         this.openaiClient = new OpenAI({
@@ -109,7 +108,13 @@ export class AiService {
         }
 
         const batchPromises = Array.from(countPerGroup.values()).map((group) =>
-            this.generateExercisesForSingleType(text, group.type, group.difficulty, group.count, existingExercisePrompts)
+            this.generateExercisesForSingleType(
+                text,
+                group.type,
+                group.difficulty,
+                group.count,
+                existingExercisePrompts
+            )
         );
 
         const batches = await Promise.all(batchPromises);
@@ -129,6 +134,7 @@ export class AiService {
 
         if (existingExercisePrompts && existingExercisePrompts.length > 0) {
             const existingList = existingExercisePrompts.map((p, i) => `${i + 1}. ${p}`).join('\n');
+
             prompt += `\n\nThe following questions have already been generated from this document. Generate NEW questions that cover DIFFERENT parts and topics of the text not yet tested by these existing questions:\n\nExisting questions:\n${existingList}`;
         }
 
@@ -177,14 +183,74 @@ export class AiService {
         return exercises;
     }
 
+    async generateSingleExerciseWithContext(
+        context: string,
+        type: ExerciseType,
+        difficulty: ExerciseDifficulty
+    ): Promise<Omit<AiGeneratedExercise, 'order'>> {
+        const prompt = `Here is some context provided by the user: "\n${context}\n"\nGenerate a clear ${type} type, in ${difficulty} difficulty, single relevant question from the provided context to test comprehension.`;
+
+        const schema: GenerateAiExerciseSchema = {
+            type: 'object',
+            properties: {
+                items: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            prompt: { type: 'string' },
+                            type: { type: 'string', enum: [type] },
+                            difficulty: { type: 'string', enum: [difficulty] },
+                        },
+                        required: ['prompt', 'type', 'difficulty'],
+                        additionalProperties: false,
+                    },
+                },
+            },
+            required: ['items'],
+            additionalProperties: false,
+        };
+
+        this.exerciseService.buildRestOfGenerateAiExerciseSchema(schema, type);
+
+        const exercise = (
+            await this.sendPromptAndParseResponse<{ items: AiGeneratedExercise[] }>(
+                prompt,
+                schema as unknown as Record<string, unknown>
+            )
+        ).items[0];
+
+        if (type === ExerciseType.MULTIPLE_CHOICE) {
+            const correctChoiceIndex = exercise.correctChoiceIndex!;
+            const randomIndex = Math.floor(Math.random() * MULTIPLE_CHOICE_CHOICES_COUNT);
+            const temporaryElement = exercise.choices![randomIndex];
+
+            exercise.choices![randomIndex] = exercise.choices![correctChoiceIndex];
+            exercise.choices![correctChoiceIndex] = temporaryElement;
+            exercise.correctChoiceIndex = randomIndex;
+        }
+
+        const { order, ...exerciseWithoutOrder } = exercise;
+
+        return exerciseWithoutOrder;
+    }
+
     async evaluateExerciseAnswer(
         exercise: ExerciseDocument,
         customPrompt: string
     ): Promise<EvaluateExerciseAnswerResponse> {
-        const prompt = `Evaluate user's answer and provide a brief feedback (with simple understandable English) for this ${exercise.type} type exercise. \n
-            Score must be between 0-100. \n
-            Exercise prompt (stem): ${exercise.prompt} \n\n
-            ${customPrompt}`;
+        const prompt = `Evaluate the user's answer and provide brief feedback in simple English for this ${exercise.type} exercise.
+            ### Evaluation Rules:
+            - **Scoring:** Assign a score from 0-100.
+            - **Content over Form:** Score purely on conceptual accuracy. Do NOT penalize for grammar, spelling, or incomplete sentences.
+            - **Meaning Matching:** Award a full score if the core concept matches the correct answer, even if phrased differently.
+            - **Strict Focus:** Evaluate the *intent* and *logic* of the answer, not the writing style.
+            - **Feedback:** Be concise. Specifically highlight what is missing or what was misunderstood.
+
+            ### Context:
+            - **Exercise Stem:** ${exercise.prompt}
+            - ${customPrompt}
+        `;
 
         const schema = {
             type: 'object',
@@ -221,64 +287,6 @@ export class AiService {
         });
 
         return transcription.text;
-    }
-
-    async convertTextIntoSourceTextNode(text: string): Promise<SourceTextNode> {
-        const prompt = `
-            Convert the following plain text into a structured document node in a most meaningful way.
-
-            Rules:
-            - Split the text into block nodes for next lines.
-            - Each block contains inline nodes (words or phrases that share the same style).
-            - Detect formatting intent: headings/titles → fontSize "title"; subtitles → fontSize "subTitle"; body text → fontSize "body".
-            - Default styles: fontSize "body", bold false, italic false.
-
-            Text:
-            """${text}"""
-        `;
-
-        const schema = {
-            type: 'object',
-            properties: {
-                content: {
-                    type: 'array',
-                    items: {
-                        type: 'object',
-                        properties: {
-                            content: {
-                                type: 'array',
-                                items: {
-                                    type: 'object',
-                                    properties: {
-                                        text: { type: 'string' },
-                                        styles: {
-                                            type: 'object',
-                                            properties: {
-                                                fontSize: { type: 'string', enum: ['title', 'subTitle', 'body'] },
-                                                bold: { type: 'boolean' },
-                                                italic: { type: 'boolean' },
-                                            },
-                                            required: ['fontSize', 'bold', 'italic'],
-                                            additionalProperties: false,
-                                        },
-                                    },
-                                    required: ['text', 'styles'],
-                                    additionalProperties: false,
-                                },
-                            },
-                        },
-                        required: ['content'],
-                        additionalProperties: false,
-                    },
-                },
-            },
-            required: ['content'],
-            additionalProperties: false,
-        };
-
-        const response = await this.sendPromptAndParseResponse<SourceTextNode>(prompt, schema);
-
-        return response;
     }
 
     async extractAnswersFromPaperImages(
@@ -338,6 +346,53 @@ export class AiService {
         const result = JSON.parse(response.output_text) as { items: ExtractedPaperAnswer[] };
 
         return result.items;
+    }
+
+    async generateLectureNotes(
+        exerciseData: { prompt: string; answer: string }[]
+    ): Promise<{ title: string; rawText: string }> {
+        const exerciseList = exerciseData.map((e, i) => `${i + 1}. Q: ${e.prompt}\n   A: ${e.answer}`).join('\n');
+
+        const prompt = `You are an expert educator. Based on the following exercise questions and their correct answers, generate lecture notes.
+            Exercises:
+            ${exerciseList}
+
+            Instructions:
+            - Generate a concise, descriptive title for the overall lecture notes based on the whole exercise set.
+            - For EACH exercise, generate a subtitle and its corresponding content that explains the concept being tested.
+            - The content for each exercise should teach the underlying concept and explain why the answer is correct.
+            - Return the notes as an array of sections, one per exercise, each with a subtitle and content.
+        `;
+
+        const schema = {
+            type: 'object',
+            properties: {
+                title: { type: 'string' },
+                sections: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            subtitle: { type: 'string' },
+                            content: { type: 'string' },
+                        },
+                        required: ['subtitle', 'content'],
+                        additionalProperties: false,
+                    },
+                },
+            },
+            required: ['title', 'sections'],
+            additionalProperties: false,
+        };
+
+        const result = await this.sendPromptAndParseResponse<{
+            title: string;
+            sections: { subtitle: string; content: string }[];
+        }>(prompt, schema);
+
+        const rawText = result.sections.map((s) => `${s.subtitle}\n${s.content}`).join('\n\n');
+
+        return { title: result.title, rawText };
     }
 
     private async sendPromptAndParseResponse<T>(prompt: string, schema: { [key: string]: unknown }): Promise<T> {

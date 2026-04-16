@@ -1,4 +1,6 @@
 import * as mongoose from 'mongoose';
+import { PlanDocument } from 'src/billing/types/plan-document.interface';
+import { SubscriptionModel } from 'src/db/models/subscription.model';
 
 const schema = new mongoose.Schema(
     {
@@ -9,5 +11,10 @@ const schema = new mongoose.Schema(
     },
     { timestamps: false }
 );
+
+schema.post('findOneAndDelete', async function (document: PlanDocument) {
+    if (!document) return;
+    await SubscriptionModel.deleteMany({ plan: document._id });
+});
 
 export const PlanModel = mongoose.model('Plan', schema);

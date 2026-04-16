@@ -4,8 +4,10 @@ import { AuthGuard } from 'src/auth/auth.guard';
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import { ExerciseService } from 'src/exercise/exercise.service';
 import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
+import { GenerateExerciseWithContextDto } from 'src/exercise/types/dto/generate-exercise-with-context.dto';
 import { TransferExerciseDto } from 'src/exercise/types/dto/transfer-exercise.dto';
 import { UpdateExerciseDto } from 'src/exercise/types/dto/update-exercise.dto';
+import { GenerateExerciseWithContextResponse } from 'src/exercise/types/response/generate-exercise-with-context.response';
 import { ReadMultipleExercisesResponse } from 'src/exercise/types/response/read-multiple-exercises.response';
 import { ReadSingleExerciseResponse } from 'src/exercise/types/response/read-single-exercise.response';
 import User from 'src/shared/custom-decorators/user.decorator';
@@ -20,18 +22,23 @@ export class ExerciseController {
     async createByExerciseSetId(
         @User() user: JwtPayload,
         @Param('exerciseSetId') exerciseSetId: string,
-        @Body() createExerciseDto: CreateExerciseDto
+        @Body() dto: CreateExerciseDto
     ): Promise<ResponseBase> {
-        const response = await this.exerciseService.create(user.sub, exerciseSetId, createExerciseDto);
+        return await this.exerciseService.create(user.sub, exerciseSetId, dto);
+    }
 
-        return response;
+    @Post('generate-with-context/:exerciseSetId')
+    async generateWithContext(
+        @User() user: JwtPayload,
+        @Param('exerciseSetId') exerciseSetId: string,
+        @Body() dto: GenerateExerciseWithContextDto
+    ): Promise<GenerateExerciseWithContextResponse> {
+        return await this.exerciseService.generateWithContext(user.sub, exerciseSetId, dto);
     }
 
     @Get('read-by-id/:id')
     async readById(@User() user: JwtPayload, @Param('id') id: string): Promise<ReadSingleExerciseResponse> {
-        const response = await this.exerciseService.readById(user.sub, id);
-
-        return response;
+        return await this.exerciseService.readById(user.sub, id);
     }
 
     @Get('read-all-by-exercise-set-id/:exerciseSetId')
@@ -39,9 +46,7 @@ export class ExerciseController {
         @User() user: JwtPayload,
         @Param('exerciseSetId') exerciseSetId: string
     ): Promise<ReadMultipleExercisesResponse> {
-        const response = await this.exerciseService.readAllByExerciseSetId(user.sub, exerciseSetId);
-
-        return response;
+        return await this.exerciseService.readAllByExerciseSetId(user.sub, exerciseSetId);
     }
 
     @Patch('update-by-id/:id')
@@ -50,9 +55,7 @@ export class ExerciseController {
         @Param('id') id: string,
         @Body() dto: UpdateExerciseDto
     ): Promise<ResponseBase> {
-        const response = await this.exerciseService.updateById(user.sub, id, dto);
-
-        return response;
+        return await this.exerciseService.updateById(user.sub, id, dto);
     }
 
     @Post('transfer/:id')
@@ -61,15 +64,11 @@ export class ExerciseController {
         @Param('id') id: string,
         @Body() dto: TransferExerciseDto
     ): Promise<ResponseBase> {
-        const response = await this.exerciseService.transfer(user.sub, id, dto);
-
-        return response;
+        return await this.exerciseService.transfer(user.sub, id, dto);
     }
 
     @Delete('delete-by-id/:id')
     async deleteById(@User() user: JwtPayload, @Param('id') id: string): Promise<ResponseBase> {
-        const response = await this.exerciseService.deleteById(user.sub, id);
-
-        return response;
+        return await this.exerciseService.deleteById(user.sub, id);
     }
 }

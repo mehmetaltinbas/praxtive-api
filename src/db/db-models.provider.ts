@@ -1,5 +1,7 @@
 import { Mongoose } from 'mongoose';
 import { CreditTransactionModel } from 'src/db/models/credit-transaction.model';
+import { ExerciseSetGroupModel } from 'src/db/models/exercise-set-group.model';
+import { FeedbackModel } from 'src/db/models/feedback.model';
 import { PaymentModel } from 'src/db/models/payment.model';
 import { PlanModel } from 'src/db/models/plan.model';
 import { SubscriptionModel } from 'src/db/models/subscription.model';
@@ -22,8 +24,10 @@ export const dbModelsProvider = {
             CreditTransaction: CreditTransactionModel,
             Payment: PaymentModel,
             Source: SourceModel,
+            ExerciseSetGroup: ExerciseSetGroupModel,
             ExerciseSet: ExerciseSetModel,
             Exercise: ExerciseModel,
+            Feedback: FeedbackModel,
         };
 
         return models;
@@ -36,7 +40,17 @@ export async function cleanDb(mongoose: Mongoose): Promise<void> {
         throw new Error('Models not initialized');
     }
 
-    await models.User.deleteMany({});
+    await Promise.all([
+        models.User.deleteMany({}),
+        models.Plan.deleteMany({}),
+        models.Subscription.deleteMany({}),
+        models.CreditTransaction.deleteMany({}),
+        models.Source.deleteMany({}),
+        models.ExerciseSetGroup.deleteMany({}),
+        models.ExerciseSet.deleteMany({}),
+        models.Exercise.deleteMany({}),
+        models.Feedback.deleteMany({}),
+    ]);
 
     console.log(`\ndb cleaned\n`);
 }

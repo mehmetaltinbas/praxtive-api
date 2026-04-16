@@ -1,0 +1,1 @@
+export const MIN_GENERATE_EXERCISES_COUNT = 0;

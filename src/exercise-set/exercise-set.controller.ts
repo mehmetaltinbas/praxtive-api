@@ -14,24 +14,26 @@ import {
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
+import { AuthGuard } from 'src/auth/auth.guard';
+import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import { MAX_PAPER_EVALUATION_UPLOAD_COUNT } from 'src/exercise-set/constants/max-paper-evaluation-upload-count.constant';
+import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
+import { ChangeExerciseSetContextDto } from 'src/exercise-set/types/dto/change-exercise-set-context.dto';
+import { CreateExerciseSetDto } from 'src/exercise-set/types/dto/create-exercise-set.dto';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
+import { GenerateAdditionalExercisesDto } from 'src/exercise-set/types/dto/generate-additional-exercises.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
-import { ChangeSourceDto } from 'src/exercise-set/types/dto/change-source.dto';
+import { SaveGeneratedNotesDto } from 'src/exercise-set/types/dto/save-generated-notes.dto';
 import { UpdateExerciseSetDto } from 'src/exercise-set/types/dto/update-exercise-set.dto';
 import { EvaluateAnswersResponse } from 'src/exercise-set/types/response/evaluate-answers.response';
+import { GenerateNotesResponse } from 'src/exercise-set/types/response/generate-notes.response';
 import { GetPdfResponse } from 'src/exercise-set/types/response/get-pdf.response';
+import { ReadAllExerciseSetsGroupedBySourcesResponse } from 'src/exercise-set/types/response/read-all-exercise-sets-grouped-by-sources.response';
+import { ReadAllExerciseSetsResponse } from 'src/exercise-set/types/response/read-all-exercise-sets.response';
+import { ReadSingleExerciseSetResponse } from 'src/exercise-set/types/response/read-single-exercise-set.response';
 import { ReorderExercisesDto } from 'src/exercise/types/dto/reorder-exercises.dto';
-import { AuthGuard } from '../auth/auth.guard';
-import JwtPayload from '../auth/types/jwt-payload.interface';
-import User from '../shared/custom-decorators/user.decorator';
-import ResponseBase from '../shared/types/response-base.interface';
-import { ExerciseSetService } from './exercise-set.service';
-import { CreateExerciseSetDto } from './types/dto/create-exercise-set.dto';
-import { GenerateAdditionalExercisesDto } from './types/dto/generate-additional-exercises.dto';
-import { ReadAllExerciseSetsGroupedBySourcesResponse } from './types/response/read-all-exercise-sets-grouped-by-sources.response';
-import { ReadAllExerciseSetsResponse } from './types/response/read-all-exercise-sets.response';
-import { ReadSingleExerciseSetResponse } from './types/response/read-single-exercise-set.response';
+import User from 'src/shared/custom-decorators/user.decorator';
+import ResponseBase from 'src/shared/types/response-base.interface';
 
 @Controller('exercise-set')
 @UseGuards(AuthGuard)
@@ -41,21 +43,17 @@ export class ExerciseSetController {
     @Throttle({ default: { limit: 10, ttl: 60000 } })
     @Post('create')
     async createIndependent(@User() user: JwtPayload, @Body() dto: CreateExerciseSetDto): Promise<ResponseBase> {
-        const response = await this.exerciseSetService.create(user.sub, undefined, dto);
-
-        return response;
+        return await this.exerciseSetService.create(user.sub, undefined, dto);
     }
 
     @Throttle({ default: { limit: 10, ttl: 60000 } })
-    @Post('create/:sourceId')
-    async createBySourceId(
+    @Post('create/:contextId')
+    async createByContextId(
         @User() user: JwtPayload,
-        @Param('sourceId') sourceId: string | undefined,
-        @Body() createExerciseSetDto: CreateExerciseSetDto
+        @Param('contextId') contextId: string | undefined,
+        @Body() dto: CreateExerciseSetDto
     ): Promise<ResponseBase> {
-        const response = await this.exerciseSetService.create(user.sub, sourceId, createExerciseSetDto);
-
-        return response;
+        return await this.exerciseSetService.create(user.sub, contextId, dto);
     }
 
     @Throttle({ default: { limit: 10, ttl: 60000 } })
@@ -65,16 +63,31 @@ export class ExerciseSetController {
         @Param('exerciseSetId') exerciseSetId: string,
         @Body() dto: GenerateAdditionalExercisesDto
     ): Promise<ResponseBase> {
-        const response = await this.exerciseSetService.generateAdditionalExercises(user.sub, exerciseSetId, dto);
+        return await this.exerciseSetService.generateAdditionalExercises(user.sub, exerciseSetId, dto);
+    }
 
-        return response;
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
+    @Post('generate-notes/:exerciseSetId')
+    async generateLectureNotes(
+        @User() user: JwtPayload,
+        @Param('exerciseSetId') exerciseSetId: string
+    ): Promise<GenerateNotesResponse> {
+        return this.exerciseSetService.generateLectureNotes(user.sub, exerciseSetId);
+    }
+
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
+    @Post('save-generated-notes/:exerciseSetId')
+    async saveGeneratedNotes(
+        @User() user: JwtPayload,
+        @Param('exerciseSetId') exerciseSetId: string,
+        @Body() dto: SaveGeneratedNotesDto
+    ): Promise<ResponseBase> {
+        return this.exerciseSetService.saveGeneratedNotes(user.sub, exerciseSetId, dto);
     }
 
     @Get('read-by-id/:id')
     async readById(@User() user: JwtPayload, @Param('id') id: string): Promise<ReadSingleExerciseSetResponse> {
-        const response = this.exerciseSetService.readById(user.sub, id);
-
-        return response;
+        return await this.exerciseSetService.readById(user.sub, id);
     }
 
     @Get('read-all-by-user-id')
@@ -82,21 +95,14 @@ export class ExerciseSetController {
         @User() user: JwtPayload,
         @Query() readMultipleExerciseSetsFilterCriteriaDto: ReadMultipleExerciseSetsFilterCriteriaDto
     ): Promise<ReadAllExerciseSetsResponse> {
-        const response = await this.exerciseSetService.readAllByUserId(
-            user.sub,
-            readMultipleExerciseSetsFilterCriteriaDto
-        );
-
-        return response;
+        return await this.exerciseSetService.readAllByUserId(user.sub, readMultipleExerciseSetsFilterCriteriaDto);
     }
 
     @Get('read-all-by-user-id-grouped-by-sources')
     async readAllByUserIdGroupedBySources(
         @User() user: JwtPayload
     ): Promise<ReadAllExerciseSetsGroupedBySourcesResponse> {
-        const response = await this.exerciseSetService.readAllByUserIdGroupedBySources(user.sub);
-
-        return response;
+        return await this.exerciseSetService.readAllByUserIdGroupedBySources(user.sub);
     }
 
     @Patch('update-by-id/:id')
@@ -105,18 +111,16 @@ export class ExerciseSetController {
         @Param('id') id: string,
         @Body() dto: UpdateExerciseSetDto
     ): Promise<ResponseBase> {
-        const response = await this.exerciseSetService.updateById(user.sub, id, dto);
-
-        return response;
+        return await this.exerciseSetService.updateById(user.sub, id, dto);
     }
 
-    @Patch('change-source/:id')
-    async changeSource(
+    @Patch('change-context/:id')
+    async changeContext(
         @User() user: JwtPayload,
         @Param('id') id: string,
-        @Body() dto: ChangeSourceDto
+        @Body() dto: ChangeExerciseSetContextDto
     ): Promise<ResponseBase> {
-        return this.exerciseSetService.changeSource(user.sub, id, dto);
+        return await this.exerciseSetService.changeContext(user.sub, id, dto);
     }
 
     @Post('reorder/:id')
@@ -125,16 +129,12 @@ export class ExerciseSetController {
         @Param('id') id: string,
         @Body() dto: ReorderExercisesDto
     ): Promise<ResponseBase> {
-        const response = await this.exerciseSetService.reorder(user.sub, id, dto);
-
-        return response;
+        return await this.exerciseSetService.reorder(user.sub, id, dto);
     }
 
     @Delete('delete-by-id/:id')
     async deleteById(@User() user: JwtPayload, @Param('id') id: string): Promise<ResponseBase> {
-        const response = await this.exerciseSetService.deleteById(user.sub, id);
-
-        return response;
+        return await this.exerciseSetService.deleteById(user.sub, id);
     }
 
     @Throttle({ default: { limit: 10, ttl: 60000 } })
@@ -143,9 +143,7 @@ export class ExerciseSetController {
         @User() user: JwtPayload,
         @Body() evaluateAnswersDto: EvaluateAnswersDto
     ): Promise<EvaluateAnswersResponse> {
-        const response = this.exerciseSetService.evaluateAnswers(user.sub, evaluateAnswersDto);
-
-        return response;
+        return await this.exerciseSetService.evaluateAnswers(user.sub, evaluateAnswersDto);
     }
 
     @Throttle({ default: { limit: 10, ttl: 60000 } })
@@ -155,9 +153,7 @@ export class ExerciseSetController {
         @Param('id') id: string,
         @Query('withAnswers') withAnswers?: string
     ): Promise<GetPdfResponse> {
-        const response = this.exerciseSetService.getPdf(user.sub, id, withAnswers === 'true');
-
-        return response;
+        return await this.exerciseSetService.getPdf(user.sub, id, withAnswers === 'true');
     }
 
     @Throttle({ default: { limit: 10, ttl: 60000 } })
@@ -168,8 +164,6 @@ export class ExerciseSetController {
         @Param('id') id: string,
         @UploadedFiles() files: Express.Multer.File[]
     ): Promise<EvaluateAnswersResponse> {
-        const response = await this.exerciseSetService.evaluatePaperAnswers(user.sub, id, files);
-
-        return response;
+        return await this.exerciseSetService.evaluatePaperAnswers(user.sub, id, files);
     }
 }

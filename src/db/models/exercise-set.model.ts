@@ -1,16 +1,16 @@
 import * as mongoose from 'mongoose';
 import { ExerciseModel } from 'src/db/models/exercise.model';
+import { ExerciseSetContextType } from 'src/exercise-set/enums/exercise-set-context-type.enum';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
-import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
-import { ExerciseSetDocument } from 'src/exercise-set/types/exercise-set-document.interface';
 import { ExerciseSetVisibility } from 'src/exercise-set/enums/exercise-set-visibility.enum';
+import { ExerciseSetDocument } from 'src/exercise-set/types/exercise-set-document.interface';
 
 const schema = new mongoose.Schema(
     {
         userId: { type: mongoose.Schema.Types.ObjectId },
-        sourceType: { type: String, enum: Object.values(ExerciseSetSourceType), required: true },
-        sourceId: { type: mongoose.Schema.Types.ObjectId },
+        contextType: { type: String, enum: Object.values(ExerciseSetContextType), required: true },
+        contextId: { type: mongoose.Schema.Types.ObjectId },
         title: { type: String, required: true },
         type: {
             type: String,
@@ -23,7 +23,11 @@ const schema = new mongoose.Schema(
             default: 'medium',
         },
         count: { type: Number, required: true },
-        visibility: { type: String, enum: Object.values(ExerciseSetVisibility), default: ExerciseSetVisibility.PRIVATE },
+        visibility: {
+            type: String,
+            enum: Object.values(ExerciseSetVisibility),
+            default: ExerciseSetVisibility.PRIVATE,
+        },
     },
     { timestamps: true }
 );

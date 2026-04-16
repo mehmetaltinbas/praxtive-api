@@ -8,8 +8,8 @@ import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { CloneExerciseSetDto } from 'src/exercise-set/types/dto/clone-exercise-set.dto';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { EvaluateAnswersResponse } from 'src/exercise-set/types/response/evaluate-answers.response';
-import { ReadAllExerciseSetsResponse } from 'src/exercise-set/types/response/read-all-exercise-sets.response';
 import { GetPdfResponse } from 'src/exercise-set/types/response/get-pdf.response';
+import { ReadAllExerciseSetsResponse } from 'src/exercise-set/types/response/read-all-exercise-sets.response';
 import { ReadSingleExerciseSetResponse } from 'src/exercise-set/types/response/read-single-exercise-set.response';
 import User from 'src/shared/custom-decorators/user.decorator';
 import ResponseBase from 'src/shared/types/response-base.interface';
@@ -25,23 +25,17 @@ export class PublicExerciseSetController {
         @Param('exerciseSetId') exerciseSetId: string,
         @Body() dto: CloneExerciseSetDto
     ): Promise<ResponseBase> {
-        const response = await this.exerciseSetService.clone(user.sub, exerciseSetId, dto);
-
-        return response;
+        return await this.exerciseSetService.clone(user.sub, exerciseSetId, dto);
     }
 
     @Get('read-by-id/:exerciseSetId')
     async readPublicById(@Param('exerciseSetId') exerciseSetId: string): Promise<ReadSingleExerciseSetResponse> {
-        const response = await this.exerciseSetService.readById(undefined, exerciseSetId);
-
-        return response;
+        return await this.exerciseSetService.readById(undefined, exerciseSetId);
     }
 
     @Get('read-all-by-user-name/:userName')
     async readAllPublicByUserName(@Param('userName') userName: string): Promise<ReadAllExerciseSetsResponse> {
-        const response = await this.exerciseSetService.readAllPublicByUserName(userName);
-
-        return response;
+        return await this.exerciseSetService.readAllPublicByUserName(userName);
     }
 
     @Post('evaluate-answers')
@@ -50,9 +44,7 @@ export class PublicExerciseSetController {
         @User() user: JwtPayload,
         @Body() dto: EvaluateAnswersDto
     ): Promise<EvaluateAnswersResponse> {
-        const response = await this.exerciseSetService.evaluateAnswers(user.sub, dto, true);
-
-        return response;
+        return await this.exerciseSetService.evaluateAnswers(user.sub, dto, true);
     }
 
     @Get('get-pdf/:exerciseSetId')
@@ -60,9 +52,7 @@ export class PublicExerciseSetController {
         @Param('exerciseSetId') exerciseSetId: string,
         @Query('withAnswers') withAnswers?: string
     ): Promise<GetPdfResponse> {
-        const response = await this.exerciseSetService.getPdf(undefined, exerciseSetId, withAnswers === 'true');
-
-        return response;
+        return await this.exerciseSetService.getPdf(undefined, exerciseSetId, withAnswers === 'true');
     }
 
     @Post('evaluate-paper-answers/:id')
@@ -73,8 +63,6 @@ export class PublicExerciseSetController {
         @Param('id') id: string,
         @UploadedFiles() files: Express.Multer.File[]
     ): Promise<EvaluateAnswersResponse> {
-        const response = await this.exerciseSetService.evaluatePaperAnswers(user.sub, id, files, true);
-
-        return response;
+        return await this.exerciseSetService.evaluatePaperAnswers(user.sub, id, files, true);
     }
 }

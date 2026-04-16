@@ -10,9 +10,11 @@ import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseTypeFactory } from 'src/exercise/strategies/type/exercise-type.factory';
 import { EvaluateAnswerStrategyResponse } from 'src/exercise/strategies/type/types/evaluate-answer-strategy.response';
 import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
+import { GenerateExerciseWithContextDto } from 'src/exercise/types/dto/generate-exercise-with-context.dto';
 import { TransferExerciseDto } from 'src/exercise/types/dto/transfer-exercise.dto';
 import { UpdateExerciseDto } from 'src/exercise/types/dto/update-exercise.dto';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
+import { GenerateExerciseWithContextResponse } from 'src/exercise/types/response/generate-exercise-with-context.response';
 import { ReadMultipleExercisesResponse } from 'src/exercise/types/response/read-multiple-exercises.response';
 import { ReadSingleExerciseResponse } from 'src/exercise/types/response/read-single-exercise.response';
 import ResponseBase from 'src/shared/types/response-base.interface';
@@ -22,7 +24,8 @@ export class ExerciseService {
     constructor(
         @Inject('DB_MODELS') private db: Record<'Exercise', mongoose.Model<ExerciseDocument>>,
         private exerciseTypeFactory: ExerciseTypeFactory,
-        @Inject(forwardRef(() => ExerciseSetService)) private exerciseSetService: ExerciseSetService
+        @Inject(forwardRef(() => ExerciseSetService)) private exerciseSetService: ExerciseSetService,
+        @Inject(forwardRef(() => AiService)) private aiService: AiService
     ) {}
 
     async create(
@@ -81,6 +84,18 @@ export class ExerciseService {
                 await activeSession.endSession();
             }
         }
+    }
+
+    async generateWithContext(
+        userId: string,
+        exerciseSetId: string,
+        dto: GenerateExerciseWithContextDto
+    ): Promise<GenerateExerciseWithContextResponse> {
+        await this.exerciseSetService.readById(userId, exerciseSetId);
+
+        const exercise = await this.aiService.generateSingleExerciseWithContext(dto.context, dto.type, dto.difficulty);
+
+        return { isSuccess: true, message: 'exercise generated with context', exercise };
     }
 
     /**
@@ -327,15 +342,20 @@ export class ExerciseService {
         return strategy.getCorrectAnswerText(exercise);
     }
 
+    getRequiredHeight(exercise: ExerciseDocument, document: typeof PDFDocument, usableWidth: number): number {
+        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
+
+        return strategy.getRequiredHeight(exercise, document, usableWidth);
+    }
+
     drawExerciseToPdf(
         exercise: ExerciseDocument,
         index: number,
         document: typeof PDFDocument,
-        usableWidth: number,
-        availableHeight: number
+        usableWidth: number
     ): void {
         const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
 
-        strategy.drawExerciseToPdf(exercise, index, document, usableWidth, availableHeight);
+        strategy.drawExerciseToPdf(exercise, index, document, usableWidth);
     }
 }

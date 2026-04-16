@@ -1,0 +1,1 @@
+export const MAX_GENERATE_EXERCISES_COUNT = 0;

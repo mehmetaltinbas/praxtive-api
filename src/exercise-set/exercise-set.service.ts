@@ -12,23 +12,26 @@ import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
 import { ALLOWED_PAPER_IMAGE_MIMETYPES } from 'src/exercise-set/constants/allowed-paper-image-mimetypes.constant';
+import { ExerciseSetContextType } from 'src/exercise-set/enums/exercise-set-context-type.enum';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
-import { ExerciseSetSourceType } from 'src/exercise-set/enums/exercise-set-source-type.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 import { ExerciseSetVisibility } from 'src/exercise-set/enums/exercise-set-visibility.enum';
+import { ExerciseSetContextTypeFactory } from 'src/exercise-set/strategies/context-type/exercise-set-context-type.factory';
 import { ExerciseSetTypeFactory } from 'src/exercise-set/strategies/type/exercise-set-type.factory';
-import { ChangeSourceDto } from 'src/exercise-set/types/dto/change-source.dto';
+import { ChangeExerciseSetContextDto } from 'src/exercise-set/types/dto/change-exercise-set-context.dto';
 import { CloneExerciseSetDto } from 'src/exercise-set/types/dto/clone-exercise-set.dto';
 import { CreateExerciseSetDto } from 'src/exercise-set/types/dto/create-exercise-set.dto';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { GenerateAdditionalExercisesDto } from 'src/exercise-set/types/dto/generate-additional-exercises.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
+import { SaveGeneratedNotesDto } from 'src/exercise-set/types/dto/save-generated-notes.dto';
 import { UpdateExerciseSetDto } from 'src/exercise-set/types/dto/update-exercise-set.dto';
 import { ExerciseSetDocument } from 'src/exercise-set/types/exercise-set-document.interface';
 import {
     EvaluateAnswersResponse,
     ExerciseAnswerEvaluationResult,
 } from 'src/exercise-set/types/response/evaluate-answers.response';
+import { GenerateNotesResponse } from 'src/exercise-set/types/response/generate-notes.response';
 import { GetPdfResponse } from 'src/exercise-set/types/response/get-pdf.response';
 import { ReadAllExerciseSetsGroupedBySourcesResponse } from 'src/exercise-set/types/response/read-all-exercise-sets-grouped-by-sources.response';
 import { ReadAllExerciseSetsResponse } from 'src/exercise-set/types/response/read-all-exercise-sets.response';
@@ -40,6 +43,8 @@ import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
 import { ReorderExercisesDto } from 'src/exercise/types/dto/reorder-exercises.dto';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
 import ResponseBase from 'src/shared/types/response-base.interface';
+import { SourceType } from 'src/source/enums/source-type.enum';
+import { SourceVisibility } from 'src/source/enums/source-visibility.enum';
 import { SourceService } from 'src/source/source.service';
 import { ExtendedSourceDocument } from 'src/source/types/extended-source-document.interface';
 import { UserService } from 'src/user/user.service';
@@ -52,106 +57,95 @@ export class ExerciseSetService {
         private aiService: AiService,
         private sourceService: SourceService,
         private exerciseSetTypeFactory: ExerciseSetTypeFactory,
+        private exerciseSetContextTypeFactory: ExerciseSetContextTypeFactory,
         private exerciseSetReadAllFilterCompositeProvider: ExerciseSetReadAllFilterCompositeProvider,
         private userService: UserService
     ) {}
 
-    async create(userId: string, sourceId: string | undefined, dto: CreateExerciseSetDto): Promise<ResponseBase> {
-        let sourceText;
-        let sourceType;
-
+    async create(userId: string, contextId: string | undefined, dto: CreateExerciseSetDto): Promise<ResponseBase> {
         const conflict = await this.db.ExerciseSet.findOne({ userId, title: dto.title });
 
         if (conflict) {
-            throw new ConflictException(`An exercise set with the title "${dto.title}" already exists.`);
+            return {
+                isSuccess: false,
+                message: `An exercise set with the title "${dto.title}" already exists.`,
+            };
         }
 
-        if (sourceId) {
-            const readSingleSourceResponse = await this.sourceService.readById(userId, sourceId);
+        const contextType = contextId ? dto.contextType : ExerciseSetContextType.INDEPENDENT;
+        const strategy = this.exerciseSetContextTypeFactory.resolveStrategy(contextType);
+        const createContext = await strategy.resolveCreateContext(userId, contextId);
 
-            sourceText = readSingleSourceResponse.source.rawText;
-            sourceType = ExerciseSetSourceType.SOURCE;
-        } else {
-            sourceType = ExerciseSetSourceType.INDEPENDENT;
-        }
+        if (createContext.sourceText) {
+            const generateExercisesResponse = await this.aiService.generateExercises(
+                createContext.sourceText,
+                dto.type,
+                dto.difficulty,
+                dto.count
+            );
 
-        let message = '';
+            const session = await mongoose.startSession();
 
-        switch (sourceType) {
-            case ExerciseSetSourceType.SOURCE: {
-                const generateExercisesResponse = await this.aiService.generateExercises(
-                    sourceText as string,
-                    dto.type,
-                    dto.difficulty,
-                    dto.count
+            session.startTransaction();
+
+            try {
+                const [exerciseSet] = await this.db.ExerciseSet.create(
+                    [
+                        {
+                            userId: new mongoose.Types.ObjectId(userId),
+                            contextType: createContext.contextType,
+                            contextId: createContext.contextId,
+                            title: dto.title,
+                            type: dto.type,
+                            difficulty: dto.difficulty,
+                            count: 0,
+                            visibility: dto.visibility,
+                        },
+                    ],
+                    { session }
                 );
 
-                const session = await mongoose.startSession();
+                for (const exercise of generateExercisesResponse.exercises) {
+                    const createExerciseDto: CreateExerciseDto = {
+                        type: exercise.type,
+                        difficulty: exercise.difficulty,
+                        prompt: exercise.prompt,
+                    };
 
-                session.startTransaction();
+                    this.exerciseService.buildCreateExerciseDto(createExerciseDto, exercise);
 
-                try {
-                    const [exerciseSet] = await this.db.ExerciseSet.create(
-                        [
-                            {
-                                userId: new mongoose.Types.ObjectId(userId),
-                                sourceType,
-                                sourceId,
-                                title: dto.title,
-                                type: dto.type,
-                                difficulty: dto.difficulty,
-                                count: 0,
-                                visibility: dto.visibility,
-                            },
-                        ],
-                        { session }
-                    );
-
-                    for (const exercise of generateExercisesResponse.exercises) {
-                        const createExerciseDto: CreateExerciseDto = {
-                            type: exercise.type,
-                            difficulty: exercise.difficulty,
-                            prompt: exercise.prompt,
-                        };
-
-                        this.exerciseService.buildCreateExerciseDto(createExerciseDto, exercise);
-
-                        await this.exerciseService.create(userId, exerciseSet._id, createExerciseDto, session);
-                    }
-
-                    await session.commitTransaction();
-
-                    message = `Exercise set created, type: ${exerciseSet.type}, difficulty: ${exerciseSet.difficulty}, exercise count: ${generateExercisesResponse.exercises.length}.`;
-                } catch (error) {
-                    await session.abortTransaction();
-                    throw error;
-                } finally {
-                    await session.endSession();
+                    await this.exerciseService.create(userId, exerciseSet._id, createExerciseDto, session);
                 }
 
-                break;
-            }
+                await session.commitTransaction();
 
-            case ExerciseSetSourceType.INDEPENDENT: {
-                const exerciseSet = await this.db.ExerciseSet.create({
-                    userId: new mongoose.Types.ObjectId(userId),
-                    sourceType,
-                    title: dto.title,
-                    type: dto.type,
-                    difficulty: dto.difficulty,
-                    count: 0,
-                    visibility: dto.visibility,
-                });
-
-                message = `Exercises et created with type ${exerciseSet.type}`;
-                break;
+                return {
+                    isSuccess: true,
+                    message: `Exercise set created, type: ${exerciseSet.type}, difficulty: ${exerciseSet.difficulty}, exercise count: ${generateExercisesResponse.exercises.length}.`,
+                };
+            } catch (error) {
+                await session.abortTransaction();
+                throw error;
+            } finally {
+                await session.endSession();
             }
+        } else {
+            const exerciseSet = await this.db.ExerciseSet.create({
+                userId: new mongoose.Types.ObjectId(userId),
+                contextType: createContext.contextType,
+                contextId: createContext.contextId,
+                title: dto.title,
+                type: dto.type,
+                difficulty: dto.difficulty,
+                count: 0,
+                visibility: dto.visibility,
+            });
+
+            return {
+                isSuccess: true,
+                message: `Exercise set created with type ${exerciseSet.type}`,
+            };
         }
-
-        return {
-            isSuccess: true,
-            message,
-        };
     }
 
     async generateAdditionalExercises(
@@ -161,12 +155,8 @@ export class ExerciseSetService {
     ): Promise<ResponseBase> {
         const { exerciseSet } = await this.readById(userId, exerciseSetId);
 
-        if (exerciseSet.sourceType !== ExerciseSetSourceType.SOURCE) {
-            throw new BadRequestException('Additional exercises can only be generated for SOURCE type exercise sets.');
-        }
-
-        const { source } = await this.sourceService.readById(userId, exerciseSet.sourceId);
-        const sourceText = source.rawText;
+        const contextStrategy = this.exerciseSetContextTypeFactory.resolveStrategy(exerciseSet.contextType);
+        const { sourceText } = await contextStrategy.resolveAdditionalExercisesContext(userId, exerciseSet.contextId);
 
         const { exercises: existingExercises } = await this.exerciseService.readAllByExerciseSetId(
             userId,
@@ -213,6 +203,60 @@ export class ExerciseSetService {
         };
     }
 
+    async generateLectureNotes(userId: string, exerciseSetId: string): Promise<GenerateNotesResponse> {
+        await this.readById(userId, exerciseSetId);
+
+        const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, exerciseSetId);
+
+        if (exercises.length === 0) {
+            throw new BadRequestException('Cannot generate lecture notes for an exercise set with no exercises.');
+        }
+
+        const exerciseData = exercises.map((exercise) => {
+            let answer: string;
+
+            switch (exercise.type) {
+                case ExerciseType.MULTIPLE_CHOICE:
+                    answer = exercise.choices![exercise.correctChoiceIndex!];
+                    break;
+                case ExerciseType.TRUE_FALSE:
+                    answer = exercise.correctChoiceIndex === 1 ? 'True' : 'False';
+                    break;
+                case ExerciseType.OPEN_ENDED:
+                    answer = exercise.solution ?? '';
+                    break;
+            }
+
+            return { prompt: exercise.prompt, answer };
+        });
+
+        const { title, rawText } = await this.aiService.generateLectureNotes(exerciseData);
+
+        return { isSuccess: true, message: 'Lecture notes generated.', title, rawText };
+    }
+
+    async saveGeneratedNotes(userId: string, exerciseSetId: string, dto: SaveGeneratedNotesDto): Promise<ResponseBase> {
+        await this.readById(userId, exerciseSetId);
+
+        const createResponse = await this.sourceService.create(userId, {
+            type: SourceType.RAW_TEXT,
+            title: dto.title,
+            rawText: dto.rawText,
+            visibility: SourceVisibility.PRIVATE,
+        });
+
+        if (!createResponse.isSuccess) {
+            return createResponse;
+        }
+
+        await this.changeContext(userId, exerciseSetId, {
+            contextType: ExerciseSetContextType.SOURCE,
+            contextId: createResponse.sourceId!,
+        });
+
+        return { isSuccess: true, message: 'Notes saved and linked to exercise set.' };
+    }
+
     /**
      * Clones a public exercise set into the authenticated user's account.
      * The source set is read via public access (visibility: PUBLIC).
@@ -231,7 +275,10 @@ export class ExerciseSetService {
         const conflict = await this.db.ExerciseSet.findOne({ userId, title: dto.title });
 
         if (conflict) {
-            throw new ConflictException(`An exercise set with the title "${dto.title}" already exists.`);
+            return {
+                isSuccess: false,
+                message: `An exercise set with the title "${dto.title}" already exists.`,
+            };
         }
 
         const { exercises } = await this.exerciseService.readAllByExerciseSetId(undefined, exerciseSetId);
@@ -245,7 +292,7 @@ export class ExerciseSetService {
                 [
                     {
                         userId: new mongoose.Types.ObjectId(userId),
-                        sourceType: ExerciseSetSourceType.INDEPENDENT,
+                        contextType: ExerciseSetContextType.INDEPENDENT,
                         title: dto.title,
                         type: sourceExerciseSet.type,
                         difficulty: sourceExerciseSet.difficulty,
@@ -300,13 +347,13 @@ export class ExerciseSetService {
         const response = await this.sourceService.readAllByUserId(userId);
 
         if (
-            readMultipleExerciseSetsFilterCriteriaDto.sourceType === ExerciseSetSourceType.SOURCE &&
+            readMultipleExerciseSetsFilterCriteriaDto.contextType === ExerciseSetContextType.SOURCE &&
             response.sources &&
             response.sources.length !== 0
         ) {
             const sourceIds = response.sources.map((s) => s._id);
 
-            filter.sourceId = { $in: sourceIds };
+            filter.contextId = { $in: sourceIds };
         }
 
         const refinedFilter = this.exerciseSetReadAllFilterCompositeProvider.filter(
@@ -325,7 +372,7 @@ export class ExerciseSetService {
 
         for (const source of sourcesResponse.sources) {
             const exerciseSetsOfSource = await this.db.ExerciseSet.find({
-                sourceId: source._id,
+                contextId: source._id,
             });
             const extendedSource: ExtendedSourceDocument = {
                 ...(source.toObject() as Omit<ExtendedSourceDocument, 'exerciseSets'>),
@@ -422,22 +469,21 @@ export class ExerciseSetService {
         return { isSuccess: true, message: 'exercise set updated' };
     }
 
-    async changeSource(userId: string, exerciseSetId: string, dto: ChangeSourceDto): Promise<ResponseBase> {
+    async changeContext(
+        userId: string,
+        exerciseSetId: string,
+        dto: ChangeExerciseSetContextDto
+    ): Promise<ResponseBase> {
         await this.readById(userId, exerciseSetId);
 
-        const update: Record<string, unknown> = {
-            sourceType: dto.sourceType,
-        };
+        const strategy = this.exerciseSetContextTypeFactory.resolveStrategy(dto.contextType);
+        const { contextId } = await strategy.resolveChangeContext(userId, dto.contextId);
 
-        if (dto.sourceType === ExerciseSetSourceType.SOURCE) {
-            await this.sourceService.readById(userId, dto.sourceId!);
-
-            update.sourceId = new mongoose.Types.ObjectId(dto.sourceId!);
-        } else {
-            update.sourceId = null;
-        }
-
-        const updated = await this.db.ExerciseSet.findByIdAndUpdate(exerciseSetId, { $set: update }, { new: true });
+        const updated = await this.db.ExerciseSet.findByIdAndUpdate(
+            exerciseSetId,
+            { $set: { contextType: dto.contextType, contextId } },
+            { new: true }
+        );
 
         if (!updated) {
             throw new NotFoundException('Exercise set not found.');
@@ -586,18 +632,16 @@ export class ExerciseSetService {
         dto: EvaluateAnswersDto,
         isPublicAccess = false
     ): Promise<EvaluateAnswersResponse> {
-        const exerciseAnswerEvaluationResults: ExerciseAnswerEvaluationResult[] = [];
-
-        for (const { id, answer } of dto.exercises) {
-            try {
+        const results = await Promise.allSettled(
+            dto.exercises.map(async ({ id, answer }) => {
                 const { exercise } = await this.exerciseService.readById(isPublicAccess ? undefined : userId, id);
 
                 const evaluatedAnswer = await this.exerciseService.evaluateAnswer(exercise, answer);
 
                 if (!evaluatedAnswer.isSuccess || evaluatedAnswer.score === undefined || !evaluatedAnswer.feedback)
-                    continue;
+                    return null;
 
-                exerciseAnswerEvaluationResults.push({
+                return {
                     exerciseId: id,
                     exerciseType: exercise.type,
                     solution: exercise.solution,
@@ -605,11 +649,16 @@ export class ExerciseSetService {
                     score: evaluatedAnswer.score,
                     feedback: evaluatedAnswer.feedback,
                     userAnswer: answer,
-                });
-            } catch {
-                continue;
-            }
-        }
+                } as ExerciseAnswerEvaluationResult;
+            })
+        );
+
+        const exerciseAnswerEvaluationResults = results
+            .filter(
+                (r): r is PromiseFulfilledResult<ExerciseAnswerEvaluationResult> =>
+                    r.status === 'fulfilled' && r.value !== null
+            )
+            .map((r) => r.value);
 
         let totalOfAllScores = 0;
 
@@ -628,16 +677,8 @@ export class ExerciseSetService {
         const { exerciseSet } = await this.readById(userId, id);
         const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, id);
 
-        let sourceTypeTitle: string =
-            exerciseSet.sourceType === ExerciseSetSourceType.INDEPENDENT
-                ? ExerciseSetSourceType.INDEPENDENT
-                : ExerciseSetSourceType.SOURCE;
-
-        if (userId && exerciseSet.sourceType === ExerciseSetSourceType.SOURCE) {
-            const { source } = await this.sourceService.readById(userId, exerciseSet.sourceId);
-
-            sourceTypeTitle = source.title;
-        }
+        const contextStrategy = this.exerciseSetContextTypeFactory.resolveStrategy(exerciseSet.contextType);
+        const sourceTypeTitle = await contextStrategy.resolvePdfContextTitle(userId, exerciseSet.contextId);
 
         return new Promise((resolve, reject) => {
             const document = new PDFDocument({ margins: { top: 36, bottom: 36, left: 72, right: 72 } });
@@ -698,13 +739,42 @@ export class ExerciseSetService {
             const usableWidth = document.page.width - document.page.margins.left - document.page.margins.right;
 
             exercises.forEach((exercise, index) => {
-                document.font('Times-Roman').fontSize(12);
+                if (index > 0) {
+                    document.moveDown(1.5);
+                }
 
+                // Calculate header height (number text line + moveDown(0.5) space)
+                document.font('Times-Bold').fontSize(12);
+                const headerHeight = document.currentLineHeight() + document.currentLineHeight() * 0.5;
+
+                // Calculate exercise content height
+                document.font('Times-Roman').fontSize(12);
+                const contentHeight = this.exerciseService.getRequiredHeight(exercise, document, usableWidth);
+
+                // Check if total fits BEFORE drawing anything
                 const availableHeight = document.page.height - document.page.margins.bottom - document.y;
 
-                this.exerciseService.drawExerciseToPdf(exercise, index, document, usableWidth, availableHeight);
+                if (headerHeight + contentHeight > availableHeight) {
+                    document.addPage();
+                }
 
-                document.moveDown(3);
+                // Draw "N ————————————————"
+                const numberText = `${index + 1} `;
+
+                document.font('Times-Bold').fontSize(12).text(numberText);
+                const numberWidth = document.widthOfString(numberText);
+                const lineY = document.y - document.currentLineHeight() / 2;
+
+                document
+                    .moveTo(document.page.margins.left + numberWidth, lineY)
+                    .lineTo(document.page.width - document.page.margins.right, lineY)
+                    .strokeColor('#333333')
+                    .lineWidth(1)
+                    .stroke();
+                document.moveDown(0.5);
+
+                document.font('Times-Roman').fontSize(12);
+                this.exerciseService.drawExerciseToPdf(exercise, index, document, usableWidth);
             });
 
             if (withAnswers) {
@@ -713,23 +783,43 @@ export class ExerciseSetService {
                 document.moveDown(1);
 
                 exercises.forEach((exercise, index) => {
-                    const lineHeight = 14 + 21; // approximate line + moveDown(1.5)
-                    const availableHeight = document.page.height - document.page.margins.bottom - document.y;
-
-                    if (availableHeight < lineHeight) {
-                        document.addPage();
+                    if (index > 0) {
+                        document.moveDown(1.5);
                     }
 
                     const answer = this.exerciseService.getCorrectAnswerText(exercise);
 
-                    document
-                        .font('Times-Bold')
-                        .fontSize(12)
-                        .text(`${index + 1} - `, { continued: true })
-                        .font('Times-Roman')
-                        .text(answer);
+                    // Calculate header height (number text line + moveDown(0.5) space)
+                    document.font('Times-Bold').fontSize(12);
+                    const headerHeight = document.currentLineHeight() + document.currentLineHeight() * 0.5;
 
-                    document.moveDown(1.5);
+                    // Calculate answer text height
+                    document.font('Times-Roman').fontSize(12);
+                    const answerHeight = document.heightOfString(answer, { width: usableWidth });
+
+                    // Check if total fits BEFORE drawing anything
+                    const availableHeight = document.page.height - document.page.margins.bottom - document.y;
+
+                    if (headerHeight + answerHeight > availableHeight) {
+                        document.addPage();
+                    }
+
+                    // Draw "N ————————————————"
+                    const numberText = `${index + 1} `;
+
+                    document.font('Times-Bold').fontSize(12).text(numberText);
+                    const numberWidth = document.widthOfString(numberText);
+                    const lineY = document.y - document.currentLineHeight() / 2;
+
+                    document
+                        .moveTo(document.page.margins.left + numberWidth, lineY)
+                        .lineTo(document.page.width - document.page.margins.right, lineY)
+                        .strokeColor('#333333')
+                        .lineWidth(1)
+                        .stroke();
+                    document.moveDown(0.5);
+
+                    document.font('Times-Roman').fontSize(12).text(answer);
                 });
             }
 

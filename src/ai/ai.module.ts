@@ -1,7 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { ExerciseModule } from 'src/exercise/exercise.module';
-import { AiController } from './ai.controller';
-import { AiService } from './ai.service';
+import { AiController } from 'src/ai/ai.controller';
+import { AiService } from 'src/ai/ai.service';
 
 @Module({
     imports: [forwardRef(() => ExerciseModule)],

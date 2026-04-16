@@ -1,13 +1,12 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { SignInResponse } from '../src/auth/types/auth-responses';
+import { SignInResponse } from '../src/auth/types/response/sign-in.response';
 import { createTheApp } from './app-setup';
+import { TestDataKeys } from './data/test-data-keys.enum';
+import testData from './data/test-data.util';
 import { userCredentials } from './mocks/shared.mock';
 import { waitForSignUp } from './utilities/user.utility';
-import { TestDataKeys } from './data/test-data-keys.enum';
-import { TestData } from './data/test-data.interface';
-import testData from './data/test-data.util';
 
 describe('Auth', () => {
     let app: INestApplication<App>;

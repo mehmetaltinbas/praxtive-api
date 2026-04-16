@@ -96,14 +96,8 @@ export class MultipleChoiceExerciseTypeStrategy implements ExerciseTypeStrategy 
         return getAlphabetLetter(exercise.correctChoiceIndex!);
     }
 
-    drawExerciseToPdf(
-        exercise: ExerciseDocument,
-        index: number,
-        document: typeof PDFDocument,
-        usableWidth: number,
-        availableHeight: number
-    ): void {
-        let requiredHeight = document.heightOfString(`${index + 1} - ${exercise.prompt}`, { width: usableWidth });
+    getRequiredHeight(exercise: ExerciseDocument, document: typeof PDFDocument, usableWidth: number): number {
+        let requiredHeight = document.heightOfString(exercise.prompt, { width: usableWidth });
 
         // Add space for the 1 line break
         requiredHeight += document.currentLineHeight();
@@ -116,15 +110,18 @@ export class MultipleChoiceExerciseTypeStrategy implements ExerciseTypeStrategy 
 
         requiredHeight += document.currentLineHeight();
 
-        if (requiredHeight > availableHeight) {
-            document.addPage();
-        }
+        return requiredHeight;
+    }
 
+    drawExerciseToPdf(
+        exercise: ExerciseDocument,
+        index: number,
+        document: typeof PDFDocument,
+        usableWidth: number
+    ): void {
         document
-            .font('Times-Bold')
-            .fontSize(12)
-            .text(`${index + 1} - `, { continued: true })
             .font('Times-Roman')
+            .fontSize(12)
             .text(exercise.prompt);
 
         // Draw the 1 line break

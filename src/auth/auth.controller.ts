@@ -14,7 +14,13 @@ import { Throttle } from '@nestjs/throttler';
 import { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { AuthService } from 'src/auth/auth.service';
-import { SignInDto } from 'src/auth/types/auth-dtos';
+import { ForgotPasswordDto } from 'src/auth/types/dto/forgot-password.dto';
+import { GoogleSignInDto } from 'src/auth/types/dto/google-sign-in.dto';
+import { ResendVerificationDto } from 'src/auth/types/dto/resend-verification.dto';
+import { ResetPasswordDto } from 'src/auth/types/dto/reset-password.dto';
+import { SignInDto } from 'src/auth/types/dto/sign-in.dto';
+import { SignUpDto } from 'src/auth/types/dto/sign-up.dto';
+import { VerifyEmailDto } from 'src/auth/types/dto/verify-email.dto';
 import ResponseBase from 'src/shared/types/response-base.interface';
 
 @Controller('auth')
@@ -23,6 +29,11 @@ export class AuthController {
         private authService: AuthService,
         private configService: ConfigService
     ) {}
+
+    @Post('sign-up')
+    async signUp(@BodyDecorator() dto: SignUpDto): Promise<ResponseBase> {
+        return await this.authService.signUp(dto);
+    }
 
     @Throttle({ default: { limit: 5, ttl: 60000 } })
     @HttpCode(200)
@@ -33,6 +44,34 @@ export class AuthController {
     ): Promise<ExpressResponse<any, Record<string, any>>> {
         const response = await this.authService.signIn(signInDto);
 
+        const { jwt, userId, ...safeResponse } = response;
+
+        if (jwt) {
+            this.setJwtCookie(res, jwt);
+        }
+
+        return res.json(safeResponse);
+    }
+
+    @Throttle({ default: { limit: 5, ttl: 60000 } })
+    @HttpCode(200)
+    @Post('google-sign-in')
+    async signInWithGoogle(
+        @BodyDecorator() dto: GoogleSignInDto,
+        @Res() res: ExpressResponse
+    ): Promise<ExpressResponse<any, Record<string, any>>> {
+        const response = await this.authService.signInWithGoogle(dto);
+
+        const { jwt, userId, ...safeResponse } = response;
+
+        if (jwt) {
+            this.setJwtCookie(res, jwt);
+        }
+
+        return res.json(safeResponse);
+    }
+
+    private setJwtCookie(res: ExpressResponse, jwt: string): void {
         const jwtCookieName = this.configService.get<string>('JWT_COOKIE_NAME');
 
         if (!jwtCookieName) {
@@ -41,14 +80,42 @@ export class AuthController {
 
         const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
 
-        res.cookie(jwtCookieName, response.jwt, {
+        res.cookie(jwtCookieName, jwt, {
             httpOnly: true,
             maxAge: 24 * 60 * 60 * 1000,
             secure: isProduction,
             sameSite: isProduction ? 'none' : 'lax',
         });
+    }
 
-        return res.json({ isSuccess: response.isSuccess, message: response.message });
+    @Throttle({ default: { limit: 5, ttl: 60000 } })
+    @Post('verify-email')
+    async verifyEmail(@BodyDecorator() dto: VerifyEmailDto): Promise<ResponseBase> {
+        return await this.authService.verifyEmail(dto);
+    }
+
+    @Throttle({ default: { limit: 3, ttl: 120000 } })
+    @Post('resend-verification')
+    async resendVerification(@BodyDecorator() dto: ResendVerificationDto): Promise<ResponseBase> {
+        return await this.authService.resendVerification(dto);
+    }
+
+    @Throttle({ default: { limit: 3, ttl: 120000 } })
+    @Post('forgot-password')
+    async forgotPassword(@BodyDecorator() dto: ForgotPasswordDto): Promise<ResponseBase> {
+        return await this.authService.forgotPassword(dto);
+    }
+
+    @Throttle({ default: { limit: 3, ttl: 120000 } })
+    @Post('reset-password')
+    async resetPassword(@BodyDecorator() dto: ResetPasswordDto): Promise<ResponseBase> {
+        return await this.authService.resetPassword(dto);
+    }
+
+    @UseGuards(AuthGuard)
+    @Get('authorize')
+    async authorize(@Req() req: ExpressRequest): Promise<ResponseBase> {
+        return await this.authService.authorize();
     }
 
     @UseGuards(AuthGuard)
@@ -72,13 +139,5 @@ export class AuthController {
         const response = this.authService.signOut();
 
         return res.json(response);
-    }
-
-    @UseGuards(AuthGuard)
-    @Get('authorize')
-    async authorize(@Req() req: ExpressRequest): Promise<ResponseBase> {
-        const response = await this.authService.authorize();
-
-        return response;
     }
 }

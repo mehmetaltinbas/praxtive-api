@@ -4,19 +4,22 @@ import { APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { AiModule } from 'src/ai/ai.module';
+import { AuthModule } from 'src/auth/auth.module';
+import { BillingModule } from 'src/billing/billing.module';
+import { CreditTransactionModule } from 'src/credit-transaction/credit-transaction.module';
+import { DbConnectionModule } from 'src/db/db-connection.module';
+import { DbModelsModule } from 'src/db/db-models.module';
+import { EmailModule } from 'src/email/email.module';
 import { EventsModule } from 'src/events/events.module';
-import { AiModule } from './ai/ai.module';
-import { AuthModule } from './auth/auth.module';
-import { BillingModule } from './billing/billing.module';
-import { CreditTransactionModule } from './credit-transaction/credit-transaction.module';
-import { DbConnectionModule } from './db/db-connection.module';
-import { DbModelsModule } from './db/db-models.module';
-import { ExerciseSetModule } from './exercise-set/exercise-set.module';
-import { ExerciseModule } from './exercise/exercise.module';
+import { ExerciseSetGroupModule } from 'src/exercise-set-group/exercise-set-group.module';
+import { ExerciseSetModule } from 'src/exercise-set/exercise-set.module';
+import { ExerciseModule } from 'src/exercise/exercise.module';
+import { FeedbackModule } from 'src/feedback/feedback.module';
 import { PaymentModule } from './payment/payment.module';
-import { PlanModule } from './plan/plan.module';
-import { SourceModule } from './source/source.module';
-import { UserModule } from './user/user.module';
+import { PlanModule } from 'src/plan/plan.module';
+import { SourceModule } from 'src/source/source.module';
+import { UserModule } from 'src/user/user.module';
 
 @Module({
     imports: [
@@ -33,9 +36,11 @@ import { UserModule } from './user/user.module';
         ScheduleModule.forRoot(),
         DbConnectionModule,
         DbModelsModule,
+        EmailModule,
         UserModule,
         AuthModule,
         SourceModule,
+        ExerciseSetGroupModule,
         ExerciseSetModule,
         ExerciseModule,
         AiModule,
@@ -44,6 +49,7 @@ import { UserModule } from './user/user.module';
         PaymentModule,
         PlanModule,
         CreditTransactionModule,
+        FeedbackModule,
     ],
     controllers: [],
     providers: [

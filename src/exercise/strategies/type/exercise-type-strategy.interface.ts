@@ -14,12 +14,12 @@ export interface ExerciseTypeStrategy {
     validateFields(fields: { choices?: string[]; correctChoiceIndex?: number; solution?: string }): void;
     getCreateExerciseData(dto: CreateExerciseDto): Record<string, unknown>;
     evaluateAnswer(exercise: ExerciseDocument, answer: string): Promise<EvaluateAnswerStrategyResponse>;
+    getRequiredHeight(exercise: ExerciseDocument, document: typeof PDFDocument, usableWidth: number): number;
     drawExerciseToPdf(
         exercise: ExerciseDocument,
         index: number,
         document: typeof PDFDocument,
-        usableWidth: number,
-        availableHeight: number
+        usableWidth: number
     ): void;
     buildPaperExtractionPrompt(exerciseNumber: number, exercise: ExerciseDocument): string;
     normalizePaperAnswer(rawAnswer: string): string;

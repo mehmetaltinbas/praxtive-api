@@ -20,6 +20,7 @@ import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceService } from 'src/source/source.service';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
 import { UpdateSourceDto } from 'src/source/types/dto/update-source.dto';
+import { GetPdfResponse } from 'src/source/types/response/get-pdf.response';
 import { ReadAllSourcesResponse } from 'src/source/types/response/read-all-sources.response';
 import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-source.response';
 
@@ -36,23 +37,17 @@ export class SourceController {
         @Body() createSourceDto: CreateSourceDto,
         @UploadedFile() file?: Express.Multer.File
     ): Promise<ResponseBase> {
-        const response = await this.sourceService.create(user.sub, createSourceDto, file);
-
-        return response;
+        return await this.sourceService.create(user.sub, createSourceDto, file);
     }
 
     @Get('read-by-id/:id')
     async readById(@User() user: JwtPayload, @Param('id') id: string): Promise<ReadSingleSourceResponse> {
-        const response = await this.sourceService.readById(user.sub, id);
-
-        return response;
+        return await this.sourceService.readById(user.sub, id);
     }
 
     @Get('read-all-by-user-id')
     async readAllByUserId(@User() user: JwtPayload): Promise<ReadAllSourcesResponse> {
-        const response = await this.sourceService.readAllByUserId(user.sub);
-
-        return response;
+        return await this.sourceService.readAllByUserId(user.sub);
     }
 
     @Patch('update-by-id/:id')
@@ -61,15 +56,17 @@ export class SourceController {
         @Param('id') id: string,
         @Body() updateSourceDto: UpdateSourceDto
     ): Promise<ResponseBase> {
-        const response = await this.sourceService.updateById(user.sub, id, updateSourceDto);
-
-        return response;
+        return await this.sourceService.updateById(user.sub, id, updateSourceDto);
     }
 
     @Delete('delete-by-id/:id')
     async deleteById(@User() user: JwtPayload, @Param('id') id: string): Promise<ResponseBase> {
-        const response = await this.sourceService.deleteById(user.sub, id);
+        return await this.sourceService.deleteById(user.sub, id);
+    }
 
-        return response;
+    @Throttle({ default: { limit: 10, ttl: 60000 } })
+    @Get('get-pdf/:id')
+    async getPdf(@User() user: JwtPayload, @Param('id') id: string): Promise<GetPdfResponse> {
+        return await this.sourceService.getPdf(user.sub, id);
     }
 }
