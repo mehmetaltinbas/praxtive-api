@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import mongoose from 'mongoose';
 import { EmailService } from 'src/email/email.service';
@@ -8,6 +8,8 @@ import ResponseBase from 'src/shared/types/response-base.interface';
 
 @Injectable()
 export class FeedbackService {
+    private readonly logger = new Logger(FeedbackService.name);
+
     constructor(
         @Inject('DB_MODELS') private db: Record<'Feedback', mongoose.Model<FeedbackDocument>>,
         private configService: ConfigService,
@@ -20,7 +22,13 @@ export class FeedbackService {
             content: dto.content,
         });
 
-        await this.emailService.notifyNewFeedback(userId, dto.content);
+        try {
+            await this.emailService.notifyNewFeedback(userId, dto.content);
+        } catch (err) {
+            this.logger.error(
+                `Feedback ${feedback._id} saved but email notification failed: ${(err as Error).message}`
+            );
+        }
 
         return {
             isSuccess: true,
