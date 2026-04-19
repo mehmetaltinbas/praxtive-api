@@ -7,10 +7,15 @@ import ResponseBase from 'src/shared/types/response-base.interface';
 @Injectable()
 export class EmailService {
     private transporter: nodemailer.Transporter;
-    private organizationReceiverEmail: string;
+    private organizationReceiverEmails: string[];
 
     constructor(private configService: ConfigService) {
-        this.organizationReceiverEmail = this.configService.get<string>('ORGANIZATION_RECEIVER_EMAIL')!;
+        const emailsRaw = this.configService.get<string>('ORGANIZATION_RECEIVER_EMAILS') || '';
+        this.organizationReceiverEmails = emailsRaw
+            .split(',')
+            .map((email) => email.trim())
+            .filter((email) => email.length > 0);
+
         this.transporter = nodemailer.createTransport({
             host: this.configService.get<string>('SMTP_HOST'),
             port: this.configService.get<number>('SMTP_PORT'),
@@ -47,9 +52,10 @@ export class EmailService {
     }
 
     async notifyNewFeedback(userId: string, feedback: string): Promise<ResponseBase> {
+        // Nodemailer's "to" field accepts an array of strings for multiple recipients
         await this.transporter.sendMail({
             from: this.configService.get<string>('SMTP_FROM'),
-            to: this.organizationReceiverEmail,
+            to: this.organizationReceiverEmails,
             subject: `New User Feedback - ${APP_NAME}`,
             text: `User ${userId} sent feedback: ${feedback}`,
             html: `<p>User <strong>${userId}</strong> sent feedback: </p><p>${feedback}</p>`,
