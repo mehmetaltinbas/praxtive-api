@@ -6,11 +6,11 @@ export class UpgradeSubscriptionDto {
     @IsNotEmpty()
     readonly newPlanName!: PlanName;
 
-    @IsOptional()
     @IsEnum(PaymentProviderName)
+    @IsOptional()
     readonly paymentProvider?: PaymentProviderName;
 
-    @IsOptional()
     @IsString()
+    @IsOptional()
     readonly paymentMethodToken?: string;
 }
