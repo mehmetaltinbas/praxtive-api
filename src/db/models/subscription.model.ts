@@ -1,4 +1,5 @@
 import * as mongoose from 'mongoose';
+import { SubscriptionStatus } from 'src/subscription/enum/subscription-status.enum';
 
 const schema = new mongoose.Schema(
     {
@@ -7,7 +8,7 @@ const schema = new mongoose.Schema(
         nextBillingDate: { type: Date, required: true },
         status: {
             type: String,
-            enum: ['active', 'canceled', 'expired', 'pendingActivate', 'upgradedFrom', 'gracePeriod'],
+            enum: Object.values(SubscriptionStatus),
         },
         startedAt: { type: Date },
         canceledAt: { type: Date },

@@ -1,19 +1,29 @@
-import { BadRequestException, ConflictException, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
+import {
+    BadRequestException,
+    ConflictException,
+    Inject,
+    Injectable,
+    InternalServerErrorException,
+    Logger,
+    NotFoundException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import mongoose from 'mongoose';
 import { BillingService } from 'src/billing/billing.service';
 import { CreditTransactionType } from 'src/billing/enums/credit-transaction-type.enum';
 import { CreditTransactionService } from 'src/credit-transaction/credit-transaction.service';
 import { PaymentService } from 'src/payment/payment.service';
-import { PaymentProviderFactory } from 'src/payment/strategies/provider/payment-provider.factory';
+import { PlanName } from 'src/plan/enums/plan-name.enum';
 import { PlanService } from 'src/plan/plan.service';
 import ResponseBase from 'src/shared/types/response-base.interface';
+import { MAX_RETRIES, RETRY_INTERVALS_DAYS } from 'src/subscription/constants/payment-retry.constants';
 import { SubscriptionStatus } from 'src/subscription/enum/subscription-status.enum';
 import { CreateSubscriptionDto } from 'src/subscription/types/dto/create-subscription.dto';
 import { DowngradeSubscriptionDto } from 'src/subscription/types/dto/downgrade-subscription.dto';
 import { UpgradeSubscriptionDto } from 'src/subscription/types/dto/upgrade-subscription.dto';
 import { CheckPriceToPayOnUpgradeSubscriptionResponse } from 'src/subscription/types/response/check-price-to-pay-on-upgrade-subscription.response';
+import { GetActivePlanResponse } from 'src/subscription/types/response/get-active-plan.response';
+import { ProcessRetryGracePeriodRetryResponse } from 'src/subscription/types/response/process-grace-period-retry.response';
 import { SubscriptionDocument } from 'src/subscription/types/subscription-document.interface';
 import { UserService } from 'src/user/user.service';
 
@@ -27,8 +37,7 @@ export class SubscriptionService {
         private planService: PlanService,
         private creditTransactionService: CreditTransactionService,
         private billingService: BillingService,
-        private paymentService: PaymentService,
-        private paymentProviderFactory: PaymentProviderFactory
+        private paymentService: PaymentService
     ) {}
 
     // @Cron('0 0 5 * * *')
@@ -61,7 +70,10 @@ export class SubscriptionService {
                 results.downgrades.success++;
             } catch (error) {
                 results.downgrades.failed++;
-                this.logger.error(`Downgrade processing failed for userId: ${userId}`, error instanceof Error ? error.stack : error);
+                this.logger.error(
+                    `Downgrade processing failed for userId: ${userId}`,
+                    error instanceof Error ? error.stack : error
+                );
             }
         }
 
@@ -76,14 +88,18 @@ export class SubscriptionService {
                 results.renewals.success++;
             } catch (error) {
                 results.renewals.failed++;
-                this.logger.error(`Renewal processing failed for subscriptionId: ${sub._id}, userId: ${sub.user._id}`, error instanceof Error ? error.stack : error);
+                this.logger.error(
+                    `Renewal processing failed for subscriptionId: ${sub._id}, userId: ${sub.user._id}`,
+                    error instanceof Error ? error.stack : error
+                );
             }
         }
 
-        // Phase 3: Process grace period retries
         const gracePeriodSubs = await this.db.Subscription.find({
             status: SubscriptionStatus.GRACE_PERIOD,
-        }).populate('user').populate('plan');
+        })
+            .populate('user')
+            .populate('plan');
 
         for (const sub of gracePeriodSubs) {
             try {
@@ -94,40 +110,45 @@ export class SubscriptionService {
                 else results.retries.failed++;
             } catch (error) {
                 results.retries.failed++;
-                this.logger.error(`Grace period retry failed for subscriptionId: ${sub._id}, userId: ${sub.user._id}`, error instanceof Error ? error.stack : error);
+                this.logger.error(
+                    `Grace period retry failed for subscriptionId: ${sub._id}, userId: ${sub.user._id}`,
+                    error instanceof Error ? error.stack : error
+                );
             }
         }
 
         this.logger.log(`Cron run complete: ${JSON.stringify(results)}`);
     }
 
-    // EVENT HANDLERS ↓
-
-    @OnEvent('user.created')
-    async handleUserCreated(payload: { userId: string }): Promise<void> {
+    async createInitialFreeSubscription(userId: string): Promise<ResponseBase> {
         try {
             const nextBillingDate = new Date();
 
             nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
 
-            await this.create(payload.userId, {
-                planName: 'free' as any,
+            await this.create(userId, {
+                planName: PlanName.FREE,
                 nextBillingDate,
                 status: SubscriptionStatus.ACTIVE,
                 startedAt: new Date(),
             });
 
-            this.logger.log(`Free subscription created for new user: ${payload.userId}`);
+            await this.grantMonthlyCreditsUponActiveSub(userId);
+
+            this.logger.log(`Free subscription created for new user: ${userId}`);
+
+            return { isSuccess: true, message: 'Free subscription created.' };
         } catch (error) {
-            this.logger.error(`Failed to create free subscription for user: ${payload.userId}`, error instanceof Error ? error.stack : error);
+            this.logger.error(
+                `Failed to create free subscription for user: ${userId}`,
+                error instanceof Error ? error.stack : error
+            );
+
+            return { isSuccess: false, message: 'Failed to create free subscription.' };
         }
     }
 
     // MAIN Service methods ↓
-
-    async test(): Promise<any> {
-        return 'test';
-    }
 
     async upgrade(userId: string, upgradeSubscriptionDto: UpgradeSubscriptionDto): Promise<ResponseBase> {
         const { plan: newPlan } = await this.planService.readByName(upgradeSubscriptionDto.newPlanName);
@@ -166,7 +187,7 @@ export class SubscriptionService {
                     status: SubscriptionStatus.ACTIVE,
                 },
                 {
-                    status: SubscriptionStatus.UPGRADED_FROM,
+                    status: SubscriptionStatus.EXPIRED,
                     endedAt: new Date(),
                 },
                 { session, new: true }
@@ -195,12 +216,12 @@ export class SubscriptionService {
                 Math.min(newPlan.monthlyCredits, newPlan.maximumCredits - activeSubscription.user.creditBalance)
             );
 
-            await this.userService.updateCreditBalance(userId, creditsToGrant, session);
+            await this.userService.incrementCreditBalance(userId, creditsToGrant, session);
 
             await this.creditTransactionService.create(
                 userId,
                 {
-                    type: CreditTransactionType.PLAN_UPGRADE,
+                    type: CreditTransactionType.PLAN_UPGRADE_GRANT,
                     amount: creditsToGrant,
                 },
                 session
@@ -214,35 +235,43 @@ export class SubscriptionService {
 
             if (prorationResult.prorationedPriceToPay > 0) {
                 if (!upgradeSubscriptionDto.paymentProvider || !upgradeSubscriptionDto.paymentMethodToken) {
-                    throw new BadRequestException('paymentProvider and paymentMethodToken are required for paid upgrades');
+                    throw new BadRequestException(
+                        'paymentProvider and paymentMethodToken are required for paid upgrades'
+                    );
                 }
 
-                const payment = await this.paymentService.createPayment(
+                const { createdPayment: payment } = await this.paymentService.create(
                     userId,
                     newSubscription._id,
                     prorationResult.prorationedPriceToPay,
-                    'TRY',
+                    newPlan.currency,
                     upgradeSubscriptionDto.paymentProvider,
                     session
                 );
 
-                const provider = this.paymentProviderFactory.resolveStrategy(upgradeSubscriptionDto.paymentProvider);
+                const provider = this.paymentService.resolvePaymentProviderStrategy(
+                    upgradeSubscriptionDto.paymentProvider
+                );
                 const chargeResult = await provider.charge({
                     amount: prorationResult.prorationedPriceToPay,
-                    currency: 'TRY',
+                    currency: newPlan.currency,
                     paymentMethodToken: upgradeSubscriptionDto.paymentMethodToken,
                     description: `Upgrade to ${newPlan.name} plan`,
                     metadata: { userId, subscriptionId: newSubscription._id },
                 });
 
                 if (!chargeResult.success) {
-                    await this.paymentService.markFailed(payment._id, chargeResult.failureReason || 'Payment failed', session);
+                    await this.paymentService.markFailed(
+                        payment._id,
+                        chargeResult.failureReason || 'Payment failed',
+                        session
+                    );
                     throw new BadRequestException(`Payment failed: ${chargeResult.failureReason || 'Unknown error'}`);
                 }
 
                 await this.paymentService.markSucceeded(payment._id, chargeResult.providerTransactionId!, session);
 
-                // Store payment info on subscription for future renewals
+                // store payment info on subscription for future renewals
                 await this.db.Subscription.findByIdAndUpdate(
                     newSubscription._id,
                     {
@@ -367,6 +396,19 @@ export class SubscriptionService {
         return { isSuccess: true, message: 'successfully canceled downgrade' };
     }
 
+    async getActivePlanForUser(userId: string): Promise<GetActivePlanResponse> {
+        const subscription = await this.db.Subscription.findOne({
+            user: userId,
+            status: SubscriptionStatus.ACTIVE,
+        }).populate('plan');
+
+        if (!subscription || !subscription.plan) {
+            throw new NotFoundException('No active subscription found for user');
+        }
+
+        return { isSuccess: true, message: 'Active plan retrieved.', plan: subscription.plan };
+    }
+
     // HELPERS ↓
 
     private async processDowngrades(userId: string): Promise<ResponseBase> {
@@ -421,18 +463,18 @@ export class SubscriptionService {
 
         // For paid plans, attempt payment before granting credits
         if (activeSub.plan.monthlyPrice > 0 && activeSub.lastPaymentProvider && activeSub.lastPaymentMethodToken) {
-            const provider = this.paymentProviderFactory.resolveStrategy(activeSub.lastPaymentProvider);
-            const payment = await this.paymentService.createPayment(
+            const provider = this.paymentService.resolvePaymentProviderStrategy(activeSub.lastPaymentProvider);
+            const { createdPayment: payment } = await this.paymentService.create(
                 userId,
                 activeSub._id,
                 activeSub.plan.monthlyPrice,
-                'TRY',
+                activeSub.plan.currency,
                 activeSub.lastPaymentProvider
             );
 
             const chargeResult = await provider.charge({
                 amount: activeSub.plan.monthlyPrice,
-                currency: 'TRY',
+                currency: activeSub.plan.currency,
                 paymentMethodToken: activeSub.lastPaymentMethodToken,
                 description: `Monthly renewal for ${activeSub.plan.name} plan`,
                 metadata: { userId, subscriptionId: activeSub._id },
@@ -443,6 +485,7 @@ export class SubscriptionService {
 
                 // Enter grace period
                 const gracePeriodEnd = new Date();
+
                 gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 7);
 
                 await this.db.Subscription.findByIdAndUpdate(activeSub._id, {
@@ -453,6 +496,7 @@ export class SubscriptionService {
                 });
 
                 this.logger.warn(`Payment failed for userId: ${userId}, entering grace period`);
+
                 return { isSuccess: false, message: 'payment failed, entering grace period' };
             }
 
@@ -481,14 +525,11 @@ export class SubscriptionService {
         };
     }
 
-    private readonly RETRY_INTERVALS_DAYS = [0, 2, 4];
-    private readonly MAX_RETRIES = 3;
-
-    private async processGracePeriodRetry(sub: SubscriptionDocument): Promise<'success' | 'failed' | 'downgraded'> {
+    private async processGracePeriodRetry(sub: SubscriptionDocument): Promise<ProcessRetryGracePeriodRetryResponse> {
         const retryIndex = sub.paymentRetryCount - 1;
 
-        if (retryIndex < 0 || retryIndex >= this.RETRY_INTERVALS_DAYS.length) {
-            // Exceeded max retries, downgrade to free
+        if (retryIndex < 0 || retryIndex >= RETRY_INTERVALS_DAYS.length) {
+            // exceeded max retries, downgrade to free
             return this.downgradeToFree(sub);
         }
 
@@ -496,27 +537,28 @@ export class SubscriptionService {
             ? Math.floor((Date.now() - sub.lastPaymentAttempt.getTime()) / (1000 * 60 * 60 * 24))
             : Infinity;
 
-        if (daysSinceLastAttempt < this.RETRY_INTERVALS_DAYS[retryIndex]) {
+        if (daysSinceLastAttempt < RETRY_INTERVALS_DAYS[retryIndex]) {
             return 'failed'; // Not yet time to retry
         }
 
         if (!sub.lastPaymentProvider || !sub.lastPaymentMethodToken) {
             this.logger.warn(`No payment info for grace period sub: ${sub._id}, downgrading to free`);
+
             return this.downgradeToFree(sub);
         }
 
-        const provider = this.paymentProviderFactory.resolveStrategy(sub.lastPaymentProvider);
-        const payment = await this.paymentService.createPayment(
+        const provider = this.paymentService.resolvePaymentProviderStrategy(sub.lastPaymentProvider);
+        const { createdPayment: payment } = await this.paymentService.create(
             sub.user._id,
             sub._id,
             sub.plan.monthlyPrice,
-            'TRY',
+            sub.plan.currency,
             sub.lastPaymentProvider
         );
 
         const chargeResult = await provider.charge({
             amount: sub.plan.monthlyPrice,
-            currency: 'TRY',
+            currency: sub.plan.currency,
             paymentMethodToken: sub.lastPaymentMethodToken,
             description: `Retry payment for ${sub.plan.name} plan`,
             metadata: { userId: sub.user._id, subscriptionId: sub._id },
@@ -530,12 +572,16 @@ export class SubscriptionService {
             session.startTransaction();
 
             try {
-                await this.db.Subscription.findByIdAndUpdate(sub._id, {
-                    status: SubscriptionStatus.ACTIVE,
-                    paymentRetryCount: 0,
-                    lastPaymentAttempt: null,
-                    gracePeriodEnd: null,
-                }, { session });
+                await this.db.Subscription.findByIdAndUpdate(
+                    sub._id,
+                    {
+                        status: SubscriptionStatus.ACTIVE,
+                        paymentRetryCount: 0,
+                        lastPaymentAttempt: null,
+                        gracePeriodEnd: null,
+                    },
+                    { session }
+                );
 
                 await this.grantMonthlyCreditsUponActiveSub(sub.user._id, session);
 
@@ -548,6 +594,7 @@ export class SubscriptionService {
             }
 
             this.logger.log(`Grace period retry succeeded for subscriptionId: ${sub._id}`);
+
             return 'success';
         }
 
@@ -555,7 +602,7 @@ export class SubscriptionService {
 
         const newRetryCount = sub.paymentRetryCount + 1;
 
-        if (newRetryCount > this.MAX_RETRIES) {
+        if (newRetryCount > MAX_RETRIES) {
             return this.downgradeToFree(sub);
         }
 
@@ -564,7 +611,10 @@ export class SubscriptionService {
             lastPaymentAttempt: new Date(),
         });
 
-        this.logger.warn(`Grace period retry ${sub.paymentRetryCount}/${this.MAX_RETRIES} failed for subscriptionId: ${sub._id}`);
+        this.logger.warn(
+            `Grace period retry ${sub.paymentRetryCount}/${MAX_RETRIES} failed for subscriptionId: ${sub._id}`
+        );
+
         return 'failed';
     }
 
@@ -574,15 +624,19 @@ export class SubscriptionService {
         session.startTransaction();
 
         try {
-            await this.db.Subscription.findByIdAndUpdate(sub._id, {
-                status: SubscriptionStatus.EXPIRED,
-                endedAt: new Date(),
-                paymentRetryCount: 0,
-                lastPaymentAttempt: null,
-                gracePeriodEnd: null,
-            }, { session });
+            await this.db.Subscription.findByIdAndUpdate(
+                sub._id,
+                {
+                    status: SubscriptionStatus.EXPIRED,
+                    endedAt: new Date(),
+                    paymentRetryCount: 0,
+                    lastPaymentAttempt: null,
+                    gracePeriodEnd: null,
+                },
+                { session }
+            );
 
-            const { plan: freePlan } = await this.planService.readByName('free' as any);
+            const { plan: freePlan } = await this.planService.readByName(PlanName.FREE);
             const nextBillingDate = new Date();
 
             nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
@@ -607,6 +661,7 @@ export class SubscriptionService {
         }
 
         this.logger.warn(`Subscription ${sub._id} downgraded to free after exhausting payment retries`);
+
         return 'downgraded';
     }
 
@@ -615,9 +670,13 @@ export class SubscriptionService {
         createSubscriptionDto: CreateSubscriptionDto,
         session?: mongoose.mongo.ClientSession
     ): Promise<SubscriptionDocument> {
-        const uniqueStatuses = [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELED, SubscriptionStatus.PENDING_ACTIVATE];
+        const uniqueStatuses = [
+            SubscriptionStatus.ACTIVE,
+            SubscriptionStatus.CANCELED,
+            SubscriptionStatus.PENDING_ACTIVATE,
+        ];
 
-        if (uniqueStatuses.includes(createSubscriptionDto.status as SubscriptionStatus)) {
+        if (uniqueStatuses.includes(createSubscriptionDto.status)) {
             const existing = await this.db.Subscription.findOne({
                 user: userId,
                 status: createSubscriptionDto.status,
@@ -673,12 +732,12 @@ export class SubscriptionService {
             Math.min(activeSub.plan.monthlyCredits, activeSub.plan.maximumCredits - activeSub.user.creditBalance)
         );
 
-        await this.userService.updateCreditBalance(userId, creditsToGrant, session);
+        await this.userService.incrementCreditBalance(userId, creditsToGrant, session);
 
         await this.creditTransactionService.create(
             userId,
             {
-                type: CreditTransactionType.MONTHLY,
+                type: CreditTransactionType.MONTHLY_GRANT,
                 amount: creditsToGrant,
             },
             session

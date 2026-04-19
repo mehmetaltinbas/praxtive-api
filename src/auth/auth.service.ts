@@ -25,6 +25,7 @@ import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import { SignInResponse } from 'src/auth/types/response/sign-in.response';
 import { EmailService } from 'src/email/email.service';
 import ResponseBase from 'src/shared/types/response-base.interface';
+import { SubscriptionService } from 'src/subscription/subscription.service';
 import { UserDocument } from 'src/user/types/user-document.interface';
 
 @Injectable()
@@ -35,7 +36,8 @@ export class AuthService {
         @Inject('DB_MODELS') private db: Record<'User', mongoose.Model<UserDocument>>,
         private jwtService: JwtService,
         private configService: ConfigService,
-        private emailService: EmailService
+        private emailService: EmailService,
+        private subscriptionService: SubscriptionService
     ) {
         this.googleClient = new OAuth2Client(this.configService.get<string>('GOOGLE_CLIENT_ID'));
     }
@@ -50,7 +52,6 @@ export class AuthService {
                 const isMatch = await bcrypt.compare(password, userByUserName.passwordHash);
 
                 if (isMatch) {
-                    console.log('userByUserName: ', userByUserName);
                     await this.generateAndSendVerificationCode(userByUserName);
 
                     return { isSuccess: true, message: 'verification email resent' };
@@ -81,9 +82,40 @@ export class AuthService {
             ...rest,
         });
 
+        await this.subscriptionService.createInitialFreeSubscription(user._id.toString());
         await this.generateAndSendVerificationCode(user);
 
         return { isSuccess: true, message: 'user created, verification email sent' };
+    }
+
+    private async createGoogleUser(
+        email: string,
+        googleId: string,
+        googleName: string | null
+    ): Promise<mongoose.HydratedDocument<UserDocument>> {
+        for (let attempt = 0; attempt < 5; attempt++) {
+            const userName = await this.generateUniqueUserName(email, googleName, attempt > 0);
+
+            try {
+                const user = await this.db.User.create({
+                    userName,
+                    email,
+                    googleId,
+                    passwordHash: null,
+                    isEmailVerified: true,
+                });
+
+                await this.subscriptionService.createInitialFreeSubscription(user._id.toString());
+
+                return user;
+            } catch (err) {
+                if (this.isUserNameDuplicateKeyError(err)) continue;
+
+                throw err;
+            }
+        }
+
+        throw new InternalServerErrorException('could not allocate unique username');
     }
 
     async signIn(signInUserDto: SignInDto): Promise<SignInResponse> {
@@ -282,32 +314,6 @@ export class AuthService {
         } catch {
             throw new UnauthorizedException('invalid google credential');
         }
-    }
-
-    private async createGoogleUser(
-        email: string,
-        googleId: string,
-        googleName: string | null
-    ): Promise<mongoose.HydratedDocument<UserDocument>> {
-        for (let attempt = 0; attempt < 5; attempt++) {
-            const userName = await this.generateUniqueUserName(email, googleName, attempt > 0);
-
-            try {
-                return await this.db.User.create({
-                    userName,
-                    email,
-                    googleId,
-                    passwordHash: null,
-                    isEmailVerified: true,
-                });
-            } catch (err) {
-                if (this.isUserNameDuplicateKeyError(err)) continue;
-
-                throw err;
-            }
-        }
-
-        throw new InternalServerErrorException('could not allocate unique username');
     }
 
     private isUserNameDuplicateKeyError(err: unknown): boolean {

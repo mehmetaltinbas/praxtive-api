@@ -13,7 +13,7 @@ const schema = new mongoose.Schema(
         email: { type: String, unique: true, required: true },
         passwordHash: { type: String, default: null },
         googleId: { type: String, unique: true, sparse: true, default: null },
-        creditBalance: { type: Number, required: true, default: 50 },
+        creditBalance: { type: Number, required: true, default: 0 },
         isEmailVerified: { type: Boolean, required: true, default: false },
         pendingEmail: { type: String, default: null },
         verificationCode: { type: Number, default: null },

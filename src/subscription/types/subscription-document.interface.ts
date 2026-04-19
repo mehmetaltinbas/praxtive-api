@@ -1,6 +1,6 @@
 import { Document as MongooseDocument } from 'mongoose';
-import { PlanDocument } from 'src/billing/types/plan-document.interface';
 import { PaymentProviderName } from 'src/payment/enums/payment-provider-name.enum';
+import { PlanDocument } from 'src/plan/types/plan-document.interface';
 import { SubscriptionStatus } from 'src/subscription/enum/subscription-status.enum';
 import { UserDocument } from 'src/user/types/user-document.interface';
 

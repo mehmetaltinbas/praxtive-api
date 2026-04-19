@@ -14,12 +14,6 @@ import { CheckPriceToPayOnUpgradeSubscriptionResponse } from 'src/subscription/t
 export class SubscriptionController {
     constructor(private subscriptionService: SubscriptionService) {}
 
-    @Get('test')
-    async test(): Promise<any> {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        return await this.subscriptionService.test();
-    }
-
     @Post('upgrade')
     async upgrade(
         @User() user: JwtPayload,

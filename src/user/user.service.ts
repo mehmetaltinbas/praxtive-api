@@ -1,6 +1,12 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    Inject,
+    Injectable,
+    NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 import bcrypt from 'bcrypt';
 // eslint-disable-next-line no-redeclare
 import crypto from 'crypto';
@@ -12,10 +18,10 @@ import { PUBLIC_USER_FIELDS } from 'src/user/constants/public-user-fields.consta
 import { UpdateUserPasswordDto } from 'src/user/types/dto/update-user-password.dto';
 import { UpdateUserDto } from 'src/user/types/dto/update-user.dto';
 import { PublicUserDocument } from 'src/user/types/public-user-document.interface';
-import { UpdateUserResponse } from 'src/user/types/response/update-user.response';
 import { ReadSinglePublicUserResponse } from 'src/user/types/response/read-single-public-user.response';
 import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user.response';
 import { SearchPublicUsersResponse } from 'src/user/types/response/search-public-users.response';
+import { UpdateUserResponse } from 'src/user/types/response/update-user.response';
 import { UserDocument } from './types/user-document.interface';
 
 @Injectable()
@@ -151,7 +157,7 @@ export class UserService {
         return { isSuccess: true, message: 'Password updated successfully' };
     }
 
-    async updateCreditBalance(
+    async incrementCreditBalance(
         id: string,
         amount: number,
         session?: mongoose.mongo.ClientSession
@@ -172,6 +178,30 @@ export class UserService {
             isSuccess: true,
             message: `Credit balance updated by ${amount}. New balance: ${user.creditBalance}`,
         };
+    }
+
+    async deductCreditBalance(
+        userId: string,
+        amount: number,
+        session?: mongoose.mongo.ClientSession
+    ): Promise<ResponseBase> {
+        const user = await this.db.User.findOneAndUpdate(
+            { _id: userId, creditBalance: { $gte: amount } },
+            { $inc: { creditBalance: -amount } },
+            { session, new: true }
+        );
+
+        if (!user) {
+            const currentUser = await this.db.User.findById(userId)
+                .select('creditBalance')
+                .session(session ?? null);
+
+            const available = currentUser?.creditBalance ?? 0;
+
+            throw new ForbiddenException(`Insufficient credits. Required: ${amount}, available: ${available}`);
+        }
+
+        return { isSuccess: true, message: 'Credit balance deducted.' };
     }
 
     async deleteById(id: string): Promise<ResponseBase> {

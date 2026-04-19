@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CalculateProrationResponse } from 'src/billing/response/calculate-proration.response';
+import { CalculateProrationResponse } from 'src/billing/types/response/calculate-proration.response';
 
 @Injectable()
 export class BillingService {

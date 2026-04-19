@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import nodemailer from 'nodemailer';
 import { APP_NAME } from 'src/shared/constants/app-name.constant';
+import ResponseBase from 'src/shared/types/response-base.interface';
 
 @Injectable()
 export class EmailService {
@@ -21,7 +22,7 @@ export class EmailService {
         });
     }
 
-    async sendVerificationEmail(to: string, code: number): Promise<void> {
+    async sendVerificationEmail(to: string, code: number): Promise<ResponseBase> {
         await this.transporter.sendMail({
             from: this.configService.get<string>('SMTP_FROM'),
             to,
@@ -29,9 +30,11 @@ export class EmailService {
             text: `Your verification code is: ${code}\n\nThis code expires in 10 minutes.`,
             html: `<p>Your verification code is: <strong>${code}</strong></p><p>This code expires in 10 minutes.</p>`,
         });
+
+        return { isSuccess: true, message: 'Verification email sent.' };
     }
 
-    async sendPasswordResetEmail(to: string, code: number): Promise<void> {
+    async sendPasswordResetEmail(to: string, code: number): Promise<ResponseBase> {
         await this.transporter.sendMail({
             from: this.configService.get<string>('SMTP_FROM'),
             to,
@@ -39,9 +42,11 @@ export class EmailService {
             text: `Your password reset code is: ${code}\n\nThis code expires in 10 minutes.`,
             html: `<p>Your password reset code is: <strong>${code}</strong></p><p>This code expires in 10 minutes.</p>`,
         });
+
+        return { isSuccess: true, message: 'Password reset email sent.' };
     }
 
-    async notifyNewFeedback(userId: string, feedback: string): Promise<void> {
+    async notifyNewFeedback(userId: string, feedback: string): Promise<ResponseBase> {
         await this.transporter.sendMail({
             from: this.configService.get<string>('SMTP_FROM'),
             to: this.organizationReceiverEmail,
@@ -49,5 +54,7 @@ export class EmailService {
             text: `User ${userId} sent feedback: ${feedback}`,
             html: `<p>User <strong>${userId}</strong> sent feedback: </p><p>${feedback}</p>`,
         });
+
+        return { isSuccess: true, message: 'Feedback notification sent.' };
     }
 }

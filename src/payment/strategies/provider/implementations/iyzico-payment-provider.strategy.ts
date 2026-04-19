@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Iyzipay = require('iyzipay');
+import Iyzipay from 'iyzipay';
 import { PaymentProviderName } from 'src/payment/enums/payment-provider-name.enum';
 import { PaymentProviderStrategy } from 'src/payment/strategies/provider/payment-provider-strategy.interface';
-import { ChargeParams } from 'src/payment/strategies/provider/types/charge-params.interface';
-import { ChargeResult } from 'src/payment/strategies/provider/types/charge-result.interface';
-import { RefundResult } from 'src/payment/strategies/provider/types/refund-result.interface';
+import { ChargeParams } from 'src/payment/strategies/provider/types/params/charge.params.';
+import { ChargeResult } from 'src/payment/strategies/provider/types/response/charge-result.response';
+import { RefundResult } from 'src/payment/strategies/provider/types/response/refund-result.response';
 
 @Injectable()
 export class IyzicoPaymentProviderStrategy implements PaymentProviderStrategy {
@@ -30,7 +30,7 @@ export class IyzicoPaymentProviderStrategy implements PaymentProviderStrategy {
                         conversationId: params.metadata?.conversationId || String(Date.now()),
                         price: String(params.amount),
                         paidPrice: String(params.amount),
-                        currency: Iyzipay.CURRENCY.TRY,
+                        currency: params.currency as any,
                         installments: 1,
                         paymentChannel: Iyzipay.PAYMENT_CHANNEL.WEB,
                         paymentGroup: Iyzipay.PAYMENT_GROUP.SUBSCRIPTION,
@@ -99,7 +99,7 @@ export class IyzicoPaymentProviderStrategy implements PaymentProviderStrategy {
         }
     }
 
-    async refund(providerTransactionId: string, amount: number): Promise<RefundResult> {
+    async refund(providerTransactionId: string, amount: number, currency: string): Promise<RefundResult> {
         try {
             const result = await new Promise<any>((resolve, reject) => {
                 this.iyzipay.refund.create(
@@ -108,7 +108,7 @@ export class IyzicoPaymentProviderStrategy implements PaymentProviderStrategy {
                         conversationId: String(Date.now()),
                         paymentTransactionId: providerTransactionId,
                         price: String(amount),
-                        currency: Iyzipay.CURRENCY.TRY,
+                        currency: currency as any,
                         ip: '0.0.0.0',
                     },
                     (err: any, result: any) => {

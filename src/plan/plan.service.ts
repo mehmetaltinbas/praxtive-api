@@ -6,9 +6,10 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import mongoose from 'mongoose';
-import { PlanDocument } from 'src/billing/types/plan-document.interface';
+import { PLAN_TIER_RANK } from 'src/plan/constants/plan-tier-rank.constant';
 import { PlanName } from 'src/plan/enums/plan-name.enum';
 import { CreatePlanDto } from 'src/plan/types/dto/create-plan.dto.model';
+import { PlanDocument } from 'src/plan/types/plan-document.interface';
 import { ReadSinglePlanResponse } from 'src/plan/types/response/read-single-plan.response';
 import ResponseBase from 'src/shared/types/response-base.interface';
 
@@ -39,59 +40,30 @@ export class PlanService {
     }
 
     async validateIsHigher(currentPlanName: PlanName, higherPlanName: PlanName): Promise<ResponseBase> {
-        const isCurrentPlanNameValid = Object.values(PlanName).includes(currentPlanName);
+        this.validatePlanName(currentPlanName);
+        this.validatePlanName(higherPlanName);
 
-        if (!isCurrentPlanNameValid) throw new BadRequestException("currentPlanName isn't valid");
-        const isHigherPlanNameValid = Object.values(PlanName).includes(higherPlanName);
+        if (PLAN_TIER_RANK[higherPlanName] <= PLAN_TIER_RANK[currentPlanName]) {
+            throw new BadRequestException("higherPlanName isn't actually higher than currentPlan");
+        }
 
-        if (!isHigherPlanNameValid) throw new BadRequestException("higherPlanName isn't valid");
-
-        if (currentPlanName === PlanName.FREE) {
-            if (higherPlanName === PlanName.PRO || higherPlanName === PlanName.BUSINESS)
-                return {
-                    isSuccess: true,
-                    message: 'higherPlanName is actually higher than currentPlan',
-                };
-            else throw new BadRequestException("higherPlanName isn't actually higher than currentPlan");
-        } else if (currentPlanName === PlanName.PRO) {
-            if (higherPlanName === PlanName.BUSINESS)
-                return {
-                    isSuccess: true,
-                    message: 'higherPlanName is actually higher than currentPlan',
-                };
-            else throw new BadRequestException("higherPlanName isn't actually higher than currentPlan");
-        } else if (currentPlanName === PlanName.BUSINESS)
-            throw new BadRequestException('currentPlanName is already the highest');
-
-        throw new BadRequestException("couldn't verify plan hierarchy");
+        return { isSuccess: true, message: 'higherPlanName is actually higher than currentPlan' };
     }
 
     async validateIsLower(currentPlanName: PlanName, lowerPlanName: PlanName): Promise<ResponseBase> {
-        const isCurrentPlanNameValid = Object.values(PlanName).includes(currentPlanName);
+        this.validatePlanName(currentPlanName);
+        this.validatePlanName(lowerPlanName);
 
-        if (!isCurrentPlanNameValid) throw new BadRequestException("currentPlanName isn't valid");
-        const isHigherPlanNameValid = Object.values(PlanName).includes(lowerPlanName);
-
-        if (!isHigherPlanNameValid) throw new BadRequestException("lowerPlanName isn't valid");
-
-        if (currentPlanName === PlanName.FREE) {
-            throw new BadRequestException('currentPlan is already the lowest plan');
-        } else if (currentPlanName === PlanName.PRO) {
-            if (lowerPlanName === PlanName.FREE)
-                return {
-                    isSuccess: true,
-                    message: 'lowerPlanName is actually lower then currentPlanName',
-                };
-            else throw new BadRequestException("lowerPlanName isn't actually lower then currentPlanName");
-        } else if (currentPlanName === PlanName.BUSINESS) {
-            if (lowerPlanName === PlanName.FREE || lowerPlanName === PlanName.PRO)
-                return {
-                    isSuccess: true,
-                    message: 'lowerPlanName is actually lower then currentPlanName',
-                };
-            else throw new BadRequestException("lowerPlanName isn't actually lower then currentPlanName");
+        if (PLAN_TIER_RANK[lowerPlanName] >= PLAN_TIER_RANK[currentPlanName]) {
+            throw new BadRequestException("lowerPlanName isn't actually lower than currentPlanName");
         }
 
-        throw new BadRequestException("couldn't validate plan hierarchy");
+        return { isSuccess: true, message: 'lowerPlanName is actually lower than currentPlanName' };
+    }
+
+    private validatePlanName(planName: PlanName): void {
+        if (!Object.values(PlanName).includes(planName)) {
+            throw new BadRequestException(`plan name isn't valid: ${planName}`);
+        }
     }
 }

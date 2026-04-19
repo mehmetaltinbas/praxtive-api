@@ -4,10 +4,12 @@ import { AuthService } from './auth.service';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from './auth.guard';
+import { SubscriptionModule } from 'src/subscription/subscription.module';
 
 @Global()
 @Module({
     imports: [
+        SubscriptionModule,
         JwtModule.registerAsync({
             inject: [ConfigService],
             useFactory: (configService: ConfigService) => ({

@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Stripe from 'stripe';
 import { PaymentProviderName } from 'src/payment/enums/payment-provider-name.enum';
 import { PaymentProviderStrategy } from 'src/payment/strategies/provider/payment-provider-strategy.interface';
-import { ChargeParams } from 'src/payment/strategies/provider/types/charge-params.interface';
-import { ChargeResult } from 'src/payment/strategies/provider/types/charge-result.interface';
-import { RefundResult } from 'src/payment/strategies/provider/types/refund-result.interface';
+import { ChargeParams } from 'src/payment/strategies/provider/types/params/charge.params.';
+import { ChargeResult } from 'src/payment/strategies/provider/types/response/charge-result.response';
+import { RefundResult } from 'src/payment/strategies/provider/types/response/refund-result.response';
+import Stripe from 'stripe';
 
 @Injectable()
 export class StripePaymentProviderStrategy implements PaymentProviderStrategy {
@@ -54,7 +54,7 @@ export class StripePaymentProviderStrategy implements PaymentProviderStrategy {
         }
     }
 
-    async refund(providerTransactionId: string, amount: number): Promise<RefundResult> {
+    async refund(providerTransactionId: string, amount: number, _currency: string): Promise<RefundResult> {
         try {
             const refund = await this.stripe.refunds.create({
                 payment_intent: providerTransactionId,

@@ -2,23 +2,32 @@ import { Inject, Injectable, InternalServerErrorException, NotFoundException } f
 import mongoose from 'mongoose';
 import { PaymentProviderName } from 'src/payment/enums/payment-provider-name.enum';
 import { PaymentStatus } from 'src/payment/enums/payment-status.enum';
+import { PaymentProviderStrategy } from 'src/payment/strategies/provider/payment-provider-strategy.interface';
+import { PaymentProviderFactory } from 'src/payment/strategies/provider/payment-provider.factory';
 import { PaymentDocument } from 'src/payment/types/payment-document.interface';
+import { CreatePaymentResponse } from 'src/payment/types/response/create-payment.response';
+import { ReadMultiplePaymentsResponse } from 'src/payment/types/response/read-multiple-payments.response';
 import ResponseBase from 'src/shared/types/response-base.interface';
 
 @Injectable()
 export class PaymentService {
     constructor(
-        @Inject('DB_MODELS') private db: Record<'Payment', mongoose.Model<PaymentDocument>>
+        @Inject('DB_MODELS') private db: Record<'Payment', mongoose.Model<PaymentDocument>>,
+        private paymentProviderFactory: PaymentProviderFactory
     ) {}
 
-    async createPayment(
+    resolvePaymentProviderStrategy(type: PaymentProviderName): PaymentProviderStrategy {
+        return this.paymentProviderFactory.resolveStrategy(type);
+    }
+
+    async create(
         userId: string,
         subscriptionId: string,
         amount: number,
         currency: string,
         provider: PaymentProviderName,
         session?: mongoose.mongo.ClientSession
-    ): Promise<PaymentDocument> {
+    ): Promise<CreatePaymentResponse> {
         const [payment] = await this.db.Payment.create(
             [
                 {
@@ -37,7 +46,11 @@ export class PaymentService {
             throw new InternalServerErrorException("payment couldn't be created");
         }
 
-        return payment;
+        return {
+            isSuccess: true,
+            message: 'Payment created.',
+            createdPayment: payment,
+        };
     }
 
     async markSucceeded(
@@ -82,11 +95,23 @@ export class PaymentService {
         return { isSuccess: true, message: 'payment marked as failed' };
     }
 
-    async getPaymentsByUser(userId: string): Promise<PaymentDocument[]> {
-        return this.db.Payment.find({ user: userId }).sort({ createdAt: -1 });
+    async getPaymentsByUser(userId: string): Promise<ReadMultiplePaymentsResponse> {
+        const payments = await this.db.Payment.find({ user: userId }).sort({ createdAt: -1 });
+
+        return {
+            isSuccess: true,
+            message: 'Payments that are associated with given user.',
+            payments,
+        };
     }
 
-    async getPaymentsBySubscription(subscriptionId: string): Promise<PaymentDocument[]> {
-        return this.db.Payment.find({ subscription: subscriptionId }).sort({ createdAt: -1 });
+    async getPaymentsBySubscription(subscriptionId: string): Promise<ReadMultiplePaymentsResponse> {
+        const payments = await this.db.Payment.find({ subscription: subscriptionId }).sort({ createdAt: -1 });
+
+        return {
+            isSuccess: true,
+            message: 'Payments that are associated with given subscription.',
+            payments,
+        };
     }
 }
