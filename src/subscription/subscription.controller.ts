@@ -8,11 +8,17 @@ import { SubscriptionService } from 'src/subscription/subscription.service';
 import { DowngradeSubscriptionDto } from 'src/subscription/types/dto/downgrade-subscription.dto';
 import { UpgradeSubscriptionDto } from 'src/subscription/types/dto/upgrade-subscription.dto';
 import { CheckPriceToPayOnUpgradeSubscriptionResponse } from 'src/subscription/types/response/check-price-to-pay-on-upgrade-subscription.response';
+import { ReadActiveSubscriptionResponse } from 'src/subscription/types/response/read-active-subscription.response';
 
 @Controller('subscription')
 @UseGuards(AuthGuard)
 export class SubscriptionController {
     constructor(private subscriptionService: SubscriptionService) {}
+
+    @Get('read-active')
+    async readActive(@User() user: JwtPayload): Promise<ReadActiveSubscriptionResponse> {
+        return await this.subscriptionService.readActive(user.sub);
+    }
 
     @Post('upgrade')
     async upgrade(

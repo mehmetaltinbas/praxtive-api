@@ -23,6 +23,7 @@ import { DowngradeSubscriptionDto } from 'src/subscription/types/dto/downgrade-s
 import { UpgradeSubscriptionDto } from 'src/subscription/types/dto/upgrade-subscription.dto';
 import { CheckPriceToPayOnUpgradeSubscriptionResponse } from 'src/subscription/types/response/check-price-to-pay-on-upgrade-subscription.response';
 import { GetActivePlanResponse } from 'src/subscription/types/response/get-active-plan.response';
+import { ReadActiveSubscriptionResponse } from 'src/subscription/types/response/read-active-subscription.response';
 import { ProcessRetryGracePeriodRetryResponse } from 'src/subscription/types/response/process-grace-period-retry.response';
 import { SubscriptionDocument } from 'src/subscription/types/subscription-document.interface';
 import { UserService } from 'src/user/user.service';
@@ -394,6 +395,27 @@ export class SubscriptionService {
         }
 
         return { isSuccess: true, message: 'successfully canceled downgrade' };
+    }
+
+    async readActive(userId: string): Promise<ReadActiveSubscriptionResponse> {
+        const subscription = await this.db.Subscription.findOne({
+            user: userId,
+            status: {
+                $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELED, SubscriptionStatus.GRACE_PERIOD],
+            },
+        }).populate('plan');
+
+        const pendingSubscription = await this.db.Subscription.findOne({
+            user: userId,
+            status: SubscriptionStatus.PENDING_ACTIVATE,
+        }).populate('plan');
+
+        return {
+            isSuccess: true,
+            message: 'active subscription read',
+            subscription: subscription ?? undefined,
+            pendingSubscription: pendingSubscription ?? undefined,
+        };
     }
 
     async getActivePlanForUser(userId: string): Promise<GetActivePlanResponse> {
