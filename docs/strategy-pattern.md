@@ -55,19 +55,82 @@ strategies/<category>/
     └── <name>-<domain>-<category>.strategy.ts
 ```
 
-## Usage Pattern in Services
+## Usage Patterns
+
+### Internal Usage (Default)
+
+When the factory is only used within its own service, call it directly inline. No resolver method needed.
 
 ```typescript
-// Inject the factory
-constructor(private factory: SomeTypeFactory) {}
+// source.service.ts — factory used only within SourceService
+constructor(private sourceTypeFactory: SourceTypeFactory) {}
 
-// Resolve the strategy for the given type and delegate
-async someMethod(dto: SomeDto) {
-    const strategy = this.factory.resolveStrategy(dto.type);
-    strategy.validate(dto);
-    const data = strategy.extractData(dto);
+async create(dto: CreateSourceDto, file?: Express.Multer.File) {
+    const strategy = this.sourceTypeFactory.resolveStrategy(dto.type);
+    const { text, title } = await strategy.extract(dto, file);
 
     // Service continues with DB write, transaction, etc.
-    await this.db.Model.create({ ...commonFields, ...data });
+    await this.db.Source.create({ title, rawText: text });
 }
+```
+
+### External Usage (Resolver Method)
+
+When external modules need strategy access, expose a single `resolveStrategy` method that returns the strategy interface. The caller resolves the strategy and calls methods on it directly.
+
+```typescript
+// exercise.service.ts — exposes resolver for ExerciseSetService and AiService
+resolveExerciseTypeStrategy(exerciseType: ExerciseType): ExerciseTypeStrategy {
+    return this.exerciseTypeFactory.resolveStrategy(exerciseType);
+}
+
+// exercise-set.service.ts — caller resolves and uses the strategy
+const strategy = this.exerciseService.resolveExerciseTypeStrategy(exercise.type);
+strategy.evaluateAnswer(exercise, answer);
+strategy.drawExerciseToPdf(exercise, index, document, usableWidth);
+```
+
+### When NOT to Write Wrappers
+
+Do not create service methods that simply resolve a strategy and delegate to it:
+
+```typescript
+// BAD — pure pass-through wrapper, no added logic
+evaluateAnswer(exercise: ExerciseDocument, answer: string) {
+    const strategy = this.factory.resolveStrategy(exercise.type);
+    return strategy.evaluateAnswer(exercise, answer);
+}
+```
+
+These wrappers duplicate the strategy interface in the service class and scale O(N) with the number of interface methods. Use a single resolver method instead.
+
+### Exception: Real Service Methods
+
+If a method uses the factory AND adds logic beyond resolving and delegating — validation, DB writes, transactions, transformation — it is a real service method, not a wrapper. Keep it.
+
+```typescript
+// GOOD — resolves strategy but also manages transactions, DB writes, orchestration
+async create(userId: string, exerciseSetId: string, dto: CreateExerciseDto) {
+    const strategy = this.exerciseTypeFactory.resolveStrategy(dto.type);
+    strategy.validateFields(dto);
+    const data = strategy.getCreateExerciseData(dto);
+
+    await this.db.Exercise.create([{ ...commonFields, ...data }], { session });
+    await this.exerciseSetService.registerExercise(userId, exerciseSetId, ...);
+}
+```
+
+## Factory Export Rule
+
+Never export a factory from a module. Only export the service. The factory is an implementation detail of how strategies are resolved.
+
+```typescript
+// GOOD
+@Module({
+    providers: [PaymentService, PaymentProviderFactory, ...PaymentProviderStrategiesBarrel],
+    exports: [PaymentService],
+})
+
+// BAD
+exports: [PaymentService, PaymentProviderFactory],
 ```
