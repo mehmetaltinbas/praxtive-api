@@ -4,6 +4,9 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from 'src/auth/auth.guard';
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import { MAX_PAPER_EVALUATION_UPLOAD_COUNT } from 'src/exercise-set/constants/max-paper-evaluation-upload-count.constant';
+import { RequiresPlanFeature } from 'src/plan/decorators/requires-plan-feature.decorator';
+import { PlanFeature } from 'src/plan/enums/plan-feature.enum';
+import { PlanFeatureGuard } from 'src/plan/guards/plan-feature.guard';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { CloneExerciseSetDto } from 'src/exercise-set/types/dto/clone-exercise-set.dto';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
@@ -56,7 +59,8 @@ export class PublicExerciseSetController {
     }
 
     @Post('evaluate-paper-answers/:id')
-    @UseGuards(AuthGuard)
+    @UseGuards(AuthGuard, PlanFeatureGuard)
+    @RequiresPlanFeature(PlanFeature.VISION_PAPER_EXTRACT)
     @UseInterceptors(FilesInterceptor('files', MAX_PAPER_EVALUATION_UPLOAD_COUNT))
     async evaluatePublicPaperAnswers(
         @User() user: JwtPayload,

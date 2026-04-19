@@ -15,8 +15,11 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from 'src/auth/auth.guard';
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
+import { CostEstimationService } from 'src/billing/services/cost-estimation.service';
+import { CostEstimateResponse } from 'src/billing/types/response/cost-estimate.response';
 import User from 'src/shared/custom-decorators/user.decorator';
 import ResponseBase from 'src/shared/types/response-base.interface';
+import { SourceType } from 'src/source/enums/source-type.enum';
 import { SourceService } from 'src/source/source.service';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
 import { UpdateSourceDto } from 'src/source/types/dto/update-source.dto';
@@ -27,7 +30,10 @@ import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-
 @Controller('source')
 @UseGuards(AuthGuard)
 export class SourceController {
-    constructor(private sourceService: SourceService) {}
+    constructor(
+        private sourceService: SourceService,
+        private costEstimationService: CostEstimationService
+    ) {}
 
     @Throttle({ default: { limit: 10, ttl: 60000 } })
     @Post('create')
@@ -68,5 +74,14 @@ export class SourceController {
     @Get('get-pdf/:id')
     async getPdf(@User() user: JwtPayload, @Param('id') id: string): Promise<GetPdfResponse> {
         return await this.sourceService.getPdf(user.sub, id);
+    }
+
+    @Post('estimate')
+    async estimate(@Body() dto: CreateSourceDto): Promise<CostEstimateResponse> {
+        if (dto.type === SourceType.AUDIO && dto.durationSeconds) {
+            return this.costEstimationService.estimateAudioTranscription(dto.durationSeconds);
+        }
+
+        return { isSuccess: true, message: 'No cost for this source type.', credits: 0, breakdown: {} };
     }
 }

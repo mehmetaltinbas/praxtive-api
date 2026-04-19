@@ -1,7 +1,11 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose, { FilterQuery } from 'mongoose';
 import PDFDocument from 'pdfkit';
+import { CreditTransactionType } from 'src/billing/enums/credit-transaction-type.enum';
+import { CostEstimationService } from 'src/billing/services/cost-estimation.service';
+import { CreditGuardService } from 'src/billing/services/credit-guard.service';
 import ResponseBase from 'src/shared/types/response-base.interface';
+import { SourceType } from 'src/source/enums/source-type.enum';
 import { SourceVisibility } from 'src/source/enums/source-visibility.enum';
 import { SourceTypeFactory } from 'src/source/strategies/type/source-type.factory';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
@@ -12,6 +16,7 @@ import { ReadAllSourcesResponse } from 'src/source/types/response/read-all-sourc
 import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-source.response';
 import { SourceDocument } from 'src/source/types/source-document.interface';
 import { TipTapDoc, TipTapMark, TipTapTextNode } from 'src/source/types/tiptap-doc.interface';
+import { SubscriptionService } from 'src/subscription/subscription.service';
 import { UserService } from 'src/user/user.service';
 
 @Injectable()
@@ -19,10 +24,70 @@ export class SourceService {
     constructor(
         @Inject('DB_MODELS') private db: Record<'Source', mongoose.Model<SourceDocument>>,
         private sourceTypeFactory: SourceTypeFactory,
-        private userService: UserService
+        private userService: UserService,
+        private creditGuardService: CreditGuardService,
+        private costEstimationService: CostEstimationService,
+        private subscriptionService: SubscriptionService
     ) {}
 
     async create(userId: string, dto: CreateSourceDto, file?: Express.Multer.File): Promise<CreateSourceResponse> {
+        const { plan } = await this.subscriptionService.getActivePlanForUser(userId);
+
+        if (plan.maxSources !== -1) {
+            const count = await this.db.Source.countDocuments({ userId });
+
+            if (count >= plan.maxSources) {
+                throw new ForbiddenException(
+                    `Source limit reached (${plan.maxSources}). Upgrade your plan to create more sources.`
+                );
+            }
+        }
+
+        if (dto.type === SourceType.AUDIO && dto.durationSeconds) {
+            const estimate = await this.costEstimationService.estimateAudioTranscription(dto.durationSeconds);
+
+            const session = await mongoose.startSession();
+
+            session.startTransaction();
+
+            try {
+                await this.creditGuardService.assertAndDeduct(
+                    userId,
+                    estimate.credits,
+                    CreditTransactionType.AUDIO_TRANSCRIPTION,
+                    session
+                );
+
+                const strategy = this.sourceTypeFactory.resolveStrategy(dto.type);
+                const { text, title } = await strategy.extract(dto, file);
+
+                const conflict = await this.db.Source.findOne({ userId, title }).session(session);
+
+                if (conflict) {
+                    await session.abortTransaction();
+
+                    return {
+                        isSuccess: false,
+                        message: `A source with the title "${title}" already exists.`,
+                    };
+                }
+
+                const [created] = await this.db.Source.create(
+                    [{ userId, type: dto.type, title, rawText: text, visibility: dto.visibility }],
+                    { session }
+                );
+
+                await session.commitTransaction();
+
+                return { isSuccess: true, message: 'source created', sourceId: created._id.toString() };
+            } catch (error) {
+                await session.abortTransaction();
+                throw error;
+            } finally {
+                await session.endSession();
+            }
+        }
+
         const strategy = this.sourceTypeFactory.resolveStrategy(dto.type);
         const { text, title } = await strategy.extract(dto, file);
 

@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
 import { SourceType } from 'src/source/enums/source-type.enum';
 import { SourceVisibility } from 'src/source/enums/source-visibility.enum';
 
@@ -24,4 +24,9 @@ export class CreateSourceDto {
     @IsNotEmpty()
     @ValidateIf((dto: CreateSourceDto) => dto.type === SourceType.YOUTUBE_VIDEO)
     readonly url?: string;
+
+    @IsNumber()
+    @IsOptional()
+    @ValidateIf((dto: CreateSourceDto) => dto.type === SourceType.AUDIO)
+    readonly durationSeconds?: number;
 }

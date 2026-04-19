@@ -25,7 +25,7 @@ export class AudioSourceTypeStrategy implements SourceTypeStrategy {
         const fileBuffer = file.buffer;
         const mimetype = file.mimetype;
 
-        const text = await this.aiService.transcribeAudio(fileBuffer, mimetype);
+        const { text } = await this.aiService.transcribeAudio(fileBuffer, mimetype);
 
         const doc = plainTextToTipTap(text);
 
