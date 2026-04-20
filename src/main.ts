@@ -10,6 +10,7 @@ async function bootstrap(): Promise<void> {
     const app = await NestFactory.create(AppModule);
     const configService = app.get(ConfigService);
     const port = configService.get<number>('PORT') || 4001;
+    const origins = configService.get<string>('CLIENT_URLS')?.split(',') ?? [];
 
     app.use(helmet());
     app.useGlobalFilters(new AllExceptionsFilter());
@@ -27,11 +28,13 @@ async function bootstrap(): Promise<void> {
     );
     app.use(cookieParser());
     app.enableCors({
-        origin: [configService.get<string>('CLIENT_URL'), configService.get<string>('LOCAL_MOBILE_CLIENT_URL')],
+        origin: origins,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
         credentials: true,
     });
+
     await app.listen(port);
+
     console.log(`Server is running on http://localhost:${port}\n`);
 }
 
