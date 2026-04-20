@@ -1,14 +1,14 @@
 import { Mongoose } from 'mongoose';
 import { CreditTransactionModel } from 'src/db/models/credit-transaction.model';
 import { ExerciseSetGroupModel } from 'src/db/models/exercise-set-group.model';
+import { ExerciseSetModel } from 'src/db/models/exercise-set.model';
+import { ExerciseModel } from 'src/db/models/exercise.model';
 import { FeedbackModel } from 'src/db/models/feedback.model';
 import { PaymentModel } from 'src/db/models/payment.model';
 import { PlanModel } from 'src/db/models/plan.model';
+import { SourceModel } from 'src/db/models/source.model';
 import { SubscriptionModel } from 'src/db/models/subscription.model';
-import { ExerciseSetModel } from './models/exercise-set.model';
-import { ExerciseModel } from './models/exercise.model';
-import { SourceModel } from './models/source.model';
-import { UserModel } from './models/user.model';
+import { UserModel } from 'src/db/models/user.model';
 
 let models: Record<string, Mongoose['Model']>;
 

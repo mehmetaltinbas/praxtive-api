@@ -1,12 +1,12 @@
 import { INestApplication } from '@nestjs/common';
+import { SignInResponse } from 'src/auth/types/response/sign-in.response';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { SignInResponse } from '../src/auth/types/response/sign-in.response';
-import { createTheApp } from './app-setup';
-import { TestDataKeys } from './data/test-data-keys.enum';
-import testData from './data/test-data.util';
-import { userCredentials } from './mocks/shared.mock';
-import { waitForSignUp } from './utilities/user.utility';
+import { createTheApp } from 'test/app-setup';
+import { TestDataKeys } from 'test/data/test-data-keys.enum';
+import testDataUtil from 'test/data/test-data.util';
+import { userCredentials } from 'test/mocks/shared.mock';
+import { waitForSignUp } from 'test/utilities/user.utility';
 
 describe('Auth', () => {
     let app: INestApplication<App>;
@@ -41,8 +41,8 @@ describe('Auth', () => {
             const responseBody = response.body as SignInResponse;
 
             jwt = responseBody.jwt!;
-            testData.write(TestDataKeys.JWT, jwt);
-            testData.write(TestDataKeys.IS_JWT_READY, true);
+            testDataUtil.write(TestDataKeys.JWT, jwt);
+            testDataUtil.write(TestDataKeys.IS_JWT_READY, true);
         });
     });
 

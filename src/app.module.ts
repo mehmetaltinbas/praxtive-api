@@ -15,7 +15,7 @@ import { ExerciseSetGroupModule } from 'src/exercise-set-group/exercise-set-grou
 import { ExerciseSetModule } from 'src/exercise-set/exercise-set.module';
 import { ExerciseModule } from 'src/exercise/exercise.module';
 import { FeedbackModule } from 'src/feedback/feedback.module';
-import { PaymentModule } from './payment/payment.module';
+import { PaymentModule } from 'src/payment/payment.module';
 import { PlanModule } from 'src/plan/plan.module';
 import { SourceModule } from 'src/source/source.module';
 import { UserModule } from 'src/user/user.module';

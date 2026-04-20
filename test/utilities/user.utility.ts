@@ -1,6 +1,5 @@
-import { TestDataKeys } from '../data/test-data-keys.enum';
-import { TestData } from '../data/test-data.interface';
-import testData from '../data/test-data.util';
+import { TestDataKeys } from 'test/data/test-data-keys.enum';
+import testData from 'test/data/test-data.util';
 
 export async function waitForSignUp(): Promise<void> {
     const checkInterval = 100;

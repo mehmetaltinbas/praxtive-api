@@ -43,3 +43,7 @@ async reorder(id: string, order: number, session: ClientSession): Promise<Respon
 ### Exception: strategy resolver methods
 
 `resolveStrategy` methods (e.g. `resolveExerciseTypeStrategy`, `resolvePaymentProviderStrategy`) return a strategy interface, not a `ResponseBase`. These are internal plumbing for strategy resolution, not operation results.
+
+### Imports
+
+always use absolute imports, don't use './' or '../'

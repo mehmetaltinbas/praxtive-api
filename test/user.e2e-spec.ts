@@ -1,12 +1,12 @@
 import { INestApplication } from '@nestjs/common';
+import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user.response';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { ReadSingleUserResponse, SignUpResponse } from '../src/user/types/user-responses';
-import { readJwt } from './utilities/auth.utility';
-import { createTheApp } from './app-setup';
-import { userCredentials } from './mocks/shared.mock';
-import testData from './data/test-data.util';
-import { TestDataKeys } from './data/test-data-keys.enum';
+import { createTheApp } from 'test/app-setup';
+import { TestDataKeys } from 'test/data/test-data-keys.enum';
+import testData from 'test/data/test-data.util';
+import { userCredentials } from 'test/mocks/shared.mock';
+import { readJwt } from 'test/utilities/auth.utility';
 
 describe('User', () => {
     let app: INestApplication<App>;

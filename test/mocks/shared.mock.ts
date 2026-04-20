@@ -1,4 +1,4 @@
-import { UserCredentialsTestData } from '../types/user.test.interface';
+import { UserCredentialsTestData } from 'test/types/user.test.interface';
 
 export const userCredentials: UserCredentialsTestData = {
     userName: 'mehmetaltinbas',

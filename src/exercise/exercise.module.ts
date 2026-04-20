@@ -3,9 +3,9 @@ import { ExerciseSetModule } from 'src/exercise-set/exercise-set.module';
 import { PublicExerciseController } from 'src/exercise/public-exercise.controller';
 import { ExerciseTypeStrategiesBarrel } from 'src/exercise/strategies/type/exercise-type-strategies.barrel';
 import { ExerciseTypeFactory } from 'src/exercise/strategies/type/exercise-type.factory';
-import { AiModule } from '../ai/ai.module';
-import { ExerciseController } from './exercise.controller';
-import { ExerciseService } from './exercise.service';
+import { AiModule } from 'src/ai/ai.module';
+import { ExerciseController } from 'src/exercise/exercise.controller';
+import { ExerciseService } from 'src/exercise/exercise.service';
 
 @Module({
     imports: [forwardRef(() => AiModule), forwardRef(() => ExerciseSetModule)],

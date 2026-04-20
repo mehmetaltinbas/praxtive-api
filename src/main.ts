@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import { AppModule } from './app.module';
-import { AllExceptionsFilter } from './shared/filters/all-exceptions.filter';
+import { AppModule } from 'src/app.module';
+import { AllExceptionsFilter } from 'src/shared/filters/all-exceptions.filter';
 
 async function bootstrap(): Promise<void> {
     const app = await NestFactory.create(AppModule);

@@ -22,7 +22,7 @@ import { ReadSinglePublicUserResponse } from 'src/user/types/response/read-singl
 import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user.response';
 import { SearchPublicUsersResponse } from 'src/user/types/response/search-public-users.response';
 import { UpdateUserResponse } from 'src/user/types/response/update-user.response';
-import { UserDocument } from './types/user-document.interface';
+import { UserDocument } from 'src/user/types/user-document.interface';
 
 @Injectable()
 export class UserService {
