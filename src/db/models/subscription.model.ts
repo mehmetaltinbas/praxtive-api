@@ -1,4 +1,5 @@
 import * as mongoose from 'mongoose';
+import { PaymentProviderName } from 'src/payment/enums/payment-provider-name.enum';
 import { SubscriptionStatus } from 'src/subscription/enum/subscription-status.enum';
 
 const schema = new mongoose.Schema(
@@ -16,7 +17,7 @@ const schema = new mongoose.Schema(
         paymentRetryCount: { type: Number, default: 0 },
         lastPaymentAttempt: { type: Date },
         gracePeriodEnd: { type: Date },
-        lastPaymentProvider: { type: String, enum: ['stripe', 'iyzico'] },
+        lastPaymentProvider: { type: String, enum: Object.values(PaymentProviderName) },
         lastPaymentMethodToken: { type: String },
     },
     { timestamps: true }
