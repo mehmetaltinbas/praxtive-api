@@ -1,5 +1,5 @@
 import PDFDocument from 'pdfkit';
-import { GenerateAiExerciseSchema } from 'src/ai/types/generate-ai-exercise-schema.interface';
+import { type Schema } from '@google/genai';
 import { AiGeneratedExercise } from 'src/ai/types/response/generate-exercises.response';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { EvaluateAnswerStrategyResponse } from 'src/exercise/strategies/type/types/evaluate-answer-strategy.response';
@@ -9,7 +9,7 @@ import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface
 export interface ExerciseTypeStrategy {
     readonly type: ExerciseType;
 
-    buildRestOfGenerateAiExerciseSchema(schema: GenerateAiExerciseSchema): void;
+    buildRestOfGenerateAiExerciseSchema(schema: Schema): void;
     buildCreateExerciseDto(dto: CreateExerciseDto, exercise: AiGeneratedExercise): void;
     validateFields(fields: { choices?: string[]; correctChoiceIndex?: number; solution?: string }): void;
     getCreateExerciseData(dto: CreateExerciseDto): Record<string, unknown>;

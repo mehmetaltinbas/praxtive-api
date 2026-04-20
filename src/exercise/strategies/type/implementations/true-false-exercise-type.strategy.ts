@@ -1,7 +1,7 @@
+import { Type, type Schema } from '@google/genai';
 import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
-import { GenerateAiExerciseSchema } from 'src/ai/types/generate-ai-exercise-schema.interface';
 import { AiGeneratedExercise } from 'src/ai/types/response/generate-exercises.response';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseTypeStrategy } from 'src/exercise/strategies/type/exercise-type-strategy.interface';
@@ -13,17 +13,19 @@ import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface
 export class TrueFalseExerciseTypeStrategy implements ExerciseTypeStrategy {
     type = ExerciseType.TRUE_FALSE;
 
-    constructor(@Inject(forwardRef(() => AiService)) private openaiService: AiService) {}
+    constructor(@Inject(forwardRef(() => AiService)) private aiService: AiService) {}
 
-    buildRestOfGenerateAiExerciseSchema(schema: GenerateAiExerciseSchema): void {
-        schema.properties.items.items.properties.correctChoiceIndex = {
-            type: 'integer',
+    buildRestOfGenerateAiExerciseSchema(schema: Schema): void {
+        const itemSchema = schema.properties!.items.items!;
+
+        itemSchema.properties!.correctChoiceIndex = {
+            type: Type.INTEGER,
             minimum: 0,
             maximum: 1,
             description: '0 indicates false, 1 indicates true',
         };
 
-        schema.properties.items.items.required.push('correctChoiceIndex');
+        itemSchema.required!.push('correctChoiceIndex');
     }
 
     buildCreateExerciseDto(dto: CreateExerciseDto, exercise: AiGeneratedExercise): void {
@@ -95,10 +97,7 @@ export class TrueFalseExerciseTypeStrategy implements ExerciseTypeStrategy {
         document: typeof PDFDocument,
         usableWidth: number
     ): void {
-        document
-            .font('Times-Roman')
-            .fontSize(12)
-            .text(exercise.prompt);
+        document.font('Times-Roman').fontSize(12).text(exercise.prompt);
 
         document.moveDown(1);
 

@@ -9,12 +9,12 @@ import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface
 export class OpenEndedExerciseSetTypeStrategy implements ExerciseSetTypeStrategy {
     type = ExerciseSetType.OPEN_ENDED;
 
-    constructor(private openaiService: AiService) {}
+    constructor(private aiService: AiService) {}
 
     async evaluateAnswer(exercise: ExerciseDocument, answer: string): Promise<EvaluateAnswerStrategyResponse> {
         const prompt = `the correct solution: ${exercise.solution}\n user's answer: ${answer}`;
 
-        const evaluationResponse = await this.openaiService.evaluateExerciseAnswer(exercise, prompt);
+        const evaluationResponse = await this.aiService.evaluateExerciseAnswer(exercise, prompt);
 
         if (!evaluationResponse.isSuccess) return { isSuccess: false, message: evaluationResponse.message };
 
