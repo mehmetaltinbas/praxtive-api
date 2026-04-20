@@ -10,6 +10,10 @@ import {
 import mongoose, { FilterQuery } from 'mongoose';
 import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
+import { CreditTransactionType } from 'src/billing/enums/credit-transaction-type.enum';
+import { CostEstimationService } from 'src/billing/services/cost-estimation.service';
+import { CreditGuardService } from 'src/billing/services/credit-guard.service';
+import { CostEstimateResponse } from 'src/billing/types/response/cost-estimate.response';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
 import { ALLOWED_PAPER_IMAGE_MIMETYPES } from 'src/exercise-set/constants/allowed-paper-image-mimetypes.constant';
 import { ExerciseSetContextType } from 'src/exercise-set/enums/exercise-set-context-type.enum';
@@ -21,6 +25,7 @@ import { ExerciseSetTypeFactory } from 'src/exercise-set/strategies/type/exercis
 import { ChangeExerciseSetContextDto } from 'src/exercise-set/types/dto/change-exercise-set-context.dto';
 import { CloneExerciseSetDto } from 'src/exercise-set/types/dto/clone-exercise-set.dto';
 import { CreateExerciseSetDto } from 'src/exercise-set/types/dto/create-exercise-set.dto';
+import { EstimateEvaluatePaperAnswersDto } from 'src/exercise-set/types/dto/estimate-evaluate-paper-answers.dto';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { GenerateAdditionalExercisesDto } from 'src/exercise-set/types/dto/generate-additional-exercises.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
@@ -42,11 +47,16 @@ import { ExerciseService } from 'src/exercise/exercise.service';
 import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
 import { ReorderExercisesDto } from 'src/exercise/types/dto/reorder-exercises.dto';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
+import { PLAN_FEATURE_MINIMUM_TIER } from 'src/plan/constants/plan-feature-minimum-tier.constant';
+import { PLAN_TIER_RANK } from 'src/plan/constants/plan-tier-rank.constant';
+import { PlanFeature } from 'src/plan/enums/plan-feature.enum';
+import { PlanDocument } from 'src/plan/types/plan-document.interface';
 import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceType } from 'src/source/enums/source-type.enum';
 import { SourceVisibility } from 'src/source/enums/source-visibility.enum';
 import { SourceService } from 'src/source/source.service';
 import { ExtendedSourceDocument } from 'src/source/types/extended-source-document.interface';
+import { SubscriptionService } from 'src/subscription/subscription.service';
 import { UserService } from 'src/user/user.service';
 
 @Injectable()
@@ -59,10 +69,27 @@ export class ExerciseSetService {
         private exerciseSetTypeFactory: ExerciseSetTypeFactory,
         private exerciseSetContextTypeFactory: ExerciseSetContextTypeFactory,
         private exerciseSetReadAllFilterCompositeProvider: ExerciseSetReadAllFilterCompositeProvider,
-        private userService: UserService
+        private userService: UserService,
+        private creditGuardService: CreditGuardService,
+        private costEstimationService: CostEstimationService,
+        private subscriptionService: SubscriptionService
     ) {}
 
     async create(userId: string, contextId: string | undefined, dto: CreateExerciseSetDto): Promise<ResponseBase> {
+        const { plan } = await this.subscriptionService.getActivePlanForUser(userId);
+
+        if (plan.maxExerciseSets !== -1) {
+            const count = await this.db.ExerciseSet.countDocuments({ userId });
+
+            if (count >= plan.maxExerciseSets) {
+                throw new ForbiddenException(
+                    `Exercise set limit reached (${plan.maxExerciseSets}). Upgrade your plan to create more.`
+                );
+            }
+        }
+
+        await this.assertMixFeatureAllowed(dto.type, dto.difficulty, plan);
+
         const conflict = await this.db.ExerciseSet.findOne({ userId, title: dto.title });
 
         if (conflict) {
@@ -77,10 +104,10 @@ export class ExerciseSetService {
         const createContext = await strategy.resolveCreateContext(userId, contextId);
 
         if (createContext.sourceText) {
-            const generateExercisesResponse = await this.aiService.generateExercises(
+            const estimate = await this.costEstimationService.estimateExerciseSetGeneration(
                 createContext.sourceText,
-                dto.type,
-                dto.difficulty,
+                dto.type as unknown as ExerciseType,
+                dto.difficulty as unknown as ExerciseDifficulty,
                 dto.count
             );
 
@@ -89,6 +116,20 @@ export class ExerciseSetService {
             session.startTransaction();
 
             try {
+                await this.creditGuardService.assertAndDeduct(
+                    userId,
+                    estimate.credits,
+                    CreditTransactionType.EXERCISE_SET_GENERATION,
+                    session
+                );
+
+                const generateExercisesResponse = await this.aiService.generateExercises(
+                    createContext.sourceText,
+                    dto.type,
+                    dto.difficulty,
+                    dto.count
+                );
+
                 const [exerciseSet] = await this.db.ExerciseSet.create(
                     [
                         {
@@ -112,7 +153,9 @@ export class ExerciseSetService {
                         prompt: exercise.prompt,
                     };
 
-                    this.exerciseService.buildCreateExerciseDto(createExerciseDto, exercise);
+                    const strategy = this.exerciseService.resolveExerciseTypeStrategy(exercise.type);
+
+                    strategy.buildCreateExerciseDto(createExerciseDto, exercise);
 
                     await this.exerciseService.create(userId, exerciseSet._id, createExerciseDto, session);
                 }
@@ -153,6 +196,10 @@ export class ExerciseSetService {
         exerciseSetId: string,
         dto: GenerateAdditionalExercisesDto
     ): Promise<ResponseBase> {
+        const { plan } = await this.subscriptionService.getActivePlanForUser(userId);
+
+        await this.assertMixFeatureAllowed(dto.type, dto.difficulty, plan);
+
         const { exerciseSet } = await this.readById(userId, exerciseSetId);
 
         const contextStrategy = this.exerciseSetContextTypeFactory.resolveStrategy(exerciseSet.contextType);
@@ -164,10 +211,10 @@ export class ExerciseSetService {
         );
         const existingPrompts = existingExercises.map((e) => e.prompt);
 
-        const { exercises: generatedExercises } = await this.aiService.generateAdditionalExercises(
+        const estimate = await this.costEstimationService.estimateAdditionalExerciseGeneration(
             sourceText,
-            dto.type,
-            dto.difficulty,
+            dto.type as unknown as ExerciseType,
+            dto.difficulty as unknown as ExerciseDifficulty,
             dto.count,
             existingPrompts
         );
@@ -177,6 +224,21 @@ export class ExerciseSetService {
         session.startTransaction();
 
         try {
+            await this.creditGuardService.assertAndDeduct(
+                userId,
+                estimate.credits,
+                CreditTransactionType.EXERCISE_SET_ADDITIONAL_GENERATION,
+                session
+            );
+
+            const { exercises: generatedExercises } = await this.aiService.generateAdditionalExercises(
+                sourceText,
+                dto.type,
+                dto.difficulty,
+                dto.count,
+                existingPrompts
+            );
+
             for (const exercise of generatedExercises) {
                 const createExerciseDto: CreateExerciseDto = {
                     type: exercise.type,
@@ -184,23 +246,25 @@ export class ExerciseSetService {
                     prompt: exercise.prompt,
                 };
 
-                this.exerciseService.buildCreateExerciseDto(createExerciseDto, exercise);
+                const strategy = this.exerciseService.resolveExerciseTypeStrategy(exercise.type);
+
+                strategy.buildCreateExerciseDto(createExerciseDto, exercise);
 
                 await this.exerciseService.create(userId, exerciseSetId, createExerciseDto, session);
             }
 
             await session.commitTransaction();
+
+            return {
+                isSuccess: true,
+                message: `${generatedExercises.length} additional exercises generated.`,
+            };
         } catch (error) {
             await session.abortTransaction();
             throw error;
         } finally {
             await session.endSession();
         }
-
-        return {
-            isSuccess: true,
-            message: `${generatedExercises.length} additional exercises generated.`,
-        };
     }
 
     async generateLectureNotes(userId: string, exerciseSetId: string): Promise<GenerateNotesResponse> {
@@ -230,9 +294,31 @@ export class ExerciseSetService {
             return { prompt: exercise.prompt, answer };
         });
 
-        const { title, rawText } = await this.aiService.generateLectureNotes(exerciseData);
+        const estimate = await this.costEstimationService.estimateLectureNotesGeneration(exerciseData);
 
-        return { isSuccess: true, message: 'Lecture notes generated.', title, rawText };
+        const session = await mongoose.startSession();
+
+        session.startTransaction();
+
+        try {
+            await this.creditGuardService.assertAndDeduct(
+                userId,
+                estimate.credits,
+                CreditTransactionType.LECTURE_NOTES_GENERATION,
+                session
+            );
+
+            const { title, rawText } = await this.aiService.generateLectureNotes(exerciseData);
+
+            await session.commitTransaction();
+
+            return { isSuccess: true, message: 'Lecture notes generated.', title, rawText };
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            await session.endSession();
+        }
     }
 
     async saveGeneratedNotes(userId: string, exerciseSetId: string, dto: SaveGeneratedNotesDto): Promise<ResponseBase> {
@@ -529,7 +615,7 @@ export class ExerciseSetService {
         exerciseType: ExerciseType,
         exerciseDifficulty: ExerciseDifficulty,
         session?: mongoose.mongo.ClientSession
-    ): Promise<void> {
+    ): Promise<ResponseBase> {
         const { exerciseSet } = await this.readById(userId, exerciseSetId, session);
 
         const update: Record<string, unknown> = { $inc: { count: 1 } };
@@ -554,13 +640,15 @@ export class ExerciseSetService {
         if (Object.keys($set).length > 0) update.$set = $set;
 
         await this.db.ExerciseSet.findByIdAndUpdate(exerciseSetId, update, { session });
+
+        return { isSuccess: true, message: 'Exercise registered.' };
     }
 
     async unregisterExercise(
         userId: string,
         exerciseSetId: string,
         session?: mongoose.mongo.ClientSession
-    ): Promise<void> {
+    ): Promise<ResponseBase> {
         const { exerciseSet } = await this.readById(userId, exerciseSetId, session);
 
         const update: Record<string, unknown> = { $inc: { count: -1 } };
@@ -608,6 +696,8 @@ export class ExerciseSetService {
         if (Object.keys($set).length > 0) update.$set = $set;
 
         await this.db.ExerciseSet.findByIdAndUpdate(exerciseSetId, update, { session });
+
+        return { isSuccess: true, message: 'Exercise unregistered.' };
     }
 
     async deleteById(userId: string, id: string): Promise<ResponseBase> {
@@ -636,7 +726,8 @@ export class ExerciseSetService {
             dto.exercises.map(async ({ id, answer }) => {
                 const { exercise } = await this.exerciseService.readById(isPublicAccess ? undefined : userId, id);
 
-                const evaluatedAnswer = await this.exerciseService.evaluateAnswer(exercise, answer);
+                const strategy = this.exerciseService.resolveExerciseTypeStrategy(exercise.type);
+                const evaluatedAnswer = await strategy.evaluateAnswer(exercise, answer);
 
                 if (!evaluatedAnswer.isSuccess || evaluatedAnswer.score === undefined || !evaluatedAnswer.feedback)
                     return null;
@@ -748,8 +839,10 @@ export class ExerciseSetService {
                 const headerHeight = document.currentLineHeight() + document.currentLineHeight() * 0.5;
 
                 // Calculate exercise content height
+                const exerciseTypeStrategy = this.exerciseService.resolveExerciseTypeStrategy(exercise.type);
+
                 document.font('Times-Roman').fontSize(12);
-                const contentHeight = this.exerciseService.getRequiredHeight(exercise, document, usableWidth);
+                const contentHeight = exerciseTypeStrategy.getRequiredHeight(exercise, document, usableWidth);
 
                 // Check if total fits BEFORE drawing anything
                 const availableHeight = document.page.height - document.page.margins.bottom - document.y;
@@ -774,7 +867,7 @@ export class ExerciseSetService {
                 document.moveDown(0.5);
 
                 document.font('Times-Roman').fontSize(12);
-                this.exerciseService.drawExerciseToPdf(exercise, index, document, usableWidth);
+                exerciseTypeStrategy.drawExerciseToPdf(exercise, index, document, usableWidth);
             });
 
             if (withAnswers) {
@@ -787,7 +880,8 @@ export class ExerciseSetService {
                         document.moveDown(1.5);
                     }
 
-                    const answer = this.exerciseService.getCorrectAnswerText(exercise);
+                    const answerStrategy = this.exerciseService.resolveExerciseTypeStrategy(exercise.type);
+                    const answer = answerStrategy.getCorrectAnswerText(exercise);
 
                     // Calculate header height (number text line + moveDown(0.5) space)
                     document.font('Times-Bold').fontSize(12);
@@ -859,27 +953,150 @@ export class ExerciseSetService {
         const { exercises } = await this.exerciseService.readAllByExerciseSetId(effectiveUserId, exerciseSetId);
 
         const exerciseSummary = exercises
-            .map((exercise, index) => this.exerciseService.buildPaperExtractionPrompt(exercise, index + 1))
+            .map((exercise, index) => {
+                const strategy = this.exerciseService.resolveExerciseTypeStrategy(exercise.type);
+
+                return strategy.buildPaperExtractionPrompt(index + 1, exercise);
+            })
             .join('\n\n');
 
-        const imageData = files.map((f) => ({ buffer: f.buffer, mimetype: f.mimetype }));
-        const extractedAnswers = await this.aiService.extractAnswersFromPaperImages(imageData, exerciseSummary);
+        const estimate = await this.costEstimationService.estimatePaperVisionExtraction(
+            { imageCount: files.length },
+            exerciseSummary
+        );
 
-        const evaluateAnswersDto: EvaluateAnswersDto = {
-            exercises: [],
-        };
+        const session = await mongoose.startSession();
 
-        for (const extractedAnswer of extractedAnswers) {
-            const exerciseIndex = extractedAnswer.exerciseNumber - 1;
+        session.startTransaction();
 
-            if (exerciseIndex < 0 || exerciseIndex >= exercises.length) continue;
+        try {
+            await this.creditGuardService.assertAndDeduct(
+                userId,
+                estimate.credits,
+                CreditTransactionType.PAPER_VISION_EXTRACTION,
+                session
+            );
 
-            const exercise = exercises[exerciseIndex];
-            const normalizedAnswer = this.exerciseService.normalizePaperAnswer(exercise, extractedAnswer.answer);
+            const imageData = files.map((f) => ({ buffer: f.buffer, mimetype: f.mimetype }));
+            const { extractedAnswers } = await this.aiService.extractAnswersFromPaperImages(imageData, exerciseSummary);
 
-            evaluateAnswersDto.exercises.push({ id: exercise._id, answer: normalizedAnswer });
+            await session.commitTransaction();
+
+            const evaluateAnswersDto: EvaluateAnswersDto = {
+                exercises: [],
+            };
+
+            for (const extractedAnswer of extractedAnswers) {
+                const exerciseIndex = extractedAnswer.exerciseNumber - 1;
+
+                if (exerciseIndex < 0 || exerciseIndex >= exercises.length) continue;
+
+                const exercise = exercises[exerciseIndex];
+                const paperStrategy = this.exerciseService.resolveExerciseTypeStrategy(exercise.type);
+                const normalizedAnswer = paperStrategy.normalizePaperAnswer(extractedAnswer.answer);
+
+                evaluateAnswersDto.exercises.push({ id: exercise._id, answer: normalizedAnswer });
+            }
+
+            return this.evaluateAnswers(userId, evaluateAnswersDto, isPublicAccess);
+        } catch (error) {
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            await session.endSession();
+        }
+    }
+
+    // COST ESTIMATIONS ↓
+
+    async estimateCreate(userId: string, contextId: string, dto: CreateExerciseSetDto): Promise<CostEstimateResponse> {
+        const strategy = this.exerciseSetContextTypeFactory.resolveStrategy(dto.contextType);
+        const createContext = await strategy.resolveCreateContext(userId, contextId);
+
+        if (!createContext.sourceText) {
+            return { isSuccess: true, message: 'No cost for this context type.', credits: 0, breakdown: {} };
         }
 
-        return this.evaluateAnswers(userId, evaluateAnswersDto, isPublicAccess);
+        return this.costEstimationService.estimateExerciseSetGeneration(
+            createContext.sourceText,
+            dto.type as unknown as ExerciseType,
+            dto.difficulty as unknown as ExerciseDifficulty,
+            dto.count
+        );
+    }
+
+    async estimateAdditional(
+        userId: string,
+        exerciseSetId: string,
+        dto: GenerateAdditionalExercisesDto
+    ): Promise<CostEstimateResponse> {
+        const { exerciseSet } = await this.readById(userId, exerciseSetId);
+        const contextStrategy = this.exerciseSetContextTypeFactory.resolveStrategy(exerciseSet.contextType);
+        const { sourceText } = await contextStrategy.resolveAdditionalExercisesContext(userId, exerciseSet.contextId);
+        const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, exerciseSetId);
+
+        return this.costEstimationService.estimateAdditionalExerciseGeneration(
+            sourceText,
+            dto.type as unknown as ExerciseType,
+            dto.difficulty as unknown as ExerciseDifficulty,
+            dto.count,
+            exercises.map((e) => e.prompt)
+        );
+    }
+
+    async estimatePaperVision(
+        userId: string,
+        exerciseSetId: string,
+        dto: EstimateEvaluatePaperAnswersDto
+    ): Promise<CostEstimateResponse> {
+        const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, exerciseSetId);
+        const exerciseSummary = exercises
+            .map((exercise, index) => {
+                const strategy = this.exerciseService.resolveExerciseTypeStrategy(exercise.type);
+
+                return strategy.buildPaperExtractionPrompt(index + 1, exercise);
+            })
+            .join('\n\n');
+
+        return this.costEstimationService.estimatePaperVisionExtraction(dto, exerciseSummary);
+    }
+
+    async estimateLectureNotes(userId: string, exerciseSetId: string): Promise<CostEstimateResponse> {
+        const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, exerciseSetId);
+        const exerciseData = exercises.map((exercise) => {
+            let answer: string;
+
+            switch (exercise.type) {
+                case ExerciseType.MULTIPLE_CHOICE:
+                    answer = exercise.choices![exercise.correctChoiceIndex!];
+                    break;
+                case ExerciseType.TRUE_FALSE:
+                    answer = exercise.correctChoiceIndex === 1 ? 'True' : 'False';
+                    break;
+                case ExerciseType.OPEN_ENDED:
+                    answer = exercise.solution ?? '';
+                    break;
+            }
+
+            return { prompt: exercise.prompt, answer };
+        });
+
+        return this.costEstimationService.estimateLectureNotesGeneration(exerciseData);
+    }
+
+    private async assertMixFeatureAllowed(
+        type: ExerciseSetType,
+        difficulty: ExerciseSetDifficulty,
+        plan: PlanDocument
+    ): Promise<void> {
+        const isMix = type === ExerciseSetType.MIX || difficulty === ExerciseSetDifficulty.MIX;
+
+        if (!isMix) return;
+
+        const minimumTier = PLAN_FEATURE_MINIMUM_TIER[PlanFeature.MIX_TYPE_OR_DIFFICULTY];
+
+        if (PLAN_TIER_RANK[plan.name] < PLAN_TIER_RANK[minimumTier]) {
+            throw new ForbiddenException(`MIX type/difficulty requires a ${minimumTier} plan or higher`);
+        }
     }
 }

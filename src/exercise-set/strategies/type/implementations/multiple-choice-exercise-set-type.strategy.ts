@@ -9,17 +9,10 @@ import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface
 export class MultipleChoiceExerciseSetTypeStrategy implements ExerciseSetTypeStrategy {
     type = ExerciseSetType.MULTIPLE_CHOICE;
 
-    constructor(private openaiService: AiService) {}
+    constructor(private aiService: AiService) {}
 
     async evaluateAnswer(exercise: ExerciseDocument, answer: string): Promise<EvaluateAnswerStrategyResponse> {
         const chosenIndex = Number(answer);
-
-        // const prompt = `choices:\n${exercise.choices!.map((choice, index) => `${index} -> ${choice}\n`).join('')}\n
-        //     correct choice index: ${exercise.correctChoiceIndex} \n user's answer index: ${chosenIndex}`;
-
-        // const evaluationResponse = await this.openaiService.evaluateExerciseAnswer(exercise, prompt);
-
-        // if (!evaluationResponse.isSuccess) return { isSuccess: false, message: evaluationResponse.message };
 
         const isCorrect = exercise.correctChoiceIndex === chosenIndex;
 

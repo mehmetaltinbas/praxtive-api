@@ -1,0 +1,1 @@
+export const VISION_TOKENS_PER_IMAGE = 1000;

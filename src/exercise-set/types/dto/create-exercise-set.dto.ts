@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsNotEmpty, IsString, Length, ValidateIf } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsString, Length, Max, Min, ValidateIf } from 'class-validator';
 import { MAX_GENERATE_EXERCISES_COUNT } from 'src/exercise-set/constants/max-generate-exercises-count.constant';
 import { MIN_GENERATE_EXERCISES_COUNT } from 'src/exercise-set/constants/min-generate-exercises-count.constant';
 import { ExerciseSetContextType } from 'src/exercise-set/enums/exercise-set-context-type.enum';
@@ -15,7 +15,8 @@ export class CreateExerciseSetDto {
     @IsNotEmpty()
     readonly title!: string;
 
-    @Length(MIN_GENERATE_EXERCISES_COUNT, MAX_GENERATE_EXERCISES_COUNT)
+    @Max(MAX_GENERATE_EXERCISES_COUNT)
+    @Min(MIN_GENERATE_EXERCISES_COUNT)
     @IsInt()
     @IsNotEmpty()
     @ValidateIf((dto: CreateExerciseSetDto) => dto.contextType === ExerciseSetContextType.SOURCE)

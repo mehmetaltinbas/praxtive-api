@@ -1,16 +1,16 @@
 // eslint-disable-next-line no-redeclare
 import { Body, Controller, Delete, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import { AuthGuard } from 'src/auth/auth.guard';
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import User from 'src/shared/custom-decorators/user.decorator';
+import ResponseBase from 'src/shared/types/response-base.interface';
 import { UpdateUserPasswordDto } from 'src/user/types/dto/update-user-password.dto';
 import { UpdateUserDto } from 'src/user/types/dto/update-user.dto';
 import { ReadSinglePublicUserResponse } from 'src/user/types/response/read-single-public-user.response';
 import { ReadSingleUserResponse } from 'src/user/types/response/read-single-user.response';
 import { SearchPublicUsersResponse } from 'src/user/types/response/search-public-users.response';
 import { UpdateUserResponse } from 'src/user/types/response/update-user.response';
-import { AuthGuard } from '../auth/auth.guard';
-import ResponseBase from '../shared/types/response-base.interface';
-import { UserService } from './user.service';
+import { UserService } from 'src/user/user.service';
 
 @Controller('user')
 export class UserController {

@@ -1,10 +1,17 @@
+import { GoogleGenAI, Type, type Part, type Schema } from '@google/genai';
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
-import { GenerateAiExerciseSchema } from 'src/ai/types/generate-ai-exercise-schema.interface';
+import { buildEvaluateAnswerPrompt } from 'src/ai/prompts/evaluate-answer.prompt';
+import { buildExtractPaperAnswersPrompt } from 'src/ai/prompts/extract-paper-answers.prompt';
+import { buildGenerateExercisesPrompt } from 'src/ai/prompts/generate-exercises.prompt';
+import { buildGenerateLectureNotesPrompt } from 'src/ai/prompts/generate-lecture-notes.prompt';
 import { EvaluateExerciseAnswerResponse } from 'src/ai/types/response/evaluate-exercise-answer.response';
+import { ExtractPaperAnswersResultResponse } from 'src/ai/types/response/extract-paper-answers-result.response';
 import { ExtractedPaperAnswer } from 'src/ai/types/response/extract-paper-answers.response';
 import { AiGeneratedExercise, AiGeneratedExercisesResponse } from 'src/ai/types/response/generate-exercises.response';
+import { GenerateLectureNotesResponse } from 'src/ai/types/response/generate-lecture-notes.response';
+import { GenerateSingleExerciseResponse } from 'src/ai/types/response/generate-single-exercise.response';
+import { TranscribeAudioResponse } from 'src/ai/types/response/transcribe-audio.response';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 import { MULTIPLE_CHOICE_CHOICES_COUNT } from 'src/exercise/constants/multiple-choice-choices-count.constant';
@@ -12,22 +19,19 @@ import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum'
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseService } from 'src/exercise/exercise.service';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
-import { ALLOWED_AUDIO_EXTRACTOR_MIMETYPES } from 'src/source/constants/allowed-audio-extractor-mimetypes.constant';
 
 @Injectable()
 export class AiService {
-    private readonly openaiApiKey: string;
-    private readonly openaiClient: OpenAI;
-    private readonly openaiModel = 'gpt-4.1-mini';
+    private readonly geminiApiKey: string;
+    private readonly genai: GoogleGenAI;
+    private readonly geminiModel = 'gemini-2.5-flash-lite';
 
     constructor(
         private configService: ConfigService,
         @Inject(forwardRef(() => ExerciseService)) private exerciseService: ExerciseService
     ) {
-        this.openaiApiKey = this.configService.get<string>('OPENAI_API_KEY')!;
-        this.openaiClient = new OpenAI({
-            apiKey: this.openaiApiKey,
-        });
+        this.geminiApiKey = this.configService.get<string>('GEMINI_API_KEY')!;
+        this.genai = new GoogleGenAI({ apiKey: this.geminiApiKey });
     }
 
     async generateExercises(
@@ -130,43 +134,33 @@ export class AiService {
         count: number,
         existingExercisePrompts?: string[]
     ): Promise<AiGeneratedExercise[]> {
-        let prompt = `Here is a document: "\n${text}\n"\nGenerate clear ${type} type, in ${difficulty} difficulty, ${count} number of relevant questions from the provided text to test comprehension.`;
+        const prompt = buildGenerateExercisesPrompt(text, type, difficulty, count, existingExercisePrompts);
 
-        if (existingExercisePrompts && existingExercisePrompts.length > 0) {
-            const existingList = existingExercisePrompts.map((p, i) => `${i + 1}. ${p}`).join('\n');
-
-            prompt += `\n\nThe following questions have already been generated from this document. Generate NEW questions that cover DIFFERENT parts and topics of the text not yet tested by these existing questions:\n\nExisting questions:\n${existingList}`;
-        }
-
-        const schema: GenerateAiExerciseSchema = {
-            type: 'object',
+        const schema: Schema = {
+            type: Type.OBJECT,
             properties: {
                 items: {
-                    type: 'array',
+                    type: Type.ARRAY,
                     items: {
-                        type: 'object',
+                        type: Type.OBJECT,
                         properties: {
-                            prompt: { type: 'string' },
-                            type: { type: 'string', enum: [type] },
-                            difficulty: { type: 'string', enum: [difficulty] },
+                            prompt: { type: Type.STRING },
+                            type: { type: Type.STRING, enum: [type] },
+                            difficulty: { type: Type.STRING, enum: [difficulty] },
                         },
                         required: ['prompt', 'type', 'difficulty'],
-                        additionalProperties: false,
                     },
                 },
             },
             required: ['items'],
-            additionalProperties: false,
         };
 
-        this.exerciseService.buildRestOfGenerateAiExerciseSchema(schema, type);
+        const exerciseTypeStrategy = this.exerciseService.resolveExerciseTypeStrategy(type);
 
-        const exercises = (
-            await this.sendPromptAndParseResponse<{ items: AiGeneratedExercise[] }>(
-                prompt,
-                schema as unknown as Record<string, unknown>
-            )
-        ).items;
+        exerciseTypeStrategy.buildRestOfGenerateAiExerciseSchema(schema);
+
+        const exercises = (await this.sendPromptAndParseResponse<{ items: AiGeneratedExercise[] }>(prompt, schema))
+            .items;
 
         if (type === ExerciseType.MULTIPLE_CHOICE) {
             exercises.forEach((exercise) => {
@@ -187,38 +181,34 @@ export class AiService {
         context: string,
         type: ExerciseType,
         difficulty: ExerciseDifficulty
-    ): Promise<Omit<AiGeneratedExercise, 'order'>> {
+    ): Promise<GenerateSingleExerciseResponse> {
         const prompt = `Here is some context provided by the user: "\n${context}\n"\nGenerate a clear ${type} type, in ${difficulty} difficulty, single relevant question from the provided context to test comprehension.`;
 
-        const schema: GenerateAiExerciseSchema = {
-            type: 'object',
+        const schema: Schema = {
+            type: Type.OBJECT,
             properties: {
                 items: {
-                    type: 'array',
+                    type: Type.ARRAY,
                     items: {
-                        type: 'object',
+                        type: Type.OBJECT,
                         properties: {
-                            prompt: { type: 'string' },
-                            type: { type: 'string', enum: [type] },
-                            difficulty: { type: 'string', enum: [difficulty] },
+                            prompt: { type: Type.STRING },
+                            type: { type: Type.STRING, enum: [type] },
+                            difficulty: { type: Type.STRING, enum: [difficulty] },
                         },
                         required: ['prompt', 'type', 'difficulty'],
-                        additionalProperties: false,
                     },
                 },
             },
             required: ['items'],
-            additionalProperties: false,
         };
 
-        this.exerciseService.buildRestOfGenerateAiExerciseSchema(schema, type);
+        const exerciseTypeStrategy = this.exerciseService.resolveExerciseTypeStrategy(type);
 
-        const exercise = (
-            await this.sendPromptAndParseResponse<{ items: AiGeneratedExercise[] }>(
-                prompt,
-                schema as unknown as Record<string, unknown>
-            )
-        ).items[0];
+        exerciseTypeStrategy.buildRestOfGenerateAiExerciseSchema(schema);
+
+        const exercise = (await this.sendPromptAndParseResponse<{ items: AiGeneratedExercise[] }>(prompt, schema))
+            .items[0];
 
         if (type === ExerciseType.MULTIPLE_CHOICE) {
             const correctChoiceIndex = exercise.correctChoiceIndex!;
@@ -232,157 +222,124 @@ export class AiService {
 
         const { order, ...exerciseWithoutOrder } = exercise;
 
-        return exerciseWithoutOrder;
+        return { isSuccess: true, message: 'Single exercise generated.', exercise: exerciseWithoutOrder };
     }
 
     async evaluateExerciseAnswer(
         exercise: ExerciseDocument,
         customPrompt: string
     ): Promise<EvaluateExerciseAnswerResponse> {
-        const prompt = `Evaluate the user's answer and provide brief feedback in simple English for this ${exercise.type} exercise.
-            ### Evaluation Rules:
-            - **Scoring:** Assign a score from 0-100.
-            - **Content over Form:** Score purely on conceptual accuracy. Do NOT penalize for grammar, spelling, or incomplete sentences.
-            - **Meaning Matching:** Award a full score if the core concept matches the correct answer, even if phrased differently.
-            - **Strict Focus:** Evaluate the *intent* and *logic* of the answer, not the writing style.
-            - **Feedback:** Be concise. Specifically highlight what is missing or what was misunderstood.
+        const prompt = buildEvaluateAnswerPrompt(exercise.type, exercise.prompt, customPrompt);
 
-            ### Context:
-            - **Exercise Stem:** ${exercise.prompt}
-            - ${customPrompt}
-        `;
-
-        const schema = {
-            type: 'object',
+        const schema: Schema = {
+            type: Type.OBJECT,
             properties: {
                 score: {
-                    type: 'integer',
+                    type: Type.INTEGER,
                     minimum: 0,
                     maximum: 100,
                 },
-                feedback: { type: 'string' },
+                feedback: { type: Type.STRING },
             },
             required: ['score', 'feedback'],
-            additionalProperties: false,
         };
 
         const response = await this.sendPromptAndParseResponse<EvaluateExerciseAnswerResponse>(prompt, schema);
 
         return {
             isSuccess: true,
-            message: 'evaluation for openai is done',
+            message: 'evaluation is done',
             score: response.score,
             feedback: response.feedback,
         };
     }
 
-    async transcribeAudio(fileBuffer: Buffer, mimetype: string): Promise<string> {
-        const extension = ALLOWED_AUDIO_EXTRACTOR_MIMETYPES[mimetype] ?? 'webm';
-        const arrayBuffer = Buffer.from(fileBuffer).buffer;
-        const file = new File([arrayBuffer], `audio.${extension}`, { type: mimetype });
-
-        const transcription = await this.openaiClient.audio.transcriptions.create({
-            model: 'whisper-1',
-            file,
+    async transcribeAudio(fileBuffer: Buffer, mimetype: string): Promise<TranscribeAudioResponse> {
+        const response = await this.genai.models.generateContent({
+            model: this.geminiModel,
+            contents: [
+                {
+                    role: 'user',
+                    parts: [
+                        { text: 'Transcribe the audio verbatim. Return only the spoken text.' },
+                        { inlineData: { mimeType: mimetype, data: fileBuffer.toString('base64') } },
+                    ],
+                },
+            ],
         });
 
-        return transcription.text;
+        return { isSuccess: true, message: 'Audio transcribed.', text: response.text ?? '' };
     }
 
     async extractAnswersFromPaperImages(
         imageBuffers: { buffer: Buffer; mimetype: string }[],
         exerciseSummary: string
-    ): Promise<ExtractedPaperAnswer[]> {
-        const imageContentParts: OpenAI.Responses.ResponseInputContent[] = imageBuffers.map((img) => ({
-            type: 'input_image' as const,
-            image_url: `data:${img.mimetype};base64,${img.buffer.toString('base64')}`,
-            detail: 'high' as const,
+    ): Promise<ExtractPaperAnswersResultResponse> {
+        const imageParts: Part[] = imageBuffers.map((img) => ({
+            inlineData: { mimeType: img.mimetype, data: img.buffer.toString('base64') },
         }));
 
-        const schema = {
-            type: 'object',
+        const schema: Schema = {
+            type: Type.OBJECT,
             properties: {
                 items: {
-                    type: 'array',
+                    type: Type.ARRAY,
                     items: {
-                        type: 'object',
+                        type: Type.OBJECT,
                         properties: {
-                            exerciseNumber: { type: 'integer' },
-                            answer: { type: 'string' },
+                            exerciseNumber: { type: Type.INTEGER },
+                            answer: { type: Type.STRING },
                         },
                         required: ['exerciseNumber', 'answer'],
-                        additionalProperties: false,
                     },
                 },
             },
             required: ['items'],
-            additionalProperties: false,
         };
 
-        const response = await this.openaiClient.responses.create({
-            model: 'gpt-4.1',
-            input: [
-                {
-                    role: 'system',
-                    content:
-                        'You are an answer extraction assistant. Look at the provided images of a completed paper exam and extract the answers for each exercise. Return only valid JSON matching the schema.',
-                },
+        const response = await this.genai.models.generateContent({
+            model: this.geminiModel,
+            contents: [
                 {
                     role: 'user',
-                    content: [
-                        {
-                            type: 'input_text' as const,
-                            text: `Here are the exercises on the paper:\n\n${exerciseSummary}\n\nExtract the handwritten answers from the images for each exercise number.`,
-                        },
-                        ...imageContentParts,
-                    ],
+                    parts: [{ text: buildExtractPaperAnswersPrompt(exerciseSummary) }, ...imageParts],
                 },
             ],
-            text: {
-                format: { type: 'json_schema', name: 'schema', schema },
+            config: {
+                systemInstruction:
+                    'You are an answer extraction assistant. Look at the provided images of a completed paper exam and extract the answers for each exercise. Return only valid JSON matching the schema.',
+                responseMimeType: 'application/json',
+                responseSchema: schema,
             },
         });
 
-        const result = JSON.parse(response.output_text) as { items: ExtractedPaperAnswer[] };
+        const result = JSON.parse(response.text ?? '') as { items: ExtractedPaperAnswer[] };
 
-        return result.items;
+        return { isSuccess: true, message: 'Paper answers extracted.', extractedAnswers: result.items };
     }
 
     async generateLectureNotes(
         exerciseData: { prompt: string; answer: string }[]
-    ): Promise<{ title: string; rawText: string }> {
-        const exerciseList = exerciseData.map((e, i) => `${i + 1}. Q: ${e.prompt}\n   A: ${e.answer}`).join('\n');
+    ): Promise<GenerateLectureNotesResponse> {
+        const prompt = buildGenerateLectureNotesPrompt(exerciseData);
 
-        const prompt = `You are an expert educator. Based on the following exercise questions and their correct answers, generate lecture notes.
-            Exercises:
-            ${exerciseList}
-
-            Instructions:
-            - Generate a concise, descriptive title for the overall lecture notes based on the whole exercise set.
-            - For EACH exercise, generate a subtitle and its corresponding content that explains the concept being tested.
-            - The content for each exercise should teach the underlying concept and explain why the answer is correct.
-            - Return the notes as an array of sections, one per exercise, each with a subtitle and content.
-        `;
-
-        const schema = {
-            type: 'object',
+        const schema: Schema = {
+            type: Type.OBJECT,
             properties: {
-                title: { type: 'string' },
+                title: { type: Type.STRING },
                 sections: {
-                    type: 'array',
+                    type: Type.ARRAY,
                     items: {
-                        type: 'object',
+                        type: Type.OBJECT,
                         properties: {
-                            subtitle: { type: 'string' },
-                            content: { type: 'string' },
+                            subtitle: { type: Type.STRING },
+                            content: { type: Type.STRING },
                         },
                         required: ['subtitle', 'content'],
-                        additionalProperties: false,
                     },
                 },
             },
             required: ['title', 'sections'],
-            additionalProperties: false,
         };
 
         const result = await this.sendPromptAndParseResponse<{
@@ -392,29 +349,20 @@ export class AiService {
 
         const rawText = result.sections.map((s) => `${s.subtitle}\n${s.content}`).join('\n\n');
 
-        return { title: result.title, rawText };
+        return { isSuccess: true, message: 'Lecture notes generated.', title: result.title, rawText };
     }
 
-    private async sendPromptAndParseResponse<T>(prompt: string, schema: { [key: string]: unknown }): Promise<T> {
-        const response = await this.openaiClient.responses.create({
-            model: this.openaiModel,
-            input: [
-                {
-                    role: 'system',
-                    content: 'Return only valid JSON matching the schema.',
-                },
-                {
-                    role: 'user',
-                    content: prompt,
-                },
-            ],
-            text: {
-                format: { type: 'json_schema', name: 'schema', schema },
+    private async sendPromptAndParseResponse<T>(prompt: string, schema: Schema): Promise<T> {
+        const response = await this.genai.models.generateContent({
+            model: this.geminiModel,
+            contents: prompt,
+            config: {
+                systemInstruction: 'Return only valid JSON matching the schema.',
+                responseMimeType: 'application/json',
+                responseSchema: schema,
             },
         });
 
-        const result = JSON.parse(response.output_text) as T;
-
-        return result;
+        return JSON.parse(response.text ?? '') as T;
     }
 }

@@ -4,16 +4,12 @@ import {
     ConnectedSocket,
     MessageBody,
     OnGatewayConnection,
-    OnGatewayDisconnect,
     SubscribeMessage,
-    WebSocketGateway,
-    WebSocketServer,
+    WebSocketGateway
 } from '@nestjs/websockets';
-import { Namespace, Server, Socket } from 'socket.io';
+import { Socket } from 'socket.io';
 import { AuthGuard } from 'src/auth/auth.guard';
-import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
-import User from 'src/shared/custom-decorators/user.decorator';
 import { SourceService } from 'src/source/source.service';
 import { SourceDocument } from 'src/source/types/source-document.interface';
 

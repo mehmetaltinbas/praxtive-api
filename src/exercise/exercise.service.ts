@@ -1,14 +1,11 @@
 import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose from 'mongoose';
-import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
-import { GenerateAiExerciseSchema } from 'src/ai/types/generate-ai-exercise-schema.interface';
-import { AiGeneratedExercise } from 'src/ai/types/response/generate-exercises.response';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { EXERCISE_TYPE_SPECIFIC_FIELDS_TO_UNSET } from 'src/exercise/constants/exercise-type-specific-fields-to-unset.constant';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
+import { ExerciseTypeStrategy } from 'src/exercise/strategies/type/exercise-type-strategy.interface';
 import { ExerciseTypeFactory } from 'src/exercise/strategies/type/exercise-type.factory';
-import { EvaluateAnswerStrategyResponse } from 'src/exercise/strategies/type/types/evaluate-answer-strategy.response';
 import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
 import { GenerateExerciseWithContextDto } from 'src/exercise/types/dto/generate-exercise-with-context.dto';
 import { TransferExerciseDto } from 'src/exercise/types/dto/transfer-exercise.dto';
@@ -93,7 +90,11 @@ export class ExerciseService {
     ): Promise<GenerateExerciseWithContextResponse> {
         await this.exerciseSetService.readById(userId, exerciseSetId);
 
-        const exercise = await this.aiService.generateSingleExerciseWithContext(dto.context, dto.type, dto.difficulty);
+        const { exercise } = await this.aiService.generateSingleExerciseWithContext(
+            dto.context,
+            dto.type,
+            dto.difficulty
+        );
 
         return { isSuccess: true, message: 'exercise generated with context', exercise };
     }
@@ -269,8 +270,10 @@ export class ExerciseService {
         };
     }
 
-    async reorder(id: string, order: number, session: mongoose.mongo.ClientSession): Promise<void> {
+    async reorder(id: string, order: number, session: mongoose.mongo.ClientSession): Promise<ResponseBase> {
         await this.db.Exercise.findOneAndUpdate({ _id: id }, { $set: { order } }, { session });
+
+        return { isSuccess: true, message: 'Exercise reordered.' };
     }
 
     async deleteById(userId: string, id: string): Promise<ResponseBase> {
@@ -306,56 +309,7 @@ export class ExerciseService {
         return { isSuccess: true, message: `exercise deleted by id: ${id}` };
     }
 
-    buildRestOfGenerateAiExerciseSchema(schema: GenerateAiExerciseSchema, exerciseType: ExerciseType): void {
-        const strategy = this.exerciseTypeFactory.resolveStrategy(exerciseType);
-
-        return strategy.buildRestOfGenerateAiExerciseSchema(schema);
-    }
-
-    buildCreateExerciseDto(dto: CreateExerciseDto, exercise: AiGeneratedExercise): void {
-        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
-
-        return strategy.buildCreateExerciseDto(dto, exercise);
-    }
-
-    async evaluateAnswer(exercise: ExerciseDocument, answer: string): Promise<EvaluateAnswerStrategyResponse> {
-        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
-
-        return await strategy.evaluateAnswer(exercise, answer);
-    }
-
-    buildPaperExtractionPrompt(exercise: ExerciseDocument, exerciseNumber: number): string {
-        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
-
-        return strategy.buildPaperExtractionPrompt(exerciseNumber, exercise);
-    }
-
-    normalizePaperAnswer(exercise: ExerciseDocument, rawAnswer: string): string {
-        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
-
-        return strategy.normalizePaperAnswer(rawAnswer);
-    }
-
-    getCorrectAnswerText(exercise: ExerciseDocument): string {
-        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
-
-        return strategy.getCorrectAnswerText(exercise);
-    }
-
-    getRequiredHeight(exercise: ExerciseDocument, document: typeof PDFDocument, usableWidth: number): number {
-        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
-
-        return strategy.getRequiredHeight(exercise, document, usableWidth);
-    }
-
-    drawExerciseToPdf(
-        exercise: ExerciseDocument,
-        index: number,
-        document: typeof PDFDocument,
-        usableWidth: number
-    ): void {
-        const strategy = this.exerciseTypeFactory.resolveStrategy(exercise.type);
-
-        strategy.drawExerciseToPdf(exercise, index, document, usableWidth);
+    resolveExerciseTypeStrategy(exerciseType: ExerciseType): ExerciseTypeStrategy {
+        return this.exerciseTypeFactory.resolveStrategy(exerciseType);
     }
 }

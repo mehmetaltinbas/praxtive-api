@@ -1,4 +1,6 @@
 import * as mongoose from 'mongoose';
+import { PaymentProviderName } from 'src/payment/enums/payment-provider-name.enum';
+import { SubscriptionStatus } from 'src/subscription/enum/subscription-status.enum';
 
 const schema = new mongoose.Schema(
     {
@@ -7,13 +9,22 @@ const schema = new mongoose.Schema(
         nextBillingDate: { type: Date, required: true },
         status: {
             type: String,
-            enum: ['active', 'canceled', 'expired', 'pendingActivate', 'upgradedFrom'],
+            enum: Object.values(SubscriptionStatus),
         },
         startedAt: { type: Date },
         canceledAt: { type: Date },
         endedAt: { type: Date },
+        paymentRetryCount: { type: Number, default: 0 },
+        lastPaymentAttempt: { type: Date },
+        gracePeriodEnd: { type: Date },
+        lastPaymentProvider: { type: String, enum: Object.values(PaymentProviderName) },
+        lastPaymentMethodToken: { type: String },
     },
     { timestamps: true }
 );
+
+schema.index({ user: 1 }, { unique: true, partialFilterExpression: { status: 'active' } });
+schema.index({ user: 1 }, { unique: true, partialFilterExpression: { status: 'canceled' } });
+schema.index({ user: 1 }, { unique: true, partialFilterExpression: { status: 'pendingActivate' } });
 
 export const SubscriptionModel = mongoose.model('Subscription', schema);

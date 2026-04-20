@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
-import { dbModelsProvider } from './db-models.provider';
-import { DbConnectionModule } from './db-connection.module';
+import { DbConnectionModule } from 'src/db/db-connection.module';
+import { dbModelsProvider } from 'src/db/db-models.provider';
 
 @Global()
 @Module({

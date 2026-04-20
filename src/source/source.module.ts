@@ -1,14 +1,16 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { AiModule } from 'src/ai/ai.module';
+import { BillingModule } from 'src/billing/billing.module';
 import { PublicSourceController } from 'src/source/public-source.controller';
 import { SourceController } from 'src/source/source.controller';
 import { SourceService } from 'src/source/source.service';
 import { SourceTypeStrategiesBarrel } from 'src/source/strategies/type/source-type-strategies.barrel';
 import { SourceTypeFactory } from 'src/source/strategies/type/source-type.factory';
+import { SubscriptionModule } from 'src/subscription/subscription.module';
 import { UserModule } from 'src/user/user.module';
 
 @Module({
-    imports: [forwardRef(() => AiModule), UserModule],
+    imports: [forwardRef(() => AiModule), UserModule, BillingModule, SubscriptionModule],
     providers: [SourceService, SourceTypeFactory, ...SourceTypeStrategiesBarrel],
     controllers: [SourceController, PublicSourceController],
     exports: [SourceService],

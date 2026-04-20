@@ -3,5 +3,5 @@ import { AiService } from 'src/ai/ai.service';
 
 @Controller('ai')
 export class AiController {
-    constructor(private openaiService: AiService) {}
+    constructor(private aiService: AiService) {}
 }

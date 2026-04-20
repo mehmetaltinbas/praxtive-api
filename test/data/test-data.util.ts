@@ -1,8 +1,8 @@
-import { TestDataKeys } from './test-data-keys.enum';
-import { TestData } from './test-data.interface';
 import fs from 'fs';
+import { TestDataKeys } from 'test/data/test-data-keys.enum';
+import { TestData } from 'test/data/test-data.interface';
 
-const testDataJsonFilePath = './test/data/test-data.json';
+const testDataJsonFilePath = 'test/data/test-data.json';
 
 function readAndParse(): TestData {
     const rawGlobalTestData = fs.readFileSync(testDataJsonFilePath).toString();

@@ -1,15 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { CalculateProrationResponse } from 'src/billing/response/calculate-proration.response';
-import { UserService } from 'src/user/user.service';
+import { CalculateProrationResponse } from 'src/billing/types/response/calculate-proration.response';
 
 @Injectable()
 export class BillingService {
-    // handle payment processings, invoice generation, payment webhooks, refunds/chargebacks
-    constructor(
-        private configService: ConfigService,
-        private userService: UserService
-    ) {}
 
     calculateProrationOnUpgrade(
         nextBillingDate: Date,
@@ -30,7 +23,4 @@ export class BillingService {
         };
     }
 
-    // async processPayment(): Promise<ResponseBase> {
-
-    // }
 }

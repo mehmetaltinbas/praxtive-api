@@ -1,7 +1,7 @@
+import { Type, type Schema } from '@google/genai';
 import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
-import { GenerateAiExerciseSchema } from 'src/ai/types/generate-ai-exercise-schema.interface';
 import { AiGeneratedExercise } from 'src/ai/types/response/generate-exercises.response';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 import { ExerciseTypeStrategy } from 'src/exercise/strategies/type/exercise-type-strategy.interface';
@@ -13,14 +13,16 @@ import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface
 export class OpenEndedExerciseTypeStrategy implements ExerciseTypeStrategy {
     type = ExerciseType.OPEN_ENDED;
 
-    constructor(@Inject(forwardRef(() => AiService)) private openaiService: AiService) {}
+    constructor(@Inject(forwardRef(() => AiService)) private aiService: AiService) {}
 
-    buildRestOfGenerateAiExerciseSchema(schema: GenerateAiExerciseSchema): void {
-        schema.properties.items.items.properties.solution = {
-            type: 'string',
+    buildRestOfGenerateAiExerciseSchema(schema: Schema): void {
+        const itemSchema = schema.properties!.items.items!;
+
+        itemSchema.properties!.solution = {
+            type: Type.STRING,
         };
 
-        schema.properties.items.items.required.push('solution');
+        itemSchema.required!.push('solution');
     }
 
     buildCreateExerciseDto(dto: CreateExerciseDto, exercise: AiGeneratedExercise): void {
@@ -40,7 +42,7 @@ export class OpenEndedExerciseTypeStrategy implements ExerciseTypeStrategy {
     async evaluateAnswer(exercise: ExerciseDocument, answer: string): Promise<EvaluateAnswerStrategyResponse> {
         const prompt = `the correct solution: ${exercise.solution}\n user's answer: ${answer}`;
 
-        const evaluationResponse = await this.openaiService.evaluateExerciseAnswer(exercise, prompt);
+        const evaluationResponse = await this.aiService.evaluateExerciseAnswer(exercise, prompt);
 
         if (!evaluationResponse.isSuccess) return { isSuccess: false, message: evaluationResponse.message };
 
@@ -81,12 +83,10 @@ export class OpenEndedExerciseTypeStrategy implements ExerciseTypeStrategy {
         document: typeof PDFDocument,
         usableWidth: number
     ): void {
-        document
-            .font('Times-Roman')
-            .fontSize(12)
-            .text(exercise.prompt);
+        document.font('Times-Roman').fontSize(12).text(exercise.prompt);
 
         const solutionHeight = document.heightOfString(exercise.solution || '', { width: usableWidth });
+
         document.y += solutionHeight + document.currentLineHeight();
     }
 }
