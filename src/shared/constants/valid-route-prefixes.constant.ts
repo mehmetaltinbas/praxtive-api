@@ -6,6 +6,7 @@ export const VALID_ROUTE_PREFIXES = [
     '/public-exercise',
     '/ai',
     '/subscription',
+    '/payment-method',
     '/source',
     '/public-exercise-set',
     '/user',

@@ -4,6 +4,7 @@ import { ExerciseSetGroupModel } from 'src/db/models/exercise-set-group.model';
 import { ExerciseSetModel } from 'src/db/models/exercise-set.model';
 import { ExerciseModel } from 'src/db/models/exercise.model';
 import { FeedbackModel } from 'src/db/models/feedback.model';
+import { PaymentMethodModel } from 'src/db/models/payment-method.model';
 import { PaymentModel } from 'src/db/models/payment.model';
 import { PlanModel } from 'src/db/models/plan.model';
 import { SourceModel } from 'src/db/models/source.model';
@@ -23,6 +24,7 @@ export const dbModelsProvider = {
             Subscription: SubscriptionModel,
             CreditTransaction: CreditTransactionModel,
             Payment: PaymentModel,
+            PaymentMethod: PaymentMethodModel,
             Source: SourceModel,
             ExerciseSetGroup: ExerciseSetGroupModel,
             ExerciseSet: ExerciseSetModel,
@@ -45,6 +47,7 @@ export async function cleanDb(mongoose: Mongoose): Promise<void> {
         models.Plan.deleteMany({}),
         models.Subscription.deleteMany({}),
         models.CreditTransaction.deleteMany({}),
+        models.PaymentMethod.deleteMany({}),
         models.Source.deleteMany({}),
         models.ExerciseSetGroup.deleteMany({}),
         models.ExerciseSet.deleteMany({}),

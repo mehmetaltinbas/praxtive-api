@@ -3,6 +3,7 @@ import { CreditTransactionModel } from 'src/db/models/credit-transaction.model';
 import { ExerciseSetGroupModel } from 'src/db/models/exercise-set-group.model';
 import { ExerciseSetModel } from 'src/db/models/exercise-set.model';
 import { FeedbackModel } from 'src/db/models/feedback.model';
+import { PaymentMethodModel } from 'src/db/models/payment-method.model';
 import { SourceModel } from 'src/db/models/source.model';
 import { SubscriptionModel } from 'src/db/models/subscription.model';
 import { UserDocument } from 'src/user/types/user-document.interface';
@@ -18,6 +19,7 @@ const schema = new mongoose.Schema(
         pendingEmail: { type: String, default: null },
         verificationCode: { type: Number, default: null },
         verificationCodeExpiresAt: { type: Date, default: null },
+        stripeCustomerId: { type: String, sparse: true, default: null },
     },
     { timestamps: true }
 );
@@ -29,6 +31,7 @@ schema.post('findOneAndDelete', async function (document: UserDocument) {
         SubscriptionModel.deleteMany({ user: document._id }),
         CreditTransactionModel.deleteMany({ user: document._id }),
         FeedbackModel.deleteMany({ userId: document._id }),
+        PaymentMethodModel.deleteMany({ user: document._id }),
     ]);
 
     const [groups, sources] = await Promise.all([
