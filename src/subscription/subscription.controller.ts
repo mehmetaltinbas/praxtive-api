@@ -15,11 +15,6 @@ import { ReadActiveSubscriptionResponse } from 'src/subscription/types/response/
 export class SubscriptionController {
     constructor(private subscriptionService: SubscriptionService) {}
 
-    @Get('read-active')
-    async readActive(@User() user: JwtPayload): Promise<ReadActiveSubscriptionResponse> {
-        return await this.subscriptionService.readActive(user.sub);
-    }
-
     @Post('upgrade')
     async upgrade(
         @User() user: JwtPayload,
@@ -42,6 +37,11 @@ export class SubscriptionController {
         @Body() downgradeSubscriptionDto: DowngradeSubscriptionDto
     ): Promise<ResponseBase> {
         return await this.subscriptionService.downgrade(user.sub, downgradeSubscriptionDto);
+    }
+
+    @Get('read-active')
+    async readActive(@User() user: JwtPayload): Promise<ReadActiveSubscriptionResponse> {
+        return await this.subscriptionService.readActive(user.sub);
     }
 
     @Post('cancel-downgrade')
