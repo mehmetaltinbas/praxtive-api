@@ -7,7 +7,7 @@ import { AUDIO_RATE_PER_SECOND } from 'src/billing/constants/credit-rates/audio-
 import { INPUT_TOKEN_RATE } from 'src/billing/constants/credit-rates/input-token-rate.constant';
 import { MAX_OUTPUT_TOKENS } from 'src/billing/constants/credit-rates/max-output-tokens.constant';
 import { OUTPUT_TOKEN_RATE } from 'src/billing/constants/credit-rates/output-token-rate.constant';
-import { VISION_TOKENS_PER_IMAGE } from 'src/billing/constants/credit-rates/vision-tokens-per-image.constant';
+import { VISION_TOKENS_PER_IMAGE } from 'src/billing/constants/vision-tokens-per-image.constant';
 import { CostEstimateResponse } from 'src/billing/types/response/cost-estimate.response';
 import { EstimateEvaluatePaperAnswersDto } from 'src/exercise-set/types/dto/estimate-evaluate-paper-answers.dto';
 import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum';
