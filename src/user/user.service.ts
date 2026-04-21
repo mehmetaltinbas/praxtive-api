@@ -204,6 +204,16 @@ export class UserService {
         return { isSuccess: true, message: 'Credit balance deducted.' };
     }
 
+    async setPaymentProviderCustomerId(id: string, paymentProviderCustomerId: string): Promise<ResponseBase> {
+        const result = await this.db.User.updateOne({ _id: id }, { $set: { paymentProviderCustomerId } });
+
+        if (result.matchedCount === 0) {
+            throw new NotFoundException('user not found');
+        }
+
+        return { isSuccess: true, message: 'stripe customer id set' };
+    }
+
     async deleteById(id: string): Promise<ResponseBase> {
         const user = await this.db.User.findByIdAndDelete(id);
 

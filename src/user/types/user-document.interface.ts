@@ -11,4 +11,5 @@ export interface UserDocument extends MongooseDocument {
     pendingEmail: string | null;
     verificationCode: number | null;
     verificationCodeExpiresAt: Date | null;
+    paymentProviderCustomerId: string | null;
 }

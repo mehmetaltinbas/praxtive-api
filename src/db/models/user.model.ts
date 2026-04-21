@@ -19,7 +19,7 @@ const schema = new mongoose.Schema(
         pendingEmail: { type: String, default: null },
         verificationCode: { type: Number, default: null },
         verificationCodeExpiresAt: { type: Date, default: null },
-        stripeCustomerId: { type: String, sparse: true, default: null },
+        paymentProviderCustomerId: { type: String, sparse: true, default: null },
     },
     { timestamps: true }
 );

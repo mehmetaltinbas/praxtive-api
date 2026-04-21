@@ -39,7 +39,7 @@ export class PaymentMethodService {
         const provider = dto.provider ?? PaymentProviderName.STRIPE;
         const strategy = this.paymentService.resolvePaymentProviderStrategy(provider);
 
-        const customerId = await this.ensureCustomerId(userId, provider);
+        const customerId = await this.ensurePaymentProviderCustomerId(userId, provider);
 
         const { clientSecret } = await strategy.createSetupIntent(customerId);
 
@@ -49,7 +49,7 @@ export class PaymentMethodService {
     async add(userId: string, dto: AddPaymentMethodDto): Promise<AddPaymentMethodResponse> {
         const strategy = this.paymentService.resolvePaymentProviderStrategy(dto.provider);
 
-        const customerId = await this.ensureCustomerId(userId, dto.provider);
+        const customerId = await this.ensurePaymentProviderCustomerId(userId, dto.provider);
 
         await strategy.attachToCustomer(dto.token, customerId);
         const details = await strategy.retrieveMethodDetails(dto.token);
@@ -256,21 +256,21 @@ export class PaymentMethodService {
         return new HttpException('payment method not found', HttpStatus.NOT_FOUND);
     }
 
-    private async ensureCustomerId(userId: string, provider: PaymentProviderName): Promise<string> {
+    private async ensurePaymentProviderCustomerId(userId: string, provider: PaymentProviderName): Promise<string> {
         if (!Object.values(PaymentProviderName.STRIPE).includes(provider)) {
             throw new HttpException({ message: `provider not yet supported: ${provider}` }, HttpStatus.BAD_REQUEST);
         }
 
         const { user } = await this.userService.readById(userId);
 
-        if (user.stripeCustomerId) {
-            return user.stripeCustomerId;
+        if (user.paymentProviderCustomerId) {
+            return user.paymentProviderCustomerId;
         }
 
         const strategy = this.paymentService.resolvePaymentProviderStrategy(provider);
         const { customerId } = await strategy.ensureCustomer(userId, user.email);
 
-        await this.userService.setStripeCustomerId(userId, customerId);
+        await this.userService.setPaymentProviderCustomerId(userId, customerId);
 
         return customerId;
     }
