@@ -3,7 +3,6 @@ import { CalculateProrationResponse } from 'src/billing/types/response/calculate
 
 @Injectable()
 export class BillingService {
-
     calculateProrationOnUpgrade(
         nextBillingDate: Date,
         currentPlanMonthlyPrice: number,
@@ -22,5 +21,4 @@ export class BillingService {
             remainingDays,
         };
     }
-
 }
