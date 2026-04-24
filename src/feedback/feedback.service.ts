@@ -26,7 +26,8 @@ export class FeedbackService {
             await this.emailService.notifyNewFeedback(userId, dto.content);
         } catch (err) {
             this.logger.error(
-                `Feedback ${feedback._id} saved but email notification failed: ${(err as Error).message}`
+                `Feedback ${feedback._id} saved but email notification failed`,
+                err instanceof Error ? err.stack : String(err)
             );
         }
 
