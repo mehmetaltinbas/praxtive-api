@@ -794,7 +794,7 @@ export class ExerciseSetService {
             document.fontSize(14);
 
             document.font('Times-Roman');
-            const labelWidth = document.widthOfString('Source:  | Type:  | Difficulty:  | Count: ');
+            const labelWidth = document.widthOfString('Association:  | Type:  | Difficulty:  | Count: ');
 
             document.font('Times-Italic');
             const valueWidth = document.widthOfString(
