@@ -6,7 +6,7 @@ import { SourceDocument } from 'src/source/types/source-document.interface';
 
 const schema = new mongoose.Schema(
     {
-        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         type: { type: String, enum: Object.values(SourceType), required: true },
         title: { type: String, required: true },
         rawText: String,
@@ -19,7 +19,18 @@ const schema = new mongoose.Schema(
     { timestamps: true }
 );
 
-schema.index({ userId: 1, title: 1 }, { unique: true });
+schema.index({ user: 1, title: 1 }, { unique: true });
+
+schema.set('toJSON', {
+    transform: (_doc, ret: Record<string, unknown>) => {
+        const v = ret.user;
+        if (v !== undefined) {
+            ret.userId = v && typeof v === 'object' && '_id' in v ? String((v as { _id: unknown })._id) : v;
+            delete ret.user;
+        }
+        return ret;
+    },
+});
 
 schema.post('findOneAndDelete', async function (document: SourceDocument) {
     if (document) {

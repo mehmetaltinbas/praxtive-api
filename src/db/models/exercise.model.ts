@@ -5,12 +5,12 @@ import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 
 const schema = new mongoose.Schema(
     {
-        exerciseSetId: {
+        exerciseSet: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'ExerciseSet',
             required: true,
         },
-        prompt: { type: String, required: true },
+        stem: { type: String, required: true },
         type: {
             type: String,
             enum: Object.values(ExerciseType),
@@ -40,5 +40,16 @@ const schema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+schema.set('toJSON', {
+    transform: (_doc, ret: Record<string, unknown>) => {
+        const v = ret.exerciseSet;
+        if (v !== undefined) {
+            ret.exerciseSetId = v && typeof v === 'object' && '_id' in v ? String((v as { _id: unknown })._id) : v;
+            delete ret.exerciseSet;
+        }
+        return ret;
+    },
+});
 
 export const ExerciseModel = mongoose.model('Exercise', schema);

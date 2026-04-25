@@ -18,7 +18,7 @@ export class FeedbackService {
 
     async create(userId: string, dto: CreateFeedbackDto): Promise<ResponseBase> {
         const feedback = await this.db.Feedback.create({
-            userId,
+            user: userId,
             content: dto.content,
         });
 

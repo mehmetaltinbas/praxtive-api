@@ -63,7 +63,7 @@ export class TrueFalseExerciseTypeStrategy implements ExerciseTypeStrategy {
     }
 
     buildPaperExtractionPrompt(exerciseNumber: number, exercise: ExerciseDocument): string {
-        return `Exercise ${exerciseNumber} (True/False): "${exercise.prompt}"\nReturn "True" or "False".`;
+        return `Exercise ${exerciseNumber} (True/False): "${exercise.stem}"\nReturn "True" or "False".`;
     }
 
     normalizePaperAnswer(rawAnswer: string): string {
@@ -80,7 +80,7 @@ export class TrueFalseExerciseTypeStrategy implements ExerciseTypeStrategy {
     }
 
     getRequiredHeight(exercise: ExerciseDocument, document: typeof PDFDocument, usableWidth: number): number {
-        let requiredHeight = document.heightOfString(exercise.prompt, { width: usableWidth });
+        let requiredHeight = document.heightOfString(exercise.stem, { width: usableWidth });
 
         requiredHeight += document.currentLineHeight();
 
@@ -97,7 +97,7 @@ export class TrueFalseExerciseTypeStrategy implements ExerciseTypeStrategy {
         document: typeof PDFDocument,
         usableWidth: number
     ): void {
-        document.font('Times-Roman').fontSize(12).text(exercise.prompt);
+        document.font('Times-Roman').fontSize(12).text(exercise.stem);
 
         document.moveDown(1);
 

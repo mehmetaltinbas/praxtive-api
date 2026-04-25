@@ -13,7 +13,7 @@ export class ExerciseSetGroupService {
     ) {}
 
     async create(userId: string, dto: CreateExerciseSetGroupDto): Promise<ResponseBase> {
-        const conflict = await this.db.ExerciseSetGroup.findOne({ userId, title: dto.title });
+        const conflict = await this.db.ExerciseSetGroup.findOne({ user: userId, title: dto.title });
 
         if (conflict) {
             return {
@@ -23,7 +23,7 @@ export class ExerciseSetGroupService {
         }
 
         await this.db.ExerciseSetGroup.create({
-            userId: new mongoose.Types.ObjectId(userId),
+            user: new mongoose.Types.ObjectId(userId),
             title: dto.title,
         });
 
@@ -31,7 +31,7 @@ export class ExerciseSetGroupService {
     }
 
     async readById(userId: string, id: string): Promise<ExerciseSetGroupDocument> {
-        const exerciseSetGroup = await this.db.ExerciseSetGroup.findOne({ _id: id, userId });
+        const exerciseSetGroup = await this.db.ExerciseSetGroup.findOne({ _id: id, user: userId });
 
         if (!exerciseSetGroup) {
             throw new NotFoundException(`Exercise set group not found by id ${id}.`);
@@ -41,7 +41,7 @@ export class ExerciseSetGroupService {
     }
 
     async readAllByUserId(userId: string): Promise<ReadMultipleExerciseSetGroupsResponse> {
-        const exerciseSetGroups = await this.db.ExerciseSetGroup.find({ userId });
+        const exerciseSetGroups = await this.db.ExerciseSetGroup.find({ user: userId });
 
         return {
             isSuccess: true,
@@ -55,7 +55,7 @@ export class ExerciseSetGroupService {
 
         if (dto.title) {
             const conflict = await this.db.ExerciseSetGroup.findOne({
-                userId,
+                user: userId,
                 title: dto.title,
                 _id: { $ne: id },
             });
@@ -69,7 +69,7 @@ export class ExerciseSetGroupService {
         }
 
         const updated = await this.db.ExerciseSetGroup.findOneAndUpdate(
-            { _id: id, userId },
+            { _id: id, user: userId },
             { $set: { ...dto } },
             { new: true }
         );
@@ -82,7 +82,7 @@ export class ExerciseSetGroupService {
     }
 
     async deleteById(userId: string, id: string): Promise<ResponseBase> {
-        const deleted = await this.db.ExerciseSetGroup.findOneAndDelete({ _id: id, userId });
+        const deleted = await this.db.ExerciseSetGroup.findOneAndDelete({ _id: id, user: userId });
 
         if (!deleted) {
             throw new NotFoundException('Exercise set group not found.');

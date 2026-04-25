@@ -55,7 +55,7 @@ export class OpenEndedExerciseTypeStrategy implements ExerciseTypeStrategy {
     }
 
     buildPaperExtractionPrompt(exerciseNumber: number, exercise: ExerciseDocument): string {
-        return `Exercise ${exerciseNumber} (Open Ended): "${exercise.prompt}"\nTranscribe the handwritten answer text.`;
+        return `Exercise ${exerciseNumber} (Open Ended): "${exercise.stem}"\nTranscribe the handwritten answer text.`;
     }
 
     normalizePaperAnswer(rawAnswer: string): string {
@@ -67,7 +67,7 @@ export class OpenEndedExerciseTypeStrategy implements ExerciseTypeStrategy {
     }
 
     getRequiredHeight(exercise: ExerciseDocument, document: typeof PDFDocument, usableWidth: number): number {
-        let requiredHeight = document.heightOfString(exercise.prompt, { width: usableWidth });
+        let requiredHeight = document.heightOfString(exercise.stem, { width: usableWidth });
         const solutionHeight = document.heightOfString(exercise.solution || '', { width: usableWidth });
 
         requiredHeight += solutionHeight + document.currentLineHeight();
@@ -83,7 +83,7 @@ export class OpenEndedExerciseTypeStrategy implements ExerciseTypeStrategy {
         document: typeof PDFDocument,
         usableWidth: number
     ): void {
-        document.font('Times-Roman').fontSize(12).text(exercise.prompt);
+        document.font('Times-Roman').fontSize(12).text(exercise.stem);
 
         const solutionHeight = document.heightOfString(exercise.solution || '', { width: usableWidth });
 

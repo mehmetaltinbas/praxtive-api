@@ -12,7 +12,7 @@ export class UpdateExerciseDto {
     difficulty?: ExerciseDifficulty;
 
     @IsOptional()
-    prompt?: string;
+    stem?: string;
 
     @IsOptional()
     solution?: string;

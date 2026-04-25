@@ -4,8 +4,8 @@ import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 
 export interface ExerciseDocument extends MongooseDocument {
     _id: string;
-    exerciseSetId: string;
-    prompt: string;
+    exerciseSet: string;
+    stem: string;
     type: ExerciseType;
     difficulty: ExerciseDifficulty;
     order: number; // index based integer

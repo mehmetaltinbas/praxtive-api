@@ -3,7 +3,7 @@ import { FeedbackStatus } from 'src/feedback/enums/feedback-status.enum';
 
 export interface FeedbackDocument extends MongooseDocument {
     _id: string;
-    userId: string;
+    user: string;
     content: string;
     status: FeedbackStatus;
 }

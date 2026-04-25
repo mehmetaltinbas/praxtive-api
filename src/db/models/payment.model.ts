@@ -27,4 +27,20 @@ const schema = new mongoose.Schema(
 schema.index({ user: 1, createdAt: -1 });
 schema.index({ subscription: 1 });
 
+schema.set('toJSON', {
+    transform: (_doc, ret: Record<string, unknown>) => {
+        for (const [k, outKey] of [
+            ['user', 'userId'],
+            ['subscription', 'subscriptionId'],
+        ] as const) {
+            const v = ret[k];
+            if (v !== undefined) {
+                ret[outKey] = v && typeof v === 'object' && '_id' in v ? String((v as { _id: unknown })._id) : v;
+                delete ret[k];
+            }
+        }
+        return ret;
+    },
+});
+
 export const PaymentModel = mongoose.model('Payment', schema);

@@ -80,7 +80,7 @@ export class MultipleChoiceExerciseTypeStrategy implements ExerciseTypeStrategy 
     buildPaperExtractionPrompt(exerciseNumber: number, exercise: ExerciseDocument): string {
         const choiceLabels = exercise.choices!.map((c, i) => `${String.fromCharCode(65 + i)}) ${c}`);
 
-        return `Exercise ${exerciseNumber} (MCQ): "${exercise.prompt}"\nChoices: ${choiceLabels.join(', ')}\nReturn the selected letter (A-E).`;
+        return `Exercise ${exerciseNumber} (MCQ): "${exercise.stem}"\nChoices: ${choiceLabels.join(', ')}\nReturn the selected letter (A-E).`;
     }
 
     normalizePaperAnswer(rawAnswer: string): string {
@@ -99,7 +99,7 @@ export class MultipleChoiceExerciseTypeStrategy implements ExerciseTypeStrategy 
     }
 
     getRequiredHeight(exercise: ExerciseDocument, document: typeof PDFDocument, usableWidth: number): number {
-        let requiredHeight = document.heightOfString(exercise.prompt, { width: usableWidth });
+        let requiredHeight = document.heightOfString(exercise.stem, { width: usableWidth });
 
         // Add space for the 1 line break
         requiredHeight += document.currentLineHeight();
@@ -121,7 +121,7 @@ export class MultipleChoiceExerciseTypeStrategy implements ExerciseTypeStrategy 
         document: typeof PDFDocument,
         usableWidth: number
     ): void {
-        document.font('Times-Roman').fontSize(12).text(exercise.prompt);
+        document.font('Times-Roman').fontSize(12).text(exercise.stem);
 
         // Draw the 1 line break
         document.moveDown(1);

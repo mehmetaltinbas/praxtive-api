@@ -6,7 +6,7 @@ import { ExerciseSetVisibility } from 'src/exercise-set/enums/exercise-set-visib
 
 export interface ExerciseSetDocument extends MongooseDocument {
     _id: string;
-    userId: string;
+    user: string;
     contextType: ExerciseSetContextType;
     contextId: string;
     type: ExerciseSetType;

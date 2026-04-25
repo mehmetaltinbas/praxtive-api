@@ -14,7 +14,7 @@ export class CreateExerciseDto {
 
     @IsString()
     @IsNotEmpty()
-    readonly prompt!: string;
+    readonly stem!: string;
 
     @IsString()
     @IsOptional()

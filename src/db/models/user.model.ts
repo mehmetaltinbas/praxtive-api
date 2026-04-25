@@ -30,13 +30,13 @@ schema.post('findOneAndDelete', async function (document: UserDocument) {
     await Promise.all([
         SubscriptionModel.deleteMany({ user: document._id }),
         CreditTransactionModel.deleteMany({ user: document._id }),
-        FeedbackModel.deleteMany({ userId: document._id }),
+        FeedbackModel.deleteMany({ user: document._id }),
         PaymentMethodModel.deleteMany({ user: document._id }),
     ]);
 
     const [groups, sources] = await Promise.all([
-        ExerciseSetGroupModel.find({ userId: document._id }),
-        SourceModel.find({ userId: document._id }),
+        ExerciseSetGroupModel.find({ user: document._id }),
+        SourceModel.find({ user: document._id }),
     ]);
 
     await Promise.all([
@@ -44,7 +44,7 @@ schema.post('findOneAndDelete', async function (document: UserDocument) {
         ...sources.map((source) => SourceModel.findByIdAndDelete(source._id)),
     ]);
 
-    const orphanExerciseSets = await ExerciseSetModel.find({ userId: document._id });
+    const orphanExerciseSets = await ExerciseSetModel.find({ user: document._id });
 
     await Promise.all(orphanExerciseSets.map((exerciseSet) => ExerciseSetModel.findByIdAndDelete(exerciseSet._id)));
 });

@@ -24,4 +24,20 @@ schema.index({ user: 1 }, { unique: true, partialFilterExpression: { status: 'ac
 schema.index({ user: 1 }, { unique: true, partialFilterExpression: { status: 'canceled' } });
 schema.index({ user: 1 }, { unique: true, partialFilterExpression: { status: 'pendingActivate' } });
 
+schema.set('toJSON', {
+    transform: (_doc, ret: Record<string, unknown>) => {
+        for (const [k, outKey] of [
+            ['user', 'userId'],
+            ['plan', 'planId'],
+        ] as const) {
+            const v = ret[k];
+            if (v !== undefined) {
+                ret[outKey] = v && typeof v === 'object' && '_id' in v ? String((v as { _id: unknown })._id) : v;
+                delete ret[k];
+            }
+        }
+        return ret;
+    },
+});
+
 export const SubscriptionModel = mongoose.model('Subscription', schema);

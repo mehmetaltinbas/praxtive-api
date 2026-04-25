@@ -3,7 +3,7 @@ import { FeedbackStatus } from 'src/feedback/enums/feedback-status.enum';
 
 const schema = new mongoose.Schema(
     {
-        userId: {
+        user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
             required: true,
@@ -21,5 +21,16 @@ const schema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+schema.set('toJSON', {
+    transform: (_doc, ret: Record<string, unknown>) => {
+        const v = ret.user;
+        if (v !== undefined) {
+            ret.userId = v && typeof v === 'object' && '_id' in v ? String((v as { _id: unknown })._id) : v;
+            delete ret.user;
+        }
+        return ret;
+    },
+});
 
 export const FeedbackModel = mongoose.model('Feedback', schema);

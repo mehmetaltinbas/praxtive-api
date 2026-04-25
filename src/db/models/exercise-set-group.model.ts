@@ -4,11 +4,22 @@ import { ExerciseSetGroupDocument } from 'src/exercise-set-group/types/exercise-
 
 const schema = new mongoose.Schema(
     {
-        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         title: { type: String, required: true },
     },
     { timestamps: true }
 );
+
+schema.set('toJSON', {
+    transform: (_doc, ret: Record<string, unknown>) => {
+        const v = ret.user;
+        if (v !== undefined) {
+            ret.userId = v && typeof v === 'object' && '_id' in v ? String((v as { _id: unknown })._id) : v;
+            delete ret.user;
+        }
+        return ret;
+    },
+});
 
 schema.post('findOneAndDelete', async function (document: ExerciseSetGroupDocument) {
     if (document) {

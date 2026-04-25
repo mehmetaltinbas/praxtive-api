@@ -229,7 +229,7 @@ export class AiService {
         exercise: ExerciseDocument,
         customPrompt: string
     ): Promise<EvaluateExerciseAnswerResponse> {
-        const prompt = buildEvaluateAnswerPrompt(exercise.type, exercise.prompt, customPrompt);
+        const prompt = buildEvaluateAnswerPrompt(exercise.type, exercise.stem, customPrompt);
 
         const schema: Schema = {
             type: Type.OBJECT,

@@ -42,10 +42,10 @@ export class ExerciseService {
             strategy.validateFields(dto);
 
             const commonFields = {
-                exerciseSetId,
+                exerciseSet: exerciseSetId,
                 type: dto.type,
                 difficulty: dto.difficulty,
-                prompt: dto.prompt,
+                stem: dto.stem,
             };
 
             const exerciseData = {
@@ -53,7 +53,7 @@ export class ExerciseService {
                 ...strategy.getCreateExerciseData(dto),
             };
 
-            const count = await this.db.Exercise.countDocuments({ exerciseSetId }).session(activeSession);
+            const count = await this.db.Exercise.countDocuments({ exerciseSet: exerciseSetId }).session(activeSession);
 
             await this.db.Exercise.create([{ ...exerciseData, order: count }], { session: activeSession });
 
@@ -113,7 +113,7 @@ export class ExerciseService {
             throw new NotFoundException(`no exercise found by id: ${id}`);
         }
 
-        await this.exerciseSetService.readById(userId, exercise.exerciseSetId);
+        await this.exerciseSetService.readById(userId, exercise.exerciseSet);
 
         return { isSuccess: true, message: `exercise read by id: ${id}`, exercise };
     }
@@ -133,7 +133,7 @@ export class ExerciseService {
     ): Promise<ReadMultipleExercisesResponse> {
         const { exerciseSet } = await this.exerciseSetService.readById(userId, exerciseSetId);
 
-        const exercises = await this.db.Exercise.find({ exerciseSetId })
+        const exercises = await this.db.Exercise.find({ exerciseSet: exerciseSetId })
             .sort({ order: 1 })
             .session(session ?? null);
 
@@ -192,10 +192,10 @@ export class ExerciseService {
                     { $set: updateData, ...(unsetFields && { $unset: unsetFields }) },
                     { session }
                 );
-                await this.exerciseSetService.unregisterExercise(userId, exercise.exerciseSetId, session);
+                await this.exerciseSetService.unregisterExercise(userId, exercise.exerciseSet, session);
                 await this.exerciseSetService.registerExercise(
                     userId,
-                    exercise.exerciseSetId,
+                    exercise.exerciseSet,
                     effectiveType,
                     effectiveDifficulty,
                     session
@@ -220,7 +220,7 @@ export class ExerciseService {
         const { exercise } = await this.readById(userId, id);
         const { exerciseSet: sourceExerciseSet } = await this.exerciseSetService.readById(
             userId,
-            exercise.exerciseSetId
+            exercise.exerciseSet
         );
         const { exerciseSet: targetExerciseSet } = await this.exerciseSetService.readById(userId, dto.exerciseSetId);
 
@@ -233,16 +233,16 @@ export class ExerciseService {
         session.startTransaction();
 
         try {
-            const count = await this.db.Exercise.countDocuments({ exerciseSetId: dto.exerciseSetId }).session(session);
+            const count = await this.db.Exercise.countDocuments({ exerciseSet: dto.exerciseSetId }).session(session);
 
             await this.db.Exercise.findByIdAndUpdate(
                 id,
-                { $set: { exerciseSetId: dto.exerciseSetId, order: count } },
+                { $set: { exerciseSet: dto.exerciseSetId, order: count } },
                 { session }
             );
 
             await this.db.Exercise.updateMany(
-                { exerciseSetId: sourceExerciseSet._id, order: { $gt: exercise.order } },
+                { exerciseSet: sourceExerciseSet._id, order: { $gt: exercise.order } },
                 { $inc: { order: -1 } },
                 { session }
             );
@@ -291,12 +291,12 @@ export class ExerciseService {
             }
 
             await this.db.Exercise.updateMany(
-                { exerciseSetId: exercise.exerciseSetId, order: { $gt: exercise.order } },
+                { exerciseSet: exercise.exerciseSet, order: { $gt: exercise.order } },
                 { $inc: { order: -1 } },
                 { session }
             );
 
-            await this.exerciseSetService.unregisterExercise(userId, exercise.exerciseSetId, session);
+            await this.exerciseSetService.unregisterExercise(userId, exercise.exerciseSet, session);
 
             await session.commitTransaction();
         } catch (error) {
