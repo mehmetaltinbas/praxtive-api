@@ -1,5 +1,5 @@
 import { Model } from 'mongoose';
-import { CreditTransactionDocument } from 'src/billing/types/credit-transaction-document.interface';
+import { CreditTransactionDocument } from 'src/credit-transaction/types/credit-transaction-document.interface';
 import { ExerciseSetDocument } from 'src/exercise-set/types/exercise-set-document.interface';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
 import { PaymentDocument } from 'src/payment/types/payment-document.interface';

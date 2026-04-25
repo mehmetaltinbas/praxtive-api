@@ -16,7 +16,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from 'src/auth/auth.guard';
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
-import { CostEstimateResponse } from 'src/billing/types/response/cost-estimate.response';
+import { CreditEstimateResponse } from 'src/credit-transaction/types/response/credit-estimate.response';
 import { MAX_PAPER_EVALUATION_UPLOAD_COUNT } from 'src/exercise-set/constants/max-paper-evaluation-upload-count.constant';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { ChangeExerciseSetContextDto } from 'src/exercise-set/types/dto/change-exercise-set-context.dto';
@@ -181,7 +181,7 @@ export class ExerciseSetController {
         @User() user: JwtPayload,
         @Param('contextId') contextId: string,
         @Body() dto: CreateExerciseSetDto
-    ): Promise<CostEstimateResponse> {
+    ): Promise<CreditEstimateResponse> {
         return this.exerciseSetService.estimateCreate(user.sub, contextId, dto);
     }
 
@@ -190,7 +190,7 @@ export class ExerciseSetController {
         @User() user: JwtPayload,
         @Param('exerciseSetId') exerciseSetId: string,
         @Body() dto: GenerateAdditionalExercisesDto
-    ): Promise<CostEstimateResponse> {
+    ): Promise<CreditEstimateResponse> {
         return this.exerciseSetService.estimateAdditional(user.sub, exerciseSetId, dto);
     }
 
@@ -199,7 +199,7 @@ export class ExerciseSetController {
         @User() user: JwtPayload,
         @Param('id') id: string,
         @Body() dto: EstimateEvaluatePaperAnswersDto
-    ): Promise<CostEstimateResponse> {
+    ): Promise<CreditEstimateResponse> {
         return this.exerciseSetService.estimatePaperVision(user.sub, id, dto);
     }
 
@@ -207,7 +207,7 @@ export class ExerciseSetController {
     async estimateGenerateNotes(
         @User() user: JwtPayload,
         @Param('exerciseSetId') exerciseSetId: string
-    ): Promise<CostEstimateResponse> {
+    ): Promise<CreditEstimateResponse> {
         return this.exerciseSetService.estimateLectureNotes(user.sub, exerciseSetId);
     }
 }

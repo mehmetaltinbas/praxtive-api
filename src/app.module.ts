@@ -5,7 +5,6 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AiModule } from 'src/ai/ai.module';
 import { AuthModule } from 'src/auth/auth.module';
-import { BillingModule } from 'src/billing/billing.module';
 import { CreditTransactionModule } from 'src/credit-transaction/credit-transaction.module';
 import { DbConnectionModule } from 'src/db/db-connection.module';
 import { DbModelsModule } from 'src/db/db-models.module';
@@ -44,7 +43,6 @@ import { UserModule } from 'src/user/user.module';
         ExerciseModule,
         AiModule,
         EventsModule,
-        BillingModule,
         PaymentModule,
         PaymentMethodModule,
         PlanModule,

@@ -1,6 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { AiModule } from 'src/ai/ai.module';
-import { BillingModule } from 'src/billing/billing.module';
+import { CreditTransactionModule } from 'src/credit-transaction/credit-transaction.module';
 import { ExerciseSetGroupModule } from 'src/exercise-set-group/exercise-set-group.module';
 import { exerciseSetReadAllFilterProviders } from 'src/exercise-set/composites/read-all-filter/read-all-filter-providers.barrel';
 import { ExerciseSetController } from 'src/exercise-set/exercise-set.controller';
@@ -23,8 +23,8 @@ import { UserModule } from 'src/user/user.module';
         SourceModule,
         ExerciseSetGroupModule,
         UserModule,
-        BillingModule,
         SubscriptionModule,
+        CreditTransactionModule,
     ],
     controllers: [ExerciseSetController, PublicExerciseSetController],
     providers: [

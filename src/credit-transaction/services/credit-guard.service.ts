@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import mongoose from 'mongoose';
-import { CreditTransactionType } from 'src/billing/enums/credit-transaction-type.enum';
 import { CreditTransactionService } from 'src/credit-transaction/credit-transaction.service';
+import { CreditTransactionType } from 'src/credit-transaction/enums/credit-transaction-type.enum';
 import ResponseBase from 'src/shared/types/response-base.interface';
 import { UserService } from 'src/user/user.service';
 

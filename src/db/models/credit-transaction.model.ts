@@ -1,5 +1,5 @@
 import * as mongoose from 'mongoose';
-import { CreditTransactionType } from 'src/billing/enums/credit-transaction-type.enum';
+import { CreditTransactionType } from 'src/credit-transaction/enums/credit-transaction-type.enum';
 
 const schema = new mongoose.Schema(
     {
@@ -13,5 +13,16 @@ const schema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+schema.set('toJSON', {
+    transform: (_doc, ret: Record<string, unknown>) => {
+        const v = ret.user;
+        if (v !== undefined) {
+            ret.userId = v && typeof v === 'object' && '_id' in v ? String((v as { _id: unknown })._id) : v;
+            delete ret.user;
+        }
+        return ret;
+    },
+});
 
 export const CreditTransactionModel = mongoose.model('CreditTransaction', schema);

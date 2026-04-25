@@ -10,10 +10,10 @@ import {
 import mongoose, { FilterQuery } from 'mongoose';
 import PDFDocument from 'pdfkit';
 import { AiService } from 'src/ai/ai.service';
-import { CreditTransactionType } from 'src/billing/enums/credit-transaction-type.enum';
-import { CostEstimationService } from 'src/billing/services/cost-estimation.service';
-import { CreditGuardService } from 'src/billing/services/credit-guard.service';
-import { CostEstimateResponse } from 'src/billing/types/response/cost-estimate.response';
+import { CreditTransactionType } from 'src/credit-transaction/enums/credit-transaction-type.enum';
+import { CreditEstimationService } from 'src/credit-transaction/services/credit-estimation.service';
+import { CreditGuardService } from 'src/credit-transaction/services/credit-guard.service';
+import { CreditEstimateResponse } from 'src/credit-transaction/types/response/credit-estimate.response';
 import { ExerciseSetReadAllFilterCompositeProvider } from 'src/exercise-set/composites/read-all-filter/exercise-set-read-all-filter-composite.provider';
 import { ALLOWED_PAPER_IMAGE_MIMETYPES } from 'src/exercise-set/constants/allowed-paper-image-mimetypes.constant';
 import { ExerciseSetContextType } from 'src/exercise-set/enums/exercise-set-context-type.enum';
@@ -71,7 +71,7 @@ export class ExerciseSetService {
         private exerciseSetReadAllFilterCompositeProvider: ExerciseSetReadAllFilterCompositeProvider,
         private userService: UserService,
         private creditGuardService: CreditGuardService,
-        private costEstimationService: CostEstimationService,
+        private costEstimationService: CreditEstimationService,
         private subscriptionService: SubscriptionService
     ) {}
 
@@ -79,7 +79,7 @@ export class ExerciseSetService {
         const { plan } = await this.subscriptionService.getActivePlanForUser(userId);
 
         if (plan.maxExerciseSets !== -1) {
-            const count = await this.db.ExerciseSet.countDocuments({ userId });
+            const count = await this.db.ExerciseSet.countDocuments({ user: userId });
 
             if (count >= plan.maxExerciseSets) {
                 throw new ForbiddenException(
@@ -90,7 +90,7 @@ export class ExerciseSetService {
 
         await this.assertMixFeatureAllowed(dto.type, dto.difficulty, plan);
 
-        const conflict = await this.db.ExerciseSet.findOne({ userId, title: dto.title });
+        const conflict = await this.db.ExerciseSet.findOne({ user: userId, title: dto.title });
 
         if (conflict) {
             return {
@@ -133,7 +133,7 @@ export class ExerciseSetService {
                 const [exerciseSet] = await this.db.ExerciseSet.create(
                     [
                         {
-                            userId: new mongoose.Types.ObjectId(userId),
+                            user: new mongoose.Types.ObjectId(userId),
                             contextType: createContext.contextType,
                             contextId: createContext.contextId,
                             title: dto.title,
@@ -150,7 +150,7 @@ export class ExerciseSetService {
                     const createExerciseDto: CreateExerciseDto = {
                         type: exercise.type,
                         difficulty: exercise.difficulty,
-                        prompt: exercise.prompt,
+                        stem: exercise.stem,
                     };
 
                     const strategy = this.exerciseService.resolveExerciseTypeStrategy(exercise.type);
@@ -174,7 +174,7 @@ export class ExerciseSetService {
             }
         } else {
             const exerciseSet = await this.db.ExerciseSet.create({
-                userId: new mongoose.Types.ObjectId(userId),
+                user: new mongoose.Types.ObjectId(userId),
                 contextType: createContext.contextType,
                 contextId: createContext.contextId,
                 title: dto.title,
@@ -209,7 +209,7 @@ export class ExerciseSetService {
             userId,
             exerciseSetId
         );
-        const existingPrompts = existingExercises.map((e) => e.prompt);
+        const existingPrompts = existingExercises.map((e) => e.stem);
 
         const estimate = await this.costEstimationService.estimateAdditionalExerciseGeneration(
             sourceText,
@@ -243,7 +243,7 @@ export class ExerciseSetService {
                 const createExerciseDto: CreateExerciseDto = {
                     type: exercise.type,
                     difficulty: exercise.difficulty,
-                    prompt: exercise.prompt,
+                    stem: exercise.stem,
                 };
 
                 const strategy = this.exerciseService.resolveExerciseTypeStrategy(exercise.type);
@@ -291,7 +291,7 @@ export class ExerciseSetService {
                     break;
             }
 
-            return { prompt: exercise.prompt, answer };
+            return { prompt: exercise.stem, answer };
         });
 
         const estimate = await this.costEstimationService.estimateLectureNotesGeneration(exerciseData);
@@ -354,11 +354,11 @@ export class ExerciseSetService {
     async clone(userId: string, exerciseSetId: string, dto: CloneExerciseSetDto): Promise<ResponseBase> {
         const { exerciseSet: sourceExerciseSet } = await this.readById(undefined, exerciseSetId);
 
-        if (sourceExerciseSet.userId.toString() === userId) {
+        if (sourceExerciseSet.user === userId) {
             throw new ForbiddenException('You cannot clone your own exercise set.');
         }
 
-        const conflict = await this.db.ExerciseSet.findOne({ userId, title: dto.title });
+        const conflict = await this.db.ExerciseSet.findOne({ user: userId, title: dto.title });
 
         if (conflict) {
             return {
@@ -377,7 +377,7 @@ export class ExerciseSetService {
             const [clonedSet] = await this.db.ExerciseSet.create(
                 [
                     {
-                        userId: new mongoose.Types.ObjectId(userId),
+                        user: new mongoose.Types.ObjectId(userId),
                         contextType: ExerciseSetContextType.INDEPENDENT,
                         title: dto.title,
                         type: sourceExerciseSet.type,
@@ -393,7 +393,7 @@ export class ExerciseSetService {
                 const createDto: CreateExerciseDto = {
                     type: exercise.type,
                     difficulty: exercise.difficulty,
-                    prompt: exercise.prompt,
+                    stem: exercise.stem,
                 };
 
                 if (exercise.choices) {
@@ -427,7 +427,7 @@ export class ExerciseSetService {
         readMultipleExerciseSetsFilterCriteriaDto: ReadMultipleExerciseSetsFilterCriteriaDto
     ): Promise<ReadAllExerciseSetsResponse> {
         const filter: mongoose.FilterQuery<ExerciseSetDocument> = {
-            userId: new mongoose.Types.ObjectId(userId),
+            user: new mongoose.Types.ObjectId(userId),
         };
 
         const response = await this.sourceService.readAllByUserId(userId);
@@ -486,7 +486,7 @@ export class ExerciseSetService {
         const filter: FilterQuery<ExerciseSetDocument> = { _id: exerciseSetId };
 
         if (userId) {
-            filter.userId = userId;
+            filter.user = userId;
         } else {
             filter.visibility = ExerciseSetVisibility.PUBLIC;
         }
@@ -511,7 +511,7 @@ export class ExerciseSetService {
         const { user } = await this.userService.readPublicByUserName(userName);
 
         const exerciseSets = await this.db.ExerciseSet.find({
-            userId: user._id,
+            user: user._id,
             visibility: ExerciseSetVisibility.PUBLIC,
         });
 
@@ -532,7 +532,7 @@ export class ExerciseSetService {
             if (!exerciseSet) throw new NotFoundException('exercise set not found');
 
             const conflict = await this.db.ExerciseSet.findOne({
-                userId: userId,
+                user: userId,
                 title: title,
                 _id: { $ne: id }, // exclude the current document from the search
             });
@@ -701,7 +701,7 @@ export class ExerciseSetService {
     }
 
     async deleteById(userId: string, id: string): Promise<ResponseBase> {
-        const deletedExerciseSet = await this.db.ExerciseSet.findOneAndDelete({ _id: id, userId });
+        const deletedExerciseSet = await this.db.ExerciseSet.findOneAndDelete({ _id: id, user: userId });
 
         if (!deletedExerciseSet) {
             throw new NotFoundException('exercise set not found');
@@ -1009,7 +1009,7 @@ export class ExerciseSetService {
 
     // COST ESTIMATIONS ↓
 
-    async estimateCreate(userId: string, contextId: string, dto: CreateExerciseSetDto): Promise<CostEstimateResponse> {
+    async estimateCreate(userId: string, contextId: string, dto: CreateExerciseSetDto): Promise<CreditEstimateResponse> {
         const strategy = this.exerciseSetContextTypeFactory.resolveStrategy(dto.contextType);
         const createContext = await strategy.resolveCreateContext(userId, contextId);
 
@@ -1029,7 +1029,7 @@ export class ExerciseSetService {
         userId: string,
         exerciseSetId: string,
         dto: GenerateAdditionalExercisesDto
-    ): Promise<CostEstimateResponse> {
+    ): Promise<CreditEstimateResponse> {
         const { exerciseSet } = await this.readById(userId, exerciseSetId);
         const contextStrategy = this.exerciseSetContextTypeFactory.resolveStrategy(exerciseSet.contextType);
         const { sourceText } = await contextStrategy.resolveAdditionalExercisesContext(userId, exerciseSet.contextId);
@@ -1040,7 +1040,7 @@ export class ExerciseSetService {
             dto.type as unknown as ExerciseType,
             dto.difficulty as unknown as ExerciseDifficulty,
             dto.count,
-            exercises.map((e) => e.prompt)
+            exercises.map((e) => e.stem)
         );
     }
 
@@ -1048,7 +1048,7 @@ export class ExerciseSetService {
         userId: string,
         exerciseSetId: string,
         dto: EstimateEvaluatePaperAnswersDto
-    ): Promise<CostEstimateResponse> {
+    ): Promise<CreditEstimateResponse> {
         const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, exerciseSetId);
         const exerciseSummary = exercises
             .map((exercise, index) => {
@@ -1061,7 +1061,7 @@ export class ExerciseSetService {
         return this.costEstimationService.estimatePaperVisionExtraction(dto, exerciseSummary);
     }
 
-    async estimateLectureNotes(userId: string, exerciseSetId: string): Promise<CostEstimateResponse> {
+    async estimateLectureNotes(userId: string, exerciseSetId: string): Promise<CreditEstimateResponse> {
         const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, exerciseSetId);
         const exerciseData = exercises.map((exercise) => {
             let answer: string;
@@ -1078,7 +1078,7 @@ export class ExerciseSetService {
                     break;
             }
 
-            return { prompt: exercise.prompt, answer };
+            return { prompt: exercise.stem, answer };
         });
 
         return this.costEstimationService.estimateLectureNotesGeneration(exerciseData);

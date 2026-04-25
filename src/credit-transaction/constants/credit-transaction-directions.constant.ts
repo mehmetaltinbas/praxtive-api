@@ -1,4 +1,4 @@
-import { CreditTransactionType } from 'src/billing/enums/credit-transaction-type.enum';
+import { CreditTransactionType } from 'src/credit-transaction/enums/credit-transaction-type.enum';
 
 export const CREDIT_TRANSACTION_DIRECTIONS: Record<CreditTransactionType, 'grant' | 'deduction'> = {
     [CreditTransactionType.SIGNUP_GRANT]: 'grant',

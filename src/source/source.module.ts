@@ -1,6 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { AiModule } from 'src/ai/ai.module';
-import { BillingModule } from 'src/billing/billing.module';
+import { CreditTransactionModule } from 'src/credit-transaction/credit-transaction.module';
 import { PublicSourceController } from 'src/source/public-source.controller';
 import { SourceController } from 'src/source/source.controller';
 import { SourceService } from 'src/source/source.service';
@@ -10,7 +10,7 @@ import { SubscriptionModule } from 'src/subscription/subscription.module';
 import { UserModule } from 'src/user/user.module';
 
 @Module({
-    imports: [forwardRef(() => AiModule), UserModule, BillingModule, SubscriptionModule],
+    imports: [forwardRef(() => AiModule), UserModule, SubscriptionModule, CreditTransactionModule],
     providers: [SourceService, SourceTypeFactory, ...SourceTypeStrategiesBarrel],
     controllers: [SourceController, PublicSourceController],
     exports: [SourceService],

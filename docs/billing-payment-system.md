@@ -31,10 +31,9 @@ Payment providers use the **Strategy + Factory + Barrel** pattern — Stripe and
 | Module                      | Responsibility                                                                               |
 | --------------------------- | -------------------------------------------------------------------------------------------- |
 | **SubscriptionModule**      | Subscription lifecycle, cron renewals, grace period retries, `getActivePlanForUser()`        |
-| **PaymentModule**           | Payment records, provider strategies (Stripe/Iyzico), provider factory                       |
-| **BillingModule**           | Proration calculations, `TokenCounterService`, `CostEstimationService`, `CreditGuardService` |
+| **PaymentModule**           | Payment records, provider strategies (Stripe/Iyzico), provider factory, Proration calculations                       |
 | **PlanModule**              | Plan definitions, plan hierarchy validation, `PlanFeatureGuard`, `@RequiresPlanFeature`      |
-| **CreditTransactionModule** | Credit transaction audit log                                                                 |
+| **CreditTransactionModule** | Credit transaction audit log, `CreditEstimationService`, `CreditGuardService`                                                                |
 | **UserModule**              | User entity, `creditBalance`, `incrementCreditBalance()` , `deductCreditBalance()`           |
 | **AiModule**                | `TokenCounterService`                                                                        |
 
@@ -44,7 +43,7 @@ Payment providers use the **Strategy + Factory + Barrel** pattern — Stripe and
 Controller (with @RequiresPlanFeature if needed)
   → Service.create() / generateX()
       ├── SubscriptionService.getActivePlanForUser() → storage limit check
-      ├── CostEstimationService.estimateX() → calculate credit cost
+      ├── CreditEstimationService.estimateX() → calculate credit cost
       │     └── TokenCounterService.countTokens() → Gemini API (free)
       ├── CreditGuardService.assertAndDeduct() (inside MongoDB session)
       │     ├── UserService.deductCreditBalanceAtomically() → atomic $gte + $inc
@@ -57,9 +56,8 @@ Controller (with @RequiresPlanFeature if needed)
 ```
 User → SubscriptionController → SubscriptionService
                                     ├── PlanService (validate plan hierarchy)
-                                    ├── BillingService (calculate proration)
                                     ├── PaymentProviderFactory → resolveStrategy(provider)
-                                    ├── PaymentService (record payment attempt)
+                                    ├── PaymentService (record payment attempt, calculate proration)
                                     ├── UserService (update creditBalance)
                                     └── CreditTransactionService (log transaction)
 ```
@@ -177,7 +175,7 @@ Amount is always stored as positive. The type determines direction (see `CREDIT_
 Math.ceil(inputTokens * INPUT_TOKEN_RATE + maxOutputTokens * OUTPUT_TOKEN_RATE)
 ```
 
-All rates are tunable in `src/billing/constants/credit-rates.constant.ts`.
+All rates are tunable in `src/credit-transaction/constants/credit-rates/`.
 
 ---
 
@@ -185,7 +183,7 @@ All rates are tunable in `src/billing/constants/credit-rates.constant.ts`.
 
 ### Token Counting
 
-`TokenCounterService` (`src/billing/services/token-counter.service.ts`) uses the Gemini `countTokens` API:
+`TokenCounterService` (`src/ai/services/token-counter.service.ts`) uses the Gemini `countTokens` API:
 
 - **Free** (no billing from Google)
 - **Deterministic** — same text always produces the same count
@@ -200,9 +198,9 @@ AI prompts are extracted into pure functions in `src/ai/prompts/`:
 - `buildExtractPaperAnswersPrompt()`
 - `buildGenerateLectureNotesPrompt()`
 
-Both `AiService` and `CostEstimationService` import and call the same prompt builders. This guarantees the estimate matches the actual cost exactly.
+Both `AiService` and `CreditEstimationService` import and call the same prompt builders. This guarantees the estimate matches the actual cost exactly.
 
-### CostEstimationService Methods
+### CreditEstimationService Methods
 
 Each returns `{ credits: number, breakdown: Record<string, number> }`:
 
@@ -421,7 +419,7 @@ OPENAI_API_KEY=sk-...
 
 2. **Gemini countTokens for estimation** — Free, deterministic, server-side. The estimate endpoint and the actual deduction use the same prompt builders, guaranteeing the estimate matches the charge exactly.
 
-3. **Prompt extraction into pure functions** — `src/ai/prompts/*.prompt.ts` are imported by both `AiService` (for AI calls) and `CostEstimationService` (for token counting). No module dependency needed since they're pure functions.
+3. **Prompt extraction into pure functions** — `src/ai/prompts/*.prompt.ts` are imported by both `AiService` (for AI calls) and `CreditEstimationService` (for token counting). No module dependency needed since they're pure functions.
 
 4. **Atomic credit deduction** — MongoDB `findOneAndUpdate` with `{ creditBalance: { $gte: amount } }` prevents race conditions. Two concurrent requests that would overdraw the balance: only one succeeds.
 

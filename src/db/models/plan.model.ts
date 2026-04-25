@@ -1,5 +1,5 @@
 import * as mongoose from 'mongoose';
-import { DEFAULT_CURRENCY } from 'src/billing/constants/default-currency.constant';
+import { DEFAULT_CURRENCY } from 'src/payment/constants/default-currency.constant';
 import { SubscriptionModel } from 'src/db/models/subscription.model';
 import { PlanName } from 'src/plan/enums/plan-name.enum';
 import { PlanDocument } from 'src/plan/types/plan-document.interface';

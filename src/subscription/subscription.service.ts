@@ -9,9 +9,8 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import mongoose from 'mongoose';
-import { BillingService } from 'src/billing/billing.service';
-import { CreditTransactionType } from 'src/billing/enums/credit-transaction-type.enum';
 import { CreditTransactionService } from 'src/credit-transaction/credit-transaction.service';
+import { CreditTransactionType } from 'src/credit-transaction/enums/credit-transaction-type.enum';
 import { PaymentMethodService } from 'src/payment-method/payment-method.service';
 import { PaymentService } from 'src/payment/payment.service';
 import { PlanName } from 'src/plan/enums/plan-name.enum';
@@ -38,7 +37,6 @@ export class SubscriptionService {
         private userService: UserService,
         private planService: PlanService,
         private creditTransactionService: CreditTransactionService,
-        private billingService: BillingService,
         private paymentService: PaymentService,
         @Inject(forwardRef(() => PaymentMethodService)) private paymentMethodService: PaymentMethodService
     ) {}
@@ -83,16 +81,16 @@ export class SubscriptionService {
         const renewalSubs = await this.db.Subscription.find({
             nextBillingDate: { $lte: new Date() },
             status: SubscriptionStatus.ACTIVE,
-        });
+        }).populate('user');
 
         for (const sub of renewalSubs) {
             try {
-                await this.processMonthlyRenewal(sub.userId);
+                await this.processMonthlyRenewal(sub.user._id);
                 results.renewals.success++;
             } catch (error) {
                 results.renewals.failed++;
                 this.logger.error(
-                    `Renewal processing failed for subscriptionId: ${sub._id}, userId: ${sub.userId}`,
+                    `Renewal processing failed for subscriptionId: ${sub._id}, userId: ${sub.user._id}`,
                     error instanceof Error ? error.stack : error
                 );
             }
@@ -114,7 +112,7 @@ export class SubscriptionService {
             } catch (error) {
                 results.retries.failed++;
                 this.logger.error(
-                    `Grace period retry failed for subscriptionId: ${sub._id}, userId: ${sub.userId._id}`,
+                    `Grace period retry failed for subscriptionId: ${sub._id}, userId: ${sub.user._id}`,
                     error instanceof Error ? error.stack : error
                 );
             }
@@ -162,7 +160,7 @@ export class SubscriptionService {
 
         try {
             const pendingActivateSub = await this.db.Subscription.findOne({
-                userId: userId,
+                user: userId,
                 status: SubscriptionStatus.PENDING_ACTIVATE,
             }).session(session);
 
@@ -171,7 +169,7 @@ export class SubscriptionService {
             }
 
             const activeSubscription = await this.db.Subscription.findOne({
-                userId: userId,
+                user: userId,
                 status: SubscriptionStatus.ACTIVE,
             })
                 .populate('user')
@@ -182,11 +180,11 @@ export class SubscriptionService {
                 throw new NotFoundException('no active subscription found');
             }
 
-            await this.planService.validateIsHigher(activeSubscription.planId.name, newPlan.name);
+            await this.planService.validateIsHigher(activeSubscription.plan.name, newPlan.name);
 
             const updatedSub = await this.db.Subscription.findOneAndUpdate(
                 {
-                    userId: userId,
+                    user: userId,
                     status: SubscriptionStatus.ACTIVE,
                 },
                 {
@@ -216,7 +214,7 @@ export class SubscriptionService {
 
             const creditsToGrant = Math.max(
                 0,
-                Math.min(newPlan.monthlyCredits, newPlan.maximumCredits - activeSubscription.userId.creditBalance)
+                Math.min(newPlan.monthlyCredits, newPlan.maximumCredits - activeSubscription.user.creditBalance)
             );
 
             await this.userService.incrementCreditBalance(userId, creditsToGrant, session);
@@ -230,9 +228,9 @@ export class SubscriptionService {
                 session
             );
 
-            const prorationResult = this.billingService.calculateProrationOnUpgrade(
+            const prorationResult = this.paymentService.calculateProrationOnUpgrade(
                 activeSubscription.nextBillingDate,
-                activeSubscription.planId.monthlyPrice,
+                activeSubscription.plan.monthlyPrice,
                 newPlan.monthlyPrice
             );
 
@@ -257,7 +255,7 @@ export class SubscriptionService {
                     amount: prorationResult.prorationedPriceToPay,
                     currency: newPlan.currency,
                     paymentMethodToken: pm.providerRef,
-                    customerId: activeSubscription.userId.paymentProviderCustomerId ?? undefined,
+                    customerId: activeSubscription.user.paymentProviderCustomerId ?? undefined,
                     description: `Upgrade to ${newPlan.name} plan`,
                     metadata: { userId, subscriptionId: newSubscription._id },
                 });
@@ -293,7 +291,7 @@ export class SubscriptionService {
      */
     async downgrade(userId: string, downgradeSubscriptionDto: DowngradeSubscriptionDto): Promise<ResponseBase> {
         const activeSubscription = await this.db.Subscription.findOne({
-            userId: userId,
+            user: userId,
             status: SubscriptionStatus.ACTIVE,
         })
             .populate('user')
@@ -305,7 +303,7 @@ export class SubscriptionService {
 
         const { plan: newPlan } = await this.planService.readByName(downgradeSubscriptionDto.newPlanName);
 
-        await this.planService.validateIsLower(activeSubscription.planId.name, newPlan.name);
+        await this.planService.validateIsLower(activeSubscription.plan.name, newPlan.name);
 
         const session = await mongoose.startSession();
 
@@ -341,7 +339,7 @@ export class SubscriptionService {
         upgradeSubscriptionDto: UpgradeSubscriptionDto
     ): Promise<CheckPriceToPayOnUpgradeSubscriptionResponse> {
         const activeSubscription = await this.db.Subscription.findOne({
-            userId: userId,
+            user: userId,
             status: SubscriptionStatus.ACTIVE,
         })
             .populate('user')
@@ -353,11 +351,11 @@ export class SubscriptionService {
 
         const { plan: newPlan } = await this.planService.readByName(upgradeSubscriptionDto.newPlanName);
 
-        await this.planService.validateIsHigher(activeSubscription.planId.name, newPlan.name);
+        await this.planService.validateIsHigher(activeSubscription.plan.name, newPlan.name);
 
-        const calculateProrationResponse = this.billingService.calculateProrationOnUpgrade(
+        const calculateProrationResponse = this.paymentService.calculateProrationOnUpgrade(
             activeSubscription.nextBillingDate,
-            activeSubscription.planId.monthlyPrice,
+            activeSubscription.plan.monthlyPrice,
             newPlan.monthlyPrice
         );
 
@@ -390,14 +388,14 @@ export class SubscriptionService {
 
     async readCurrent(userId: string): Promise<ReadCurrentSubscriptionResponse> {
         const currentSubscription = await this.db.Subscription.findOne({
-            userId: userId,
+            user: userId,
             status: {
                 $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELED, SubscriptionStatus.GRACE_PERIOD],
             },
         }).populate('plan');
 
         const pendingSubscription = await this.db.Subscription.findOne({
-            userId: userId,
+            user: userId,
             status: SubscriptionStatus.PENDING_ACTIVATE,
         }).populate('plan');
 
@@ -411,33 +409,33 @@ export class SubscriptionService {
 
     async hasActivePaidSubscription(userId: string): Promise<boolean> {
         const sub = await this.db.Subscription.findOne({
-            userId: userId,
+            user: userId,
             status: {
                 $in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.GRACE_PERIOD],
             },
         }).populate('plan');
 
-        return !!sub && !!sub.planId && sub.planId.monthlyPrice > 0;
+        return !!sub && !!sub.plan && sub.plan.monthlyPrice > 0;
     }
 
     async getActivePlanForUser(userId: string): Promise<GetActivePlanResponse> {
         const subscription = await this.db.Subscription.findOne({
-            userId: userId,
+            user: userId,
             status: SubscriptionStatus.ACTIVE,
         }).populate('plan');
 
-        if (!subscription || !subscription.planId) {
+        if (!subscription || !subscription.plan) {
             throw new NotFoundException('No active subscription found for user');
         }
 
-        return { isSuccess: true, message: 'Active plan retrieved.', plan: subscription.planId };
+        return { isSuccess: true, message: 'Active plan retrieved.', plan: subscription.plan };
     }
 
     // HELPERS ↓
 
     private async processDowngrades(userId: string): Promise<ResponseBase> {
         const canceledSub = await this.db.Subscription.findOne({
-            userId: userId,
+            user: userId,
             status: SubscriptionStatus.CANCELED,
         });
 
@@ -446,7 +444,7 @@ export class SubscriptionService {
         }
 
         const pendingActivateSub = await this.db.Subscription.findOne({
-            userId: userId,
+            user: userId,
             status: SubscriptionStatus.PENDING_ACTIVATE,
         });
 
@@ -477,7 +475,7 @@ export class SubscriptionService {
 
     private async processMonthlyRenewal(userId: string): Promise<ResponseBase> {
         const activeSub = await this.db.Subscription.findOne({
-            userId: userId,
+            user: userId,
             status: SubscriptionStatus.ACTIVE,
         })
             .populate('user')
@@ -488,7 +486,7 @@ export class SubscriptionService {
         }
 
         // For paid plans, attempt payment before granting credits
-        if (activeSub.planId.monthlyPrice > 0) {
+        if (activeSub.plan.monthlyPrice > 0) {
             const pm = await this.paymentMethodService.findDefaultForUser(userId);
 
             if (!pm) {
@@ -502,17 +500,17 @@ export class SubscriptionService {
             const { createdPayment: payment } = await this.paymentService.create(
                 userId,
                 activeSub._id,
-                activeSub.planId.monthlyPrice,
-                activeSub.planId.currency,
+                activeSub.plan.monthlyPrice,
+                activeSub.plan.currency,
                 pm.provider
             );
 
             const chargeResult = await provider.charge({
-                amount: activeSub.planId.monthlyPrice,
-                currency: activeSub.planId.currency,
+                amount: activeSub.plan.monthlyPrice,
+                currency: activeSub.plan.currency,
                 paymentMethodToken: pm.providerRef,
-                customerId: activeSub.userId.paymentProviderCustomerId ?? undefined,
-                description: `Monthly renewal for ${activeSub.planId.name} plan`,
+                customerId: activeSub.user.paymentProviderCustomerId ?? undefined,
+                description: `Monthly renewal for ${activeSub.plan.name} plan`,
                 metadata: { userId, subscriptionId: activeSub._id },
             });
 
@@ -565,7 +563,7 @@ export class SubscriptionService {
             return 'failed'; // Not yet time to retry
         }
 
-        const pm = await this.paymentMethodService.findDefaultForUser(sub.userId._id);
+        const pm = await this.paymentMethodService.findDefaultForUser(sub.user._id);
 
         if (!pm) {
             this.logger.warn(`No default payment method for grace period sub: ${sub._id}, downgrading to free`);
@@ -575,20 +573,20 @@ export class SubscriptionService {
 
         const provider = this.paymentService.resolvePaymentProviderStrategy(pm.provider);
         const { createdPayment: payment } = await this.paymentService.create(
-            sub.userId._id,
+            sub.user._id,
             sub._id,
-            sub.planId.monthlyPrice,
-            sub.planId.currency,
+            sub.plan.monthlyPrice,
+            sub.plan.currency,
             pm.provider
         );
 
         const chargeResult = await provider.charge({
-            amount: sub.planId.monthlyPrice,
-            currency: sub.planId.currency,
+            amount: sub.plan.monthlyPrice,
+            currency: sub.plan.currency,
             paymentMethodToken: pm.providerRef,
-            customerId: sub.userId.paymentProviderCustomerId ?? undefined,
-            description: `Retry payment for ${sub.planId.name} plan`,
-            metadata: { userId: sub.userId._id, subscriptionId: sub._id },
+            customerId: sub.user.paymentProviderCustomerId ?? undefined,
+            description: `Retry payment for ${sub.plan.name} plan`,
+            metadata: { userId: sub.user._id, subscriptionId: sub._id },
         });
 
         if (chargeResult.success) {
@@ -610,7 +608,7 @@ export class SubscriptionService {
                     { session }
                 );
 
-                await this.grantMonthlyCreditsUponActiveSub(sub.userId._id, session);
+                await this.grantMonthlyCreditsUponActiveSub(sub.user._id, session);
 
                 await session.commitTransaction();
             } catch (error) {
@@ -682,7 +680,7 @@ export class SubscriptionService {
             nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
 
             await this.create(
-                sub.userId._id,
+                sub.user._id,
                 {
                     planName: freePlan.name,
                     nextBillingDate,
@@ -718,7 +716,7 @@ export class SubscriptionService {
 
         if (uniqueStatuses.includes(createSubscriptionDto.status)) {
             const existing = await this.db.Subscription.findOne({
-                userId: userId,
+                user: userId,
                 status: createSubscriptionDto.status,
             }).session(session ?? null);
 
@@ -734,8 +732,8 @@ export class SubscriptionService {
         const [subscription] = await this.db.Subscription.create(
             [
                 {
-                    userId: userId,
-                    planId: plan._id,
+                    user: userId,
+                    plan: plan._id,
                     nextBillingDate: createSubscriptionDto.nextBillingDate,
                     status: createSubscriptionDto.status,
                     startedAt: createSubscriptionDto.startedAt,
@@ -756,7 +754,7 @@ export class SubscriptionService {
         session?: mongoose.mongo.ClientSession
     ): Promise<ResponseBase> {
         const activeSub = await this.db.Subscription.findOne({
-            userId: userId,
+            user: userId,
             status: SubscriptionStatus.ACTIVE,
         })
             .populate('user')
@@ -769,7 +767,7 @@ export class SubscriptionService {
 
         const creditsToGrant = Math.max(
             0,
-            Math.min(activeSub.planId.monthlyCredits, activeSub.planId.maximumCredits - activeSub.userId.creditBalance)
+            Math.min(activeSub.plan.monthlyCredits, activeSub.plan.maximumCredits - activeSub.user.creditBalance)
         );
 
         await this.userService.incrementCreditBalance(userId, creditsToGrant, session);
@@ -789,7 +787,7 @@ export class SubscriptionService {
         const updatedSubscription = await this.db.Subscription.findOneAndUpdate(
             {
                 _id: activeSub._id,
-                userId: userId,
+                user: userId,
             },
             {
                 nextBillingDate,
@@ -812,7 +810,7 @@ export class SubscriptionService {
         session?: mongoose.mongo.ClientSession
     ): Promise<ResponseBase> {
         const activeSubscription = await this.db.Subscription.findOne({
-            userId: userId,
+            user: userId,
             status: SubscriptionStatus.ACTIVE,
         }).session(session || null);
 
@@ -855,13 +853,13 @@ export class SubscriptionService {
         session: mongoose.mongo.ClientSession
     ): Promise<ResponseBase> {
         const canceledSub = await this.db.Subscription.findOne({
-            userId: userId,
+            user: userId,
             status: SubscriptionStatus.CANCELED,
         }).session(session);
 
         if (!canceledSub) throw new NotFoundException('canceled subscription not found');
         const pendingActivateSub = await this.db.Subscription.findOne({
-            userId: userId,
+            user: userId,
             status: SubscriptionStatus.PENDING_ACTIVATE,
         }).session(session);
 
@@ -874,7 +872,7 @@ export class SubscriptionService {
 
         const deleteResult = await this.db.Subscription.deleteOne(
             {
-                userId: userId,
+                user: userId,
                 status: SubscriptionStatus.PENDING_ACTIVATE,
             },
             { session }

@@ -1,6 +1,6 @@
 import { Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
 import mongoose from 'mongoose';
-import { CreditTransactionDocument } from 'src/billing/types/credit-transaction-document.interface';
+import { CreditTransactionDocument } from 'src/credit-transaction/types/credit-transaction-document.interface';
 import { CreateCreditTransactionDto } from 'src/credit-transaction/types/dto/create-credit-transaction.dto';
 import ResponseBase from 'src/shared/types/response-base.interface';
 

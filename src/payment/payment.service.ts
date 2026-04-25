@@ -4,6 +4,7 @@ import { PaymentProviderName } from 'src/payment/enums/payment-provider-name.enu
 import { PaymentStatus } from 'src/payment/enums/payment-status.enum';
 import { PaymentProviderStrategy } from 'src/payment/strategies/provider/payment-provider-strategy.interface';
 import { PaymentProviderFactory } from 'src/payment/strategies/provider/payment-provider.factory';
+import { CalculateProrationResponse } from 'src/payment/strategies/provider/types/response/calculate-proration.response';
 import { PaymentDocument } from 'src/payment/types/payment-document.interface';
 import { CreatePaymentResponse } from 'src/payment/types/response/create-payment.response';
 import { ReadMultiplePaymentsResponse } from 'src/payment/types/response/read-multiple-payments.response';
@@ -112,6 +113,25 @@ export class PaymentService {
             isSuccess: true,
             message: 'Payments that are associated with given subscription.',
             payments,
+        };
+    }
+
+    calculateProrationOnUpgrade(
+        nextBillingDate: Date,
+        currentPlanMonthlyPrice: number,
+        newPlanMonthlyPrice: number
+    ): CalculateProrationResponse {
+        const diffMs = nextBillingDate.getTime() - new Date().getTime();
+        const remainingDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const extractedPrice = currentPlanMonthlyPrice * (remainingDays / 30);
+        const priceToPay = Number((newPlanMonthlyPrice - extractedPrice).toFixed(2));
+
+        return {
+            isSuccess: true,
+            message: 'prorationed price calculated',
+            prorationedPriceToPay: priceToPay,
+            extractedPrice,
+            remainingDays,
         };
     }
 }

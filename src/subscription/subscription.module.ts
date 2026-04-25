@@ -1,5 +1,4 @@
 import { forwardRef, Module } from '@nestjs/common';
-import { BillingModule } from 'src/billing/billing.module';
 import { CreditTransactionModule } from 'src/credit-transaction/credit-transaction.module';
 import { PaymentMethodModule } from 'src/payment-method/payment-method.module';
 import { PaymentModule } from 'src/payment/payment.module';
@@ -9,14 +8,7 @@ import { SubscriptionService } from 'src/subscription/subscription.service';
 import { UserModule } from 'src/user/user.module';
 
 @Module({
-    imports: [
-        UserModule,
-        PlanModule,
-        CreditTransactionModule,
-        BillingModule,
-        PaymentModule,
-        forwardRef(() => PaymentMethodModule),
-    ],
+    imports: [UserModule, PlanModule, CreditTransactionModule, PaymentModule, forwardRef(() => PaymentMethodModule)],
     providers: [SubscriptionService],
     exports: [SubscriptionService],
     controllers: [SubscriptionController],
