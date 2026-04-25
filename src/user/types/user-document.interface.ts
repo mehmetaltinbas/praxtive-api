@@ -12,4 +12,5 @@ export interface UserDocument extends MongooseDocument {
     verificationCode: number | null;
     verificationCodeExpiresAt: Date | null;
     paymentProviderCustomerId: string | null;
+    allowsMarketing: boolean;
 }

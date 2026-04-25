@@ -7,7 +7,7 @@ const DRY_RUN = process.argv.includes('--dry-run');
 /**
  * CONFIGURATION: Fill these in for each specific migration
  */
-const COLLECTION_NAME = 'exercises';
+const COLLECTION_NAME = 'users';
 const FILTER = {
     // Example: { sourceType: { $exists: true } }
 };
