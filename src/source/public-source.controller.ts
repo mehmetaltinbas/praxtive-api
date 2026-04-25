@@ -1,6 +1,7 @@
 // eslint-disable-next-line no-redeclare
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { AuthGuard } from 'src/auth/auth.guard';
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
 import User from 'src/shared/custom-decorators/user.decorator';
 import ResponseBase from 'src/shared/types/response-base.interface';
@@ -15,12 +16,13 @@ export class PublicSourceController {
     constructor(private sourceService: SourceService) {}
 
     @Post('clone/:sourceId')
+    @UseGuards(AuthGuard)
     async clone(
         @User() user: JwtPayload,
-        @Param('exerciseSetId') exerciseSetId: string,
+        @Param('sourceId') sourceId: string,
         @Body() dto: CloneSourceDto
     ): Promise<ResponseBase> {
-        return await this.sourceService.clone(user.sub, exerciseSetId, dto);
+        return await this.sourceService.clone(user.sub, sourceId, dto);
     }
 
     @Get('read-by-id/:sourceId')

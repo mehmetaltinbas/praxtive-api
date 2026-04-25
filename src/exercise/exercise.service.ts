@@ -139,7 +139,7 @@ export class ExerciseService {
 
         return {
             isSuccess: true,
-            message: `all exercises read that has exerciseSetId: ${exerciseSetId}`,
+            message: `All exercises read that is associated with exercise set ${exerciseSet.title}.`,
             exercises,
         };
     }
