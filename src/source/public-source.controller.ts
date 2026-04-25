@@ -1,7 +1,11 @@
 // eslint-disable-next-line no-redeclare
-import { Controller, Get, Param } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import JwtPayload from 'src/auth/types/jwt-payload.interface';
+import User from 'src/shared/custom-decorators/user.decorator';
+import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceService } from 'src/source/source.service';
+import { CloneSourceDto } from 'src/source/types/dto/clone-source.dto';
 import { GetPdfResponse } from 'src/source/types/response/get-pdf.response';
 import { ReadAllSourcesResponse } from 'src/source/types/response/read-all-sources.response';
 import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-source.response';
@@ -9,6 +13,15 @@ import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-
 @Controller('public-source')
 export class PublicSourceController {
     constructor(private sourceService: SourceService) {}
+
+    @Post('clone/:sourceId')
+    async clone(
+        @User() user: JwtPayload,
+        @Param('exerciseSetId') exerciseSetId: string,
+        @Body() dto: CloneSourceDto
+    ): Promise<ResponseBase> {
+        return await this.sourceService.clone(user.sub, exerciseSetId, dto);
+    }
 
     @Get('read-by-id/:sourceId')
     async readPublicById(@Param('sourceId') sourceId: string): Promise<ReadSingleSourceResponse> {

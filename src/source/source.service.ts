@@ -1,13 +1,14 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose, { FilterQuery } from 'mongoose';
 import PDFDocument from 'pdfkit';
-import { CreditTransactionType } from 'src/billing/enums/credit-transaction-type.enum';
-import { CostEstimationService } from 'src/billing/services/cost-estimation.service';
-import { CreditGuardService } from 'src/billing/services/credit-guard.service';
+import { CreditTransactionType } from 'src/credit-transaction/enums/credit-transaction-type.enum';
+import { CreditEstimationService } from 'src/credit-transaction/services/credit-estimation.service';
+import { CreditGuardService } from 'src/credit-transaction/services/credit-guard.service';
 import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceType } from 'src/source/enums/source-type.enum';
 import { SourceVisibility } from 'src/source/enums/source-visibility.enum';
 import { SourceTypeFactory } from 'src/source/strategies/type/source-type.factory';
+import { CloneSourceDto } from 'src/source/types/dto/clone-source.dto';
 import { CreateSourceDto } from 'src/source/types/dto/create-source.dto';
 import { UpdateSourceDto } from 'src/source/types/dto/update-source.dto';
 import { CreateSourceResponse } from 'src/source/types/response/create-source.response';
@@ -26,7 +27,7 @@ export class SourceService {
         private sourceTypeFactory: SourceTypeFactory,
         private userService: UserService,
         private creditGuardService: CreditGuardService,
-        private costEstimationService: CostEstimationService,
+        private costEstimationService: CreditEstimationService,
         private subscriptionService: SubscriptionService
     ) {}
 
@@ -34,7 +35,7 @@ export class SourceService {
         const { plan } = await this.subscriptionService.getActivePlanForUser(userId);
 
         if (plan.maxSources !== -1) {
-            const count = await this.db.Source.countDocuments({ userId });
+            const count = await this.db.Source.countDocuments({ user: userId });
 
             if (count >= plan.maxSources) {
                 throw new ForbiddenException(
@@ -61,7 +62,7 @@ export class SourceService {
                 const strategy = this.sourceTypeFactory.resolveStrategy(dto.type);
                 const { text, title } = await strategy.extract(dto, file);
 
-                const conflict = await this.db.Source.findOne({ userId, title }).session(session);
+                const conflict = await this.db.Source.findOne({ user: userId, title }).session(session);
 
                 if (conflict) {
                     await session.abortTransaction();
@@ -73,7 +74,7 @@ export class SourceService {
                 }
 
                 const [created] = await this.db.Source.create(
-                    [{ userId, type: dto.type, title, rawText: text, visibility: dto.visibility }],
+                    [{ user: userId, type: dto.type, title, rawText: text, visibility: dto.visibility }],
                     { session }
                 );
 
@@ -91,7 +92,7 @@ export class SourceService {
         const strategy = this.sourceTypeFactory.resolveStrategy(dto.type);
         const { text, title } = await strategy.extract(dto, file);
 
-        const conflict = await this.db.Source.findOne({ userId, title });
+        const conflict = await this.db.Source.findOne({ user: userId, title });
 
         if (conflict) {
             return {
@@ -101,7 +102,7 @@ export class SourceService {
         }
 
         const created = await this.db.Source.create({
-            userId,
+            user: userId,
             type: dto.type,
             title,
             rawText: text,
@@ -111,11 +112,46 @@ export class SourceService {
         return { isSuccess: true, message: 'source created', sourceId: created._id.toString() };
     }
 
+    /**
+     * Clones a public source into the authenticated user's account.
+     * The origin source is read via public access (visibility: PUBLIC).
+     * The cloned source uses the visibility specified in the dto.
+     * @param userId - The authenticated user cloning the source.
+     * @param sourceId - The public source to clone.
+     * @param dto - Contains the fields inputted from user cloning the source.
+     */
+    async clone(userId: string, sourceId: string, dto: CloneSourceDto): Promise<ResponseBase> {
+        const { source: sourceSource } = await this.readById(undefined, sourceId);
+
+        if (sourceSource.user === userId) {
+            throw new ForbiddenException('You cannot clone your own source.');
+        }
+
+        const conflict = await this.db.Source.findOne({ user: userId, title: dto.title });
+
+        if (conflict) {
+            return {
+                isSuccess: false,
+                message: `A source with the title "${dto.title}" already exists.`,
+            };
+        }
+
+        await this.db.Source.create({
+            user: new mongoose.Types.ObjectId(userId),
+            type: sourceSource.type,
+            title: dto.title,
+            rawText: sourceSource.rawText,
+            visibility: dto.visibility,
+        });
+
+        return { isSuccess: true, message: 'Source cloned' };
+    }
+
     async readById(userId: string | undefined, id: string): Promise<ReadSingleSourceResponse> {
         const filter: FilterQuery<SourceDocument> = { _id: id };
 
         if (userId) {
-            filter.userId = userId;
+            filter.user = userId;
         } else {
             filter.visibility = SourceVisibility.PUBLIC;
         }
@@ -130,7 +166,7 @@ export class SourceService {
     }
 
     async readAllByUserId(userId: string): Promise<ReadAllSourcesResponse> {
-        const sources = await this.db.Source.find({ userId });
+        const sources = await this.db.Source.find({ user: userId });
 
         return {
             isSuccess: true,
@@ -143,7 +179,7 @@ export class SourceService {
         const { user } = await this.userService.readPublicByUserName(userName);
 
         const sources = await this.db.Source.find({
-            userId: user._id,
+            user: user._id,
             visibility: SourceVisibility.PUBLIC,
         });
 
@@ -157,7 +193,7 @@ export class SourceService {
 
         if (title) {
             const conflict = await this.db.Source.findOne({
-                userId,
+                user: userId,
                 title: title,
                 _id: { $ne: id }, // exclude the current document from the search
             });
@@ -171,7 +207,7 @@ export class SourceService {
         }
 
         const updated = await this.db.Source.findOneAndUpdate(
-            { _id: id, userId },
+            { _id: id, user: userId },
             {
                 $set: {
                     ...restOfDto,
@@ -191,7 +227,7 @@ export class SourceService {
     }
 
     async deleteById(userId: string, id: string): Promise<ResponseBase> {
-        const deletedSource = await this.db.Source.findOneAndDelete({ _id: id, userId });
+        const deletedSource = await this.db.Source.findOneAndDelete({ _id: id, user: userId });
 
         if (!deletedSource) {
             throw new NotFoundException('source not found');

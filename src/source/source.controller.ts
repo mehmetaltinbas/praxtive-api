@@ -15,8 +15,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from 'src/auth/auth.guard';
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
-import { CostEstimationService } from 'src/billing/services/cost-estimation.service';
-import { CostEstimateResponse } from 'src/billing/types/response/cost-estimate.response';
+import { CreditEstimationService } from 'src/credit-transaction/services/credit-estimation.service';
+import { CreditEstimateResponse } from 'src/credit-transaction/types/response/credit-estimate.response';
 import User from 'src/shared/custom-decorators/user.decorator';
 import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceType } from 'src/source/enums/source-type.enum';
@@ -32,7 +32,7 @@ import { ReadSingleSourceResponse } from 'src/source/types/response/read-single-
 export class SourceController {
     constructor(
         private sourceService: SourceService,
-        private costEstimationService: CostEstimationService
+        private costEstimationService: CreditEstimationService
     ) {}
 
     @Throttle({ default: { limit: 10, ttl: 60000 } })
@@ -77,7 +77,7 @@ export class SourceController {
     }
 
     @Post('estimate')
-    async estimate(@Body() dto: CreateSourceDto): Promise<CostEstimateResponse> {
+    async estimate(@Body() dto: CreateSourceDto): Promise<CreditEstimateResponse> {
         if (dto.type === SourceType.AUDIO && dto.durationSeconds) {
             return this.costEstimationService.estimateAudioTranscription(dto.durationSeconds);
         }
