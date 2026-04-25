@@ -9,6 +9,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     private isKnownRoute(url: string): boolean {
         const path = url.split('?')[0];
+
         return VALID_ROUTE_PREFIXES.some((prefix) => path.startsWith(prefix));
     }
 
@@ -24,8 +25,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
             status = exception.getStatus();
             message = exception.message;
 
-            if (status === HttpStatus.NOT_FOUND && !this.isKnownRoute(request.url)) {
-                // Scanner/bot noise — silently return 404
+            if (
+                (status === HttpStatus.NOT_FOUND && !this.isKnownRoute(request.url)) ||
+                status === HttpStatus.UNAUTHORIZED
+            ) {
+                // Scanner/bot noise — silently return 404 or unauthorized 401
             } else {
                 this.logger.warn(`${request.method} ${request.url} - Status: ${status} - ${message}`);
             }
