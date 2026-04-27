@@ -6,7 +6,7 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import mongoose from 'mongoose';
-import { PLAN_TIER_RANK } from 'src/plan/constants/plan-tier-rank.constant';
+import { PLAN_ORDER } from 'src/plan/constants/plan-order.constant';
 import { PlanName } from 'src/plan/enums/plan-name.enum';
 import { CreatePlanDto } from 'src/plan/types/dto/create-plan.dto.model';
 import { PlanDocument } from 'src/plan/types/plan-document.interface';
@@ -50,7 +50,7 @@ export class PlanService {
         this.validatePlanName(currentPlanName);
         this.validatePlanName(higherPlanName);
 
-        if (PLAN_TIER_RANK[higherPlanName] <= PLAN_TIER_RANK[currentPlanName]) {
+        if (PLAN_ORDER[higherPlanName] <= PLAN_ORDER[currentPlanName]) {
             throw new BadRequestException("higherPlanName isn't actually higher than currentPlan");
         }
 
@@ -61,7 +61,7 @@ export class PlanService {
         this.validatePlanName(currentPlanName);
         this.validatePlanName(lowerPlanName);
 
-        if (PLAN_TIER_RANK[lowerPlanName] >= PLAN_TIER_RANK[currentPlanName]) {
+        if (PLAN_ORDER[lowerPlanName] >= PLAN_ORDER[currentPlanName]) {
             throw new BadRequestException("lowerPlanName isn't actually lower than currentPlanName");
         }
 

@@ -47,10 +47,6 @@ import { ExerciseService } from 'src/exercise/exercise.service';
 import { CreateExerciseDto } from 'src/exercise/types/dto/create-exercise.dto';
 import { ReorderExercisesDto } from 'src/exercise/types/dto/reorder-exercises.dto';
 import { ExerciseDocument } from 'src/exercise/types/exercise-document.interface';
-import { PLAN_FEATURE_MINIMUM_TIER } from 'src/plan/constants/plan-feature-minimum-tier.constant';
-import { PLAN_TIER_RANK } from 'src/plan/constants/plan-tier-rank.constant';
-import { PlanFeature } from 'src/plan/enums/plan-feature.enum';
-import { PlanDocument } from 'src/plan/types/plan-document.interface';
 import ResponseBase from 'src/shared/types/response-base.interface';
 import { SourceType } from 'src/source/enums/source-type.enum';
 import { SourceVisibility } from 'src/source/enums/source-visibility.enum';
@@ -87,8 +83,6 @@ export class ExerciseSetService {
                 );
             }
         }
-
-        await this.assertMixFeatureAllowed(dto.type, dto.difficulty, plan);
 
         const conflict = await this.db.ExerciseSet.findOne({ user: userId, title: dto.title });
 
@@ -198,10 +192,6 @@ export class ExerciseSetService {
         exerciseSetId: string,
         dto: GenerateAdditionalExercisesDto
     ): Promise<ResponseBase> {
-        const { plan } = await this.subscriptionService.getActivePlanForUser(userId);
-
-        await this.assertMixFeatureAllowed(dto.type, dto.difficulty, plan);
-
         const { exerciseSet } = await this.readById(userId, exerciseSetId);
 
         const contextStrategy = this.exerciseSetContextTypeFactory.resolveStrategy(exerciseSet.contextType);
@@ -1092,21 +1082,5 @@ export class ExerciseSetService {
         });
 
         return this.costEstimationService.estimateLectureNotesGeneration(exerciseData);
-    }
-
-    private async assertMixFeatureAllowed(
-        type: ExerciseSetType,
-        difficulty: ExerciseSetDifficulty,
-        plan: PlanDocument
-    ): Promise<void> {
-        const isMix = type === ExerciseSetType.MIX || difficulty === ExerciseSetDifficulty.MIX;
-
-        if (!isMix) return;
-
-        const minimumTier = PLAN_FEATURE_MINIMUM_TIER[PlanFeature.MIX_TYPE_OR_DIFFICULTY];
-
-        if (PLAN_TIER_RANK[plan.name] < PLAN_TIER_RANK[minimumTier]) {
-            throw new ForbiddenException(`MIX type/difficulty requires a ${minimumTier} plan or higher`);
-        }
     }
 }
