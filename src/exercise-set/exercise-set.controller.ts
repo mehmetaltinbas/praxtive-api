@@ -16,12 +16,10 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from 'src/auth/auth.guard';
 import JwtPayload from 'src/auth/types/jwt-payload.interface';
-import { CreditEstimateResponse } from 'src/credit-transaction/types/response/credit-estimate.response';
 import { MAX_PAPER_EVALUATION_UPLOAD_COUNT } from 'src/exercise-set/constants/max-paper-evaluation-upload-count.constant';
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { ChangeExerciseSetContextDto } from 'src/exercise-set/types/dto/change-exercise-set-context.dto';
 import { CreateExerciseSetDto } from 'src/exercise-set/types/dto/create-exercise-set.dto';
-import { EstimateEvaluatePaperAnswersDto } from 'src/exercise-set/types/dto/estimate-evaluate-paper-answers.dto';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { GenerateAdditionalExercisesDto } from 'src/exercise-set/types/dto/generate-additional-exercises.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
@@ -174,40 +172,5 @@ export class ExerciseSetController {
         @UploadedFiles() files: Express.Multer.File[]
     ): Promise<EvaluateAnswersResponse> {
         return await this.exerciseSetService.evaluatePaperAnswers(user.sub, id, files);
-    }
-
-    @Post('estimate/:contextId')
-    async estimateCreate(
-        @User() user: JwtPayload,
-        @Param('contextId') contextId: string,
-        @Body() dto: CreateExerciseSetDto
-    ): Promise<CreditEstimateResponse> {
-        return this.exerciseSetService.estimateCreate(user.sub, contextId, dto);
-    }
-
-    @Post('estimate-additional/:exerciseSetId')
-    async estimateAdditional(
-        @User() user: JwtPayload,
-        @Param('exerciseSetId') exerciseSetId: string,
-        @Body() dto: GenerateAdditionalExercisesDto
-    ): Promise<CreditEstimateResponse> {
-        return this.exerciseSetService.estimateAdditional(user.sub, exerciseSetId, dto);
-    }
-
-    @Post('estimate-evaluate-paper-answers/:id')
-    async estimateEvaluatePaperAnswers(
-        @User() user: JwtPayload,
-        @Param('id') id: string,
-        @Body() dto: EstimateEvaluatePaperAnswersDto
-    ): Promise<CreditEstimateResponse> {
-        return this.exerciseSetService.estimatePaperVision(user.sub, id, dto);
-    }
-
-    @Post('estimate-generate-notes/:exerciseSetId')
-    async estimateGenerateNotes(
-        @User() user: JwtPayload,
-        @Param('exerciseSetId') exerciseSetId: string
-    ): Promise<CreditEstimateResponse> {
-        return this.exerciseSetService.estimateLectureNotes(user.sub, exerciseSetId);
     }
 }

@@ -3,9 +3,11 @@ import { AiModule } from 'src/ai/ai.module';
 import { CreditTransactionModule } from 'src/credit-transaction/credit-transaction.module';
 import { ExerciseSetGroupModule } from 'src/exercise-set-group/exercise-set-group.module';
 import { exerciseSetReadAllFilterProviders } from 'src/exercise-set/composites/read-all-filter/read-all-filter-providers.barrel';
+import { ExerciseSetEstimateController } from 'src/exercise-set/controllers/exercise-set-estimate.controller';
+import { PublicExerciseSetController } from 'src/exercise-set/controllers/public-exercise-set.controller';
 import { ExerciseSetController } from 'src/exercise-set/exercise-set.controller';
+
 import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
-import { PublicExerciseSetController } from 'src/exercise-set/public-exercise-set.controller';
 import { ExerciseSetContextTypeStrategiesBarrel } from 'src/exercise-set/strategies/context-type/exercise-set-context-type-strategies.barrel';
 import { ExerciseSetContextTypeFactory } from 'src/exercise-set/strategies/context-type/exercise-set-context-type.factory';
 import { ExerciseSetTypeStrategiesBarrel } from 'src/exercise-set/strategies/type/exercise-set-type-strategies.barrel';
@@ -26,7 +28,7 @@ import { UserModule } from 'src/user/user.module';
         SubscriptionModule,
         CreditTransactionModule,
     ],
-    controllers: [ExerciseSetController, PublicExerciseSetController],
+    controllers: [ExerciseSetController, ExerciseSetEstimateController, PublicExerciseSetController],
     providers: [
         ExerciseSetService,
         ExerciseSetTypeFactory,

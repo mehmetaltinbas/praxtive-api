@@ -32,7 +32,6 @@ import { UserDocument } from 'src/user/types/user-document.interface';
 @Injectable()
 export class AuthService {
     private readonly googleClient: OAuth2Client;
-    private readonly logger = new Logger(AuthService.name);
 
     constructor(
         @Inject('DB_MODELS') private db: Record<'User', mongoose.Model<UserDocument>>,
