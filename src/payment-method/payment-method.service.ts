@@ -19,7 +19,7 @@ export class PaymentMethodService {
     private readonly logger = new Logger(PaymentMethodService.name);
 
     constructor(
-        @Inject('DB_MODELS') private db: { PaymentMethod: mongoose.Model<PaymentMethodDocument> },
+        @Inject('DB_MODELS') private db: Record<'PaymentMethod', mongoose.Model<PaymentMethodDocument>>,
         private paymentService: PaymentService,
         private userService: UserService,
         @Inject(forwardRef(() => SubscriptionService)) private subscriptionService: SubscriptionService

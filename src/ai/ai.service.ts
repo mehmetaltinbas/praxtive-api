@@ -12,6 +12,7 @@ import { AiGeneratedExercise, AiGeneratedExercisesResponse } from 'src/ai/types/
 import { GenerateLectureNotesResponse } from 'src/ai/types/response/generate-lecture-notes.response';
 import { GenerateSingleExerciseResponse } from 'src/ai/types/response/generate-single-exercise.response';
 import { TranscribeAudioResponse } from 'src/ai/types/response/transcribe-audio.response';
+import { ExerciseGenerationMode } from 'src/exercise-set/enums/exercise-generation-mode.enum';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 import { MULTIPLE_CHOICE_CHOICES_COUNT } from 'src/exercise/constants/multiple-choice-choices-count.constant';
@@ -38,7 +39,8 @@ export class AiService {
         text: string,
         type: ExerciseSetType,
         difficulty: ExerciseSetDifficulty,
-        count: number
+        count: number,
+        generationMode: ExerciseGenerationMode
     ): Promise<AiGeneratedExercisesResponse> {
         const exerciseTypes = Object.values(ExerciseType);
         const exerciseDifficulties = Object.values(ExerciseDifficulty);
@@ -68,7 +70,7 @@ export class AiService {
         }
 
         const batchPromises = Array.from(countPerGroup.values()).map((group) =>
-            this.generateExercisesForSingleType(text, group.type, group.difficulty, group.count)
+            this.generateExercisesForSingleType(text, group.type, group.difficulty, group.count, generationMode)
         );
 
         const batches = await Promise.all(batchPromises);
@@ -82,6 +84,7 @@ export class AiService {
         type: ExerciseSetType,
         difficulty: ExerciseSetDifficulty,
         count: number,
+        generationMode: ExerciseGenerationMode,
         existingExercisePrompts: string[]
     ): Promise<AiGeneratedExercisesResponse> {
         const exerciseTypes = Object.values(ExerciseType);
@@ -117,6 +120,7 @@ export class AiService {
                 group.type,
                 group.difficulty,
                 group.count,
+                generationMode,
                 existingExercisePrompts
             )
         );
@@ -132,9 +136,17 @@ export class AiService {
         type: ExerciseType,
         difficulty: ExerciseDifficulty,
         count: number,
+        generationMode: ExerciseGenerationMode,
         existingExercisePrompts?: string[]
     ): Promise<AiGeneratedExercise[]> {
-        const prompt = buildGenerateExercisesPrompt(text, type, difficulty, count, existingExercisePrompts);
+        const prompt = buildGenerateExercisesPrompt(
+            text,
+            type,
+            difficulty,
+            count,
+            generationMode,
+            existingExercisePrompts
+        );
 
         const schema: Schema = {
             type: Type.OBJECT,
@@ -144,11 +156,11 @@ export class AiService {
                     items: {
                         type: Type.OBJECT,
                         properties: {
-                            prompt: { type: Type.STRING },
+                            stem: { type: Type.STRING },
                             type: { type: Type.STRING, enum: [type] },
                             difficulty: { type: Type.STRING, enum: [difficulty] },
                         },
-                        required: ['prompt', 'type', 'difficulty'],
+                        required: ['stem', 'type', 'difficulty'],
                     },
                 },
             },
@@ -192,11 +204,11 @@ export class AiService {
                     items: {
                         type: Type.OBJECT,
                         properties: {
-                            prompt: { type: Type.STRING },
+                            stem: { type: Type.STRING },
                             type: { type: Type.STRING, enum: [type] },
                             difficulty: { type: Type.STRING, enum: [difficulty] },
                         },
-                        required: ['prompt', 'type', 'difficulty'],
+                        required: ['stem', 'type', 'difficulty'],
                     },
                 },
             },

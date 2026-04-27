@@ -1,6 +1,7 @@
 import { IsEnum, IsInt, IsNotEmpty, Max, Min } from 'class-validator';
 import { MAX_GENERATE_EXERCISES_COUNT } from 'src/exercise-set/constants/max-generate-exercises-count.constant';
 import { MIN_GENERATE_EXERCISES_COUNT } from 'src/exercise-set/constants/min-generate-exercises-count.constant';
+import { ExerciseGenerationMode } from 'src/exercise-set/enums/exercise-generation-mode.enum';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
 
@@ -18,4 +19,8 @@ export class GenerateAdditionalExercisesDto {
     @IsInt()
     @IsNotEmpty()
     readonly count!: number;
+
+    @IsEnum(ExerciseGenerationMode)
+    @IsNotEmpty()
+    readonly generationMode!: ExerciseGenerationMode;
 }

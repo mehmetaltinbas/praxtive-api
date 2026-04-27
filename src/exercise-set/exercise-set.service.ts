@@ -108,7 +108,8 @@ export class ExerciseSetService {
                 createContext.sourceText,
                 dto.type as unknown as ExerciseType,
                 dto.difficulty as unknown as ExerciseDifficulty,
-                dto.count
+                dto.count,
+                dto.generationMode
             );
 
             const session = await mongoose.startSession();
@@ -127,7 +128,8 @@ export class ExerciseSetService {
                     createContext.sourceText,
                     dto.type,
                     dto.difficulty,
-                    dto.count
+                    dto.count,
+                    dto.generationMode
                 );
 
                 const [exerciseSet] = await this.db.ExerciseSet.create(
@@ -216,6 +218,7 @@ export class ExerciseSetService {
             dto.type as unknown as ExerciseType,
             dto.difficulty as unknown as ExerciseDifficulty,
             dto.count,
+            dto.generationMode,
             existingPrompts
         );
 
@@ -236,6 +239,7 @@ export class ExerciseSetService {
                 dto.type,
                 dto.difficulty,
                 dto.count,
+                dto.generationMode,
                 existingPrompts
             );
 
@@ -1009,7 +1013,11 @@ export class ExerciseSetService {
 
     // COST ESTIMATIONS ↓
 
-    async estimateCreate(userId: string, contextId: string, dto: CreateExerciseSetDto): Promise<CreditEstimateResponse> {
+    async estimateCreate(
+        userId: string,
+        contextId: string,
+        dto: CreateExerciseSetDto
+    ): Promise<CreditEstimateResponse> {
         const strategy = this.exerciseSetContextTypeFactory.resolveStrategy(dto.contextType);
         const createContext = await strategy.resolveCreateContext(userId, contextId);
 
@@ -1021,7 +1029,8 @@ export class ExerciseSetService {
             createContext.sourceText,
             dto.type as unknown as ExerciseType,
             dto.difficulty as unknown as ExerciseDifficulty,
-            dto.count
+            dto.count,
+            dto.generationMode
         );
     }
 
@@ -1040,6 +1049,7 @@ export class ExerciseSetService {
             dto.type as unknown as ExerciseType,
             dto.difficulty as unknown as ExerciseDifficulty,
             dto.count,
+            dto.generationMode,
             exercises.map((e) => e.stem)
         );
     }

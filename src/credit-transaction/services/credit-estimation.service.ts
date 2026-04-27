@@ -3,12 +3,13 @@ import { buildExtractPaperAnswersPrompt } from 'src/ai/prompts/extract-paper-ans
 import { buildGenerateExercisesPrompt } from 'src/ai/prompts/generate-exercises.prompt';
 import { buildGenerateLectureNotesPrompt } from 'src/ai/prompts/generate-lecture-notes.prompt';
 import { TokenCounterService } from 'src/ai/services/token-counter.service';
-import { VISION_TOKENS_PER_IMAGE } from 'src/credit-transaction/constants/vision-tokens-per-image.constant';
 import { AUDIO_RATE_PER_SECOND } from 'src/credit-transaction/constants/credit-rates/audio-rate-per-second.constant';
 import { INPUT_TOKEN_RATE } from 'src/credit-transaction/constants/credit-rates/input-token-rate.constant';
 import { MAX_OUTPUT_TOKENS } from 'src/credit-transaction/constants/credit-rates/max-output-tokens.constant';
 import { OUTPUT_TOKEN_RATE } from 'src/credit-transaction/constants/credit-rates/output-token-rate.constant';
+import { VISION_TOKENS_PER_IMAGE } from 'src/credit-transaction/constants/vision-tokens-per-image.constant';
 import { CreditEstimateResponse } from 'src/credit-transaction/types/response/credit-estimate.response';
+import { ExerciseGenerationMode } from 'src/exercise-set/enums/exercise-generation-mode.enum';
 import { EstimateEvaluatePaperAnswersDto } from 'src/exercise-set/types/dto/estimate-evaluate-paper-answers.dto';
 import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
@@ -32,9 +33,10 @@ export class CreditEstimationService {
         text: string,
         type: ExerciseType,
         difficulty: ExerciseDifficulty,
-        count: number
+        count: number,
+        generationMode: ExerciseGenerationMode
     ): Promise<CreditEstimateResponse> {
-        const prompt = buildGenerateExercisesPrompt(text, type, difficulty, count);
+        const prompt = buildGenerateExercisesPrompt(text, type, difficulty, count, generationMode);
         const { tokenCount: inputTokens } = await this.tokenCounterService.countTokens(prompt);
         const maxOutputTokens = count * MAX_OUTPUT_TOKENS.exerciseGeneration;
         const credits = this.calculateCredits(inputTokens, maxOutputTokens);
@@ -52,9 +54,10 @@ export class CreditEstimationService {
         type: ExerciseType,
         difficulty: ExerciseDifficulty,
         count: number,
+        generationMode: ExerciseGenerationMode,
         existingPrompts: string[]
     ): Promise<CreditEstimateResponse> {
-        const prompt = buildGenerateExercisesPrompt(text, type, difficulty, count, existingPrompts);
+        const prompt = buildGenerateExercisesPrompt(text, type, difficulty, count, generationMode, existingPrompts);
         const { tokenCount: inputTokens } = await this.tokenCounterService.countTokens(prompt);
         const maxOutputTokens = count * MAX_OUTPUT_TOKENS.additionalExerciseGeneration;
         const credits = this.calculateCredits(inputTokens, maxOutputTokens);

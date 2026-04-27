@@ -1,7 +1,7 @@
 export function buildGenerateLectureNotesPrompt(exerciseData: { prompt: string; answer: string }[]): string {
     const exerciseList = exerciseData.map((e, i) => `${i + 1}. Q: ${e.prompt}\n   A: ${e.answer}`).join('\n');
 
-    return `You are an expert educator. Based on the following exercise questions and their correct answers, generate lecture notes.
+    return `You are an expert educator. Based on the following exercise exercises and their correct answers, generate lecture notes.
             Exercises:
             ${exerciseList}
 

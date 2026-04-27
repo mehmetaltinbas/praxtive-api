@@ -41,7 +41,6 @@ export class SubscriptionService {
         @Inject(forwardRef(() => PaymentMethodService)) private paymentMethodService: PaymentMethodService
     ) {}
 
-    // @Cron('0 0 5 * * *')
     @Cron(CronExpression.EVERY_12_HOURS)
     private async processSubscriptions(): Promise<void> {
         this.logger.log('Processing subscriptions...');
