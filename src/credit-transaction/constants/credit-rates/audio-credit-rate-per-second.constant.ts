@@ -1,0 +1,1 @@
+export const AUDIO_CREDIT_RATE_PER_SECOND = 0.5;

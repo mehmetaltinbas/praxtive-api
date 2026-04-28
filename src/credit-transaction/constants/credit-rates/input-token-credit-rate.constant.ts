@@ -1,0 +1,1 @@
+export const INPUT_TOKEN_CREDIT_RATE = 0.001;

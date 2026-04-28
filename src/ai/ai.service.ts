@@ -12,6 +12,7 @@ import { AiGeneratedExercise, AiGeneratedExercisesResponse } from 'src/ai/types/
 import { GenerateLectureNotesResponse } from 'src/ai/types/response/generate-lecture-notes.response';
 import { GenerateSingleExerciseResponse } from 'src/ai/types/response/generate-single-exercise.response';
 import { TranscribeAudioResponse } from 'src/ai/types/response/transcribe-audio.response';
+import { AI_MAX_OUTPUT_TOKENS } from 'src/credit-transaction/constants/ai-max-output-tokens.constant';
 import { ExerciseGenerationMode } from 'src/exercise-set/enums/exercise-generation-mode.enum';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
@@ -171,8 +172,14 @@ export class AiService {
 
         exerciseTypeStrategy.buildRestOfGenerateAiExerciseSchema(schema);
 
-        const exercises = (await this.sendPromptAndParseResponse<{ items: AiGeneratedExercise[] }>(prompt, schema))
-            .items;
+        const perExerciseCap = existingExercisePrompts
+            ? AI_MAX_OUTPUT_TOKENS.additionalExerciseGeneration
+            : AI_MAX_OUTPUT_TOKENS.exerciseGeneration;
+        const maxOutputTokens = count * perExerciseCap;
+
+        const exercises = (
+            await this.sendPromptAndParseResponse<{ items: AiGeneratedExercise[] }>(prompt, schema, maxOutputTokens)
+        ).items;
 
         if (type === ExerciseType.MULTIPLE_CHOICE) {
             exercises.forEach((exercise) => {
@@ -219,8 +226,13 @@ export class AiService {
 
         exerciseTypeStrategy.buildRestOfGenerateAiExerciseSchema(schema);
 
-        const exercise = (await this.sendPromptAndParseResponse<{ items: AiGeneratedExercise[] }>(prompt, schema))
-            .items[0];
+        const exercise = (
+            await this.sendPromptAndParseResponse<{ items: AiGeneratedExercise[] }>(
+                prompt,
+                schema,
+                AI_MAX_OUTPUT_TOKENS.exerciseGeneration
+            )
+        ).items[0];
 
         if (type === ExerciseType.MULTIPLE_CHOICE) {
             const correctChoiceIndex = exercise.correctChoiceIndex!;
@@ -285,7 +297,8 @@ export class AiService {
 
     async extractAnswersFromPaperImages(
         imageBuffers: { buffer: Buffer; mimetype: string }[],
-        exerciseSummary: string
+        exerciseSummary: string,
+        exerciseCount: number
     ): Promise<ExtractPaperAnswersResultResponse> {
         const imageParts: Part[] = imageBuffers.map((img) => ({
             inlineData: { mimeType: img.mimetype, data: img.buffer.toString('base64') },
@@ -322,6 +335,7 @@ export class AiService {
                     'You are an answer extraction assistant. Look at the provided images of a completed paper exam and extract the answers for each exercise. Return only valid JSON matching the schema.',
                 responseMimeType: 'application/json',
                 responseSchema: schema,
+                maxOutputTokens: exerciseCount * AI_MAX_OUTPUT_TOKENS.paperVisionExtraction,
             },
         });
 
@@ -357,14 +371,14 @@ export class AiService {
         const result = await this.sendPromptAndParseResponse<{
             title: string;
             sections: { subtitle: string; content: string }[];
-        }>(prompt, schema);
+        }>(prompt, schema, exerciseData.length * AI_MAX_OUTPUT_TOKENS.lectureNotesGeneration);
 
         const rawText = result.sections.map((s) => `${s.subtitle}\n${s.content}`).join('\n\n');
 
         return { isSuccess: true, message: 'Lecture notes generated.', title: result.title, rawText };
     }
 
-    private async sendPromptAndParseResponse<T>(prompt: string, schema: Schema): Promise<T> {
+    private async sendPromptAndParseResponse<T>(prompt: string, schema: Schema, maxOutputTokens?: number): Promise<T> {
         const response = await this.genai.models.generateContent({
             model: this.geminiModel,
             contents: prompt,
@@ -372,6 +386,7 @@ export class AiService {
                 systemInstruction: 'Return only valid JSON matching the schema.',
                 responseMimeType: 'application/json',
                 responseSchema: schema,
+                ...(maxOutputTokens !== undefined && { maxOutputTokens }),
             },
         });
 

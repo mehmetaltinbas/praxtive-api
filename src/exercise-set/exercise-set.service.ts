@@ -956,7 +956,8 @@ export class ExerciseSetService {
 
         const estimate = await this.costEstimationService.estimatePaperVisionExtraction(
             { imageCount: files.length },
-            exerciseSummary
+            exerciseSummary,
+            exercises.length
         );
 
         const session = await mongoose.startSession();
@@ -972,7 +973,11 @@ export class ExerciseSetService {
             );
 
             const imageData = files.map((f) => ({ buffer: f.buffer, mimetype: f.mimetype }));
-            const { extractedAnswers } = await this.aiService.extractAnswersFromPaperImages(imageData, exerciseSummary);
+            const { extractedAnswers } = await this.aiService.extractAnswersFromPaperImages(
+                imageData,
+                exerciseSummary,
+                exercises.length
+            );
 
             await session.commitTransaction();
 
@@ -1058,7 +1063,7 @@ export class ExerciseSetService {
             })
             .join('\n\n');
 
-        return this.costEstimationService.estimatePaperVisionExtraction(dto, exerciseSummary);
+        return this.costEstimationService.estimatePaperVisionExtraction(dto, exerciseSummary, exercises.length);
     }
 
     async estimateLectureNotes(userId: string, exerciseSetId: string): Promise<CreditEstimateResponse> {
