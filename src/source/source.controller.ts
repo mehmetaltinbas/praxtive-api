@@ -1,4 +1,5 @@
 import {
+    BadRequestException,
     // eslint-disable-next-line no-redeclare
     Body,
     Controller,
@@ -78,7 +79,11 @@ export class SourceController {
 
     @Post('estimate')
     async estimate(@Body() dto: CreateSourceDto): Promise<CreditEstimateResponse> {
-        if (dto.type === SourceType.AUDIO && dto.durationSeconds) {
+        if (dto.type === SourceType.AUDIO) {
+            if (!dto.durationSeconds) {
+                throw new BadRequestException('durationSeconds is required for audio sources');
+            }
+
             return this.costEstimationService.estimateAudioTranscription(dto.durationSeconds);
         }
 

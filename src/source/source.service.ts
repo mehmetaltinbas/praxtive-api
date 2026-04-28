@@ -1,4 +1,4 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import mongoose, { FilterQuery } from 'mongoose';
 import PDFDocument from 'pdfkit';
 import { CreditTransactionType } from 'src/credit-transaction/enums/credit-transaction-type.enum';
@@ -44,7 +44,11 @@ export class SourceService {
             }
         }
 
-        if (dto.type === SourceType.AUDIO && dto.durationSeconds) {
+        if (dto.type === SourceType.AUDIO) {
+            if (!dto.durationSeconds) {
+                throw new BadRequestException('durationSeconds is required for audio sources');
+            }
+
             const estimate = await this.costEstimationService.estimateAudioTranscription(dto.durationSeconds);
 
             const session = await mongoose.startSession();
