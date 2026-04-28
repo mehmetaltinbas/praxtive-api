@@ -1,9 +1,8 @@
 export enum CreditTransactionType {
     // increments
-    SIGNUP_GRANT = 'signupGrant',
     MONTHLY_GRANT = 'monthlyGrant',
     PLAN_UPGRADE_GRANT = 'planUpgradeGrant',
-    TOP_UP_PURCHASE = 'topUpPurchase',
+    ONE_TIME_PURCHASE = 'oneTimePurchase',
 
     // deductions
     AUDIO_TRANSCRIPTION = 'audioTranscription',
