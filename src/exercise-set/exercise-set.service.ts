@@ -261,7 +261,7 @@ export class ExerciseSetService {
         }
     }
 
-    async generateLectureNotes(userId: string, exerciseSetId: string): Promise<GenerateNotesResponse> {
+    async generateNotes(userId: string, exerciseSetId: string): Promise<GenerateNotesResponse> {
         await this.readById(userId, exerciseSetId);
 
         const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, exerciseSetId);
@@ -270,7 +270,7 @@ export class ExerciseSetService {
             throw new BadRequestException('Cannot generate lecture notes for an exercise set with no exercises.');
         }
 
-        const exerciseData = exercises.map((exercise) => {
+        const exercisesData = exercises.map((exercise) => {
             let answer: string;
 
             switch (exercise.type) {
@@ -288,7 +288,7 @@ export class ExerciseSetService {
             return { prompt: exercise.stem, answer };
         });
 
-        const estimate = await this.costEstimationService.estimateLectureNotesGeneration(exerciseData);
+        const estimate = await this.costEstimationService.estimateLectureNotesGeneration(exercisesData);
 
         const session = await mongoose.startSession();
 
@@ -302,7 +302,7 @@ export class ExerciseSetService {
                 session
             );
 
-            const { title, rawText } = await this.aiService.generateLectureNotes(exerciseData);
+            const { title, rawText } = await this.aiService.generateLectureNotes(exercisesData);
 
             await session.commitTransaction();
 
@@ -318,21 +318,23 @@ export class ExerciseSetService {
     async saveGeneratedNotes(userId: string, exerciseSetId: string, dto: SaveGeneratedNotesDto): Promise<ResponseBase> {
         await this.readById(userId, exerciseSetId);
 
-        const createResponse = await this.sourceService.create(userId, {
+        const createSourceResponse = await this.sourceService.create(userId, {
             type: SourceType.RAW_TEXT,
             title: dto.title,
             rawText: dto.rawText,
             visibility: SourceVisibility.PRIVATE,
         });
 
-        if (!createResponse.isSuccess) {
-            return createResponse;
+        if (!createSourceResponse.isSuccess) {
+            return createSourceResponse;
         }
 
-        await this.changeContext(userId, exerciseSetId, {
-            contextType: ExerciseSetContextType.SOURCE,
-            contextId: createResponse.sourceId!,
-        });
+        if (dto.link) {
+            await this.changeContext(userId, exerciseSetId, {
+                contextType: ExerciseSetContextType.SOURCE,
+                contextId: createSourceResponse.sourceId!,
+            });
+        }
 
         return { isSuccess: true, message: 'Notes saved and linked to exercise set.' };
     }

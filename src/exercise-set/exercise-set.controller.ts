@@ -73,11 +73,11 @@ export class ExerciseSetController {
     @UseGuards(AuthGuard, PlanFeatureGuard)
     @RequiresPlanFeature(PlanFeature.LECTURE_NOTES_GENERATION)
     @Post('generate-notes/:exerciseSetId')
-    async generateLectureNotes(
+    async generateNotes(
         @User() user: JwtPayload,
         @Param('exerciseSetId') exerciseSetId: string
     ): Promise<GenerateNotesResponse> {
-        return this.exerciseSetService.generateLectureNotes(user.sub, exerciseSetId);
+        return this.exerciseSetService.generateNotes(user.sub, exerciseSetId);
     }
 
     @Throttle({ default: { limit: 10, ttl: 60000 } })
