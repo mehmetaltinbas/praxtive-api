@@ -1,4 +1,3 @@
-// eslint-disable-next-line no-redeclare
 import { Controller, Get, Param } from '@nestjs/common';
 import { PlanName } from 'src/plan/enums/plan-name.enum';
 import { PlanService } from 'src/plan/plan.service';

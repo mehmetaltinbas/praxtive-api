@@ -1,10 +1,11 @@
 import { GoogleGenAI, Type, type Part, type Schema } from '@google/genai';
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { buildEvaluateAnswerPrompt } from 'src/ai/prompts/evaluate-answer.prompt';
 import { buildExtractPaperAnswersPrompt } from 'src/ai/prompts/extract-paper-answers.prompt';
 import { buildGenerateExercisesPrompt } from 'src/ai/prompts/generate-exercises.prompt';
-import { buildGenerateLectureNotesPrompt } from 'src/ai/prompts/generate-lecture-notes.prompt';
+import { buildPerExerciseNotesPrompt } from 'src/ai/prompts/generate-per-exercise-notes.prompt';
+import { buildGenerateUnifiedNotesPrompt } from 'src/ai/prompts/generate-unified-notes.prompt';
 import { EvaluateExerciseAnswerResponse } from 'src/ai/types/response/evaluate-exercise-answer.response';
 import { ExtractPaperAnswersResultResponse } from 'src/ai/types/response/extract-paper-answers-result.response';
 import { ExtractedPaperAnswer } from 'src/ai/types/response/extract-paper-answers.response';
@@ -16,6 +17,7 @@ import { AI_MAX_OUTPUT_TOKENS } from 'src/credit-transaction/constants/ai-max-ou
 import { ExerciseGenerationMode } from 'src/exercise-set/enums/exercise-generation-mode.enum';
 import { ExerciseSetDifficulty } from 'src/exercise-set/enums/exercise-set-difficulty.enum';
 import { ExerciseSetType } from 'src/exercise-set/enums/exercise-set-type.enum';
+import { GenerateNotesFocus } from 'src/exercise-set/enums/generate-notes-focus.enum';
 import { MULTIPLE_CHOICE_CHOICES_COUNT } from 'src/exercise/constants/multiple-choice-choices-count.constant';
 import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
@@ -344,38 +346,73 @@ export class AiService {
         return { isSuccess: true, message: 'Paper answers extracted.', extractedAnswers: result.items };
     }
 
-    async generateLectureNotes(
-        exerciseData: { prompt: string; answer: string }[]
+    async generateNotesFromExerciseSet(
+        exerciseData: { prompt: string; answer: string }[],
+        focus: GenerateNotesFocus
     ): Promise<GenerateLectureNotesResponse> {
-        const prompt = buildGenerateLectureNotesPrompt(exerciseData);
+        if (focus === GenerateNotesFocus.UNIFIED) {
+            const prompt = buildGenerateUnifiedNotesPrompt(exerciseData);
 
-        const schema: Schema = {
-            type: Type.OBJECT,
-            properties: {
-                title: { type: Type.STRING },
-                sections: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            subtitle: { type: Type.STRING },
-                            content: { type: Type.STRING },
+            const schema: Schema = {
+                type: Type.OBJECT,
+                properties: {
+                    title: {
+                        type: Type.STRING,
+                    },
+                    rawText: { type: Type.STRING },
+                },
+                required: ['title', 'rawText'],
+            };
+
+            const result = await this.sendPromptAndParseResponse<{ title: string; rawText: string }>(
+                prompt,
+                schema,
+                exerciseData.length * AI_MAX_OUTPUT_TOKENS.unifiedNotesGeneration
+            );
+
+            return {
+                isSuccess: true,
+                message: 'Lecture notes generated.',
+                title: result.title,
+                rawText: result.rawText,
+            };
+        } else if (focus === GenerateNotesFocus.PER_EXERCISE) {
+            const prompt = buildPerExerciseNotesPrompt(exerciseData);
+
+            const schema: Schema = {
+                type: Type.OBJECT,
+                properties: {
+                    title: {
+                        type: Type.STRING,
+                    },
+                    sections: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                subtitle: { type: Type.STRING },
+                                content: { type: Type.STRING },
+                            },
+                            required: ['subtitle', 'content'],
                         },
-                        required: ['subtitle', 'content'],
                     },
                 },
-            },
-            required: ['title', 'sections'],
-        };
+                required: ['title', 'sections'],
+            };
 
-        const result = await this.sendPromptAndParseResponse<{
-            title: string;
-            sections: { subtitle: string; content: string }[];
-        }>(prompt, schema, exerciseData.length * AI_MAX_OUTPUT_TOKENS.lectureNotesGeneration);
+            const result = await this.sendPromptAndParseResponse<{
+                title: string;
+                sections: { subtitle: string; content: string }[];
+            }>(prompt, schema, exerciseData.length * AI_MAX_OUTPUT_TOKENS.lectureNotesGeneration);
 
-        const rawText = result.sections.map((s) => `${s.subtitle}\n${s.content}`).join('\n\n');
+            const rawText = result.sections.map((s) => `${s.subtitle}\n${s.content}`).join('\n\n');
 
-        return { isSuccess: true, message: 'Lecture notes generated.', title: result.title, rawText };
+            return { isSuccess: true, message: 'Lecture notes generated.', title: result.title, rawText };
+        }
+
+        throw new BadRequestException(
+            `Given focus value is not supported. Valid focus values: ${Object.values(GenerateNotesFocus).join(', ')}`
+        );
     }
 
     private async sendPromptAndParseResponse<T>(prompt: string, schema: Schema, maxOutputTokens?: number): Promise<T> {

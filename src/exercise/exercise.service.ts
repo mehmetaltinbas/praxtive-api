@@ -218,10 +218,7 @@ export class ExerciseService {
 
     async transfer(userId: string, id: string, dto: TransferExerciseDto): Promise<ResponseBase> {
         const { exercise } = await this.readById(userId, id);
-        const { exerciseSet: sourceExerciseSet } = await this.exerciseSetService.readById(
-            userId,
-            exercise.exerciseSet
-        );
+        const { exerciseSet: sourceExerciseSet } = await this.exerciseSetService.readById(userId, exercise.exerciseSet);
         const { exerciseSet: targetExerciseSet } = await this.exerciseSetService.readById(userId, dto.exerciseSetId);
 
         if (sourceExerciseSet._id.toString() === targetExerciseSet._id.toString()) {

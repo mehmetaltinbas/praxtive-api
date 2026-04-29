@@ -22,6 +22,7 @@ import { ChangeExerciseSetContextDto } from 'src/exercise-set/types/dto/change-e
 import { CreateExerciseSetDto } from 'src/exercise-set/types/dto/create-exercise-set.dto';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { GenerateAdditionalExercisesDto } from 'src/exercise-set/types/dto/generate-additional-exercises.dto';
+import { GenerateNotesDto } from 'src/exercise-set/types/dto/generate-notes.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
 import { SaveGeneratedNotesDto } from 'src/exercise-set/types/dto/save-generated-notes.dto';
 import { UpdateExerciseSetDto } from 'src/exercise-set/types/dto/update-exercise-set.dto';
@@ -75,9 +76,10 @@ export class ExerciseSetController {
     @Post('generate-notes/:exerciseSetId')
     async generateNotes(
         @User() user: JwtPayload,
-        @Param('exerciseSetId') exerciseSetId: string
+        @Param('exerciseSetId') exerciseSetId: string,
+        @Body() dto: GenerateNotesDto
     ): Promise<GenerateNotesResponse> {
-        return this.exerciseSetService.generateNotes(user.sub, exerciseSetId);
+        return this.exerciseSetService.generateNotes(user.sub, exerciseSetId, dto);
     }
 
     @Throttle({ default: { limit: 10, ttl: 60000 } })

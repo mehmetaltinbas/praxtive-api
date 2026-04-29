@@ -17,10 +17,12 @@ const schema = new mongoose.Schema(
 schema.set('toJSON', {
     transform: (_doc, ret: Record<string, unknown>) => {
         const v = ret.user;
+
         if (v !== undefined) {
             ret.userId = v && typeof v === 'object' && '_id' in v ? String((v as { _id: unknown })._id) : v;
             delete ret.user;
         }
+
         return ret;
     },
 });

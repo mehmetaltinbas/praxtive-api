@@ -44,10 +44,12 @@ const schema = new mongoose.Schema(
 schema.set('toJSON', {
     transform: (_doc, ret: Record<string, unknown>) => {
         const v = ret.exerciseSet;
+
         if (v !== undefined) {
             ret.exerciseSetId = v && typeof v === 'object' && '_id' in v ? String((v as { _id: unknown })._id) : v;
             delete ret.exerciseSet;
         }
+
         return ret;
     },
 });

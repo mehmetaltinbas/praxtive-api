@@ -28,6 +28,7 @@ import { CreateExerciseSetDto } from 'src/exercise-set/types/dto/create-exercise
 import { EstimateEvaluatePaperAnswersDto } from 'src/exercise-set/types/dto/estimate-evaluate-paper-answers.dto';
 import { EvaluateAnswersDto } from 'src/exercise-set/types/dto/evaluate-answers.dto';
 import { GenerateAdditionalExercisesDto } from 'src/exercise-set/types/dto/generate-additional-exercises.dto';
+import { GenerateNotesDto } from 'src/exercise-set/types/dto/generate-notes.dto';
 import { ReadMultipleExerciseSetsFilterCriteriaDto } from 'src/exercise-set/types/dto/read-multiple-exercise-sets-filter-criteria-dto.dto';
 import { SaveGeneratedNotesDto } from 'src/exercise-set/types/dto/save-generated-notes.dto';
 import { UpdateExerciseSetDto } from 'src/exercise-set/types/dto/update-exercise-set.dto';
@@ -261,7 +262,7 @@ export class ExerciseSetService {
         }
     }
 
-    async generateNotes(userId: string, exerciseSetId: string): Promise<GenerateNotesResponse> {
+    async generateNotes(userId: string, exerciseSetId: string, dto: GenerateNotesDto): Promise<GenerateNotesResponse> {
         await this.readById(userId, exerciseSetId);
 
         const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, exerciseSetId);
@@ -288,7 +289,7 @@ export class ExerciseSetService {
             return { prompt: exercise.stem, answer };
         });
 
-        const estimate = await this.costEstimationService.estimateLectureNotesGeneration(exercisesData);
+        const estimate = await this.costEstimationService.estimateLectureNotesGeneration(exercisesData, dto.focus);
 
         const session = await mongoose.startSession();
 
@@ -302,7 +303,7 @@ export class ExerciseSetService {
                 session
             );
 
-            const { title, rawText } = await this.aiService.generateLectureNotes(exercisesData);
+            const { title, rawText } = await this.aiService.generateNotesFromExerciseSet(exercisesData, dto.focus);
 
             await session.commitTransaction();
 
@@ -1068,7 +1069,11 @@ export class ExerciseSetService {
         return this.costEstimationService.estimatePaperVisionExtraction(dto, exerciseSummary, exercises.length);
     }
 
-    async estimateLectureNotes(userId: string, exerciseSetId: string): Promise<CreditEstimateResponse> {
+    async estimateLectureNotes(
+        userId: string,
+        exerciseSetId: string,
+        dto: GenerateNotesDto
+    ): Promise<CreditEstimateResponse> {
         const { exercises } = await this.exerciseService.readAllByExerciseSetId(userId, exerciseSetId);
         const exerciseData = exercises.map((exercise) => {
             let answer: string;
@@ -1088,6 +1093,6 @@ export class ExerciseSetService {
             return { prompt: exercise.stem, answer };
         });
 
-        return this.costEstimationService.estimateLectureNotesGeneration(exerciseData);
+        return this.costEstimationService.estimateLectureNotesGeneration(exerciseData, dto.focus);
     }
 }

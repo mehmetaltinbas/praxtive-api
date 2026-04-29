@@ -7,6 +7,7 @@ import { ExerciseSetService } from 'src/exercise-set/exercise-set.service';
 import { CreateExerciseSetDto } from 'src/exercise-set/types/dto/create-exercise-set.dto';
 import { EstimateEvaluatePaperAnswersDto } from 'src/exercise-set/types/dto/estimate-evaluate-paper-answers.dto';
 import { GenerateAdditionalExercisesDto } from 'src/exercise-set/types/dto/generate-additional-exercises.dto';
+import { GenerateNotesDto } from 'src/exercise-set/types/dto/generate-notes.dto';
 import User from 'src/shared/custom-decorators/user.decorator';
 
 @Controller('exercise-set-estimate')
@@ -44,8 +45,9 @@ export class ExerciseSetEstimateController {
     @Post('estimate-generate-notes/:exerciseSetId')
     async estimateGenerateNotes(
         @User() user: JwtPayload,
-        @Param('exerciseSetId') exerciseSetId: string
+        @Param('exerciseSetId') exerciseSetId: string,
+        @Body() dto: GenerateNotesDto
     ): Promise<CreditEstimateResponse> {
-        return this.exerciseSetService.estimateLectureNotes(user.sub, exerciseSetId);
+        return this.exerciseSetService.estimateLectureNotes(user.sub, exerciseSetId, dto);
     }
 }

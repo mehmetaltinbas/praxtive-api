@@ -34,11 +34,13 @@ schema.set('toJSON', {
             ['subscription', 'subscriptionId'],
         ] as const) {
             const v = ret[k];
+
             if (v !== undefined) {
                 ret[outKey] = v && typeof v === 'object' && '_id' in v ? String((v as { _id: unknown })._id) : v;
                 delete ret[k];
             }
         }
+
         return ret;
     },
 });

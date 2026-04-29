@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { buildExtractPaperAnswersPrompt } from 'src/ai/prompts/extract-paper-answers.prompt';
 import { buildGenerateExercisesPrompt } from 'src/ai/prompts/generate-exercises.prompt';
-import { buildGenerateLectureNotesPrompt } from 'src/ai/prompts/generate-lecture-notes.prompt';
+import { buildPerExerciseNotesPrompt } from 'src/ai/prompts/generate-per-exercise-notes.prompt';
+import { buildGenerateUnifiedNotesPrompt } from 'src/ai/prompts/generate-unified-notes.prompt';
 import { TokenCounterService } from 'src/ai/services/token-counter.service';
 import { AI_MAX_OUTPUT_TOKENS } from 'src/credit-transaction/constants/ai-max-output-tokens.constant';
 import { AUDIO_CREDIT_RATE_PER_SECOND } from 'src/credit-transaction/constants/credit-rates/audio-credit-rate-per-second.constant';
@@ -10,6 +11,7 @@ import { OUTPUT_TOKEN_CREDIT_RATE } from 'src/credit-transaction/constants/credi
 import { VISION_TOKENS_PER_IMAGE } from 'src/credit-transaction/constants/vision-tokens-per-image.constant';
 import { CreditEstimateResponse } from 'src/credit-transaction/types/response/credit-estimate.response';
 import { ExerciseGenerationMode } from 'src/exercise-set/enums/exercise-generation-mode.enum';
+import { GenerateNotesFocus } from 'src/exercise-set/enums/generate-notes-focus.enum';
 import { EstimateEvaluatePaperAnswersDto } from 'src/exercise-set/types/dto/estimate-evaluate-paper-answers.dto';
 import { ExerciseDifficulty } from 'src/exercise/enums/exercise-difficulty.enum';
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
@@ -92,12 +94,20 @@ export class CreditEstimationService {
     }
 
     async estimateLectureNotesGeneration(
-        exerciseData: { prompt: string; answer: string }[]
+        exerciseData: { prompt: string; answer: string }[],
+        focus: GenerateNotesFocus
     ): Promise<CreditEstimateResponse> {
-        const prompt = buildGenerateLectureNotesPrompt(exerciseData);
+        const prompt =
+            focus === GenerateNotesFocus.UNIFIED
+                ? buildGenerateUnifiedNotesPrompt(exerciseData)
+                : buildPerExerciseNotesPrompt(exerciseData);
+        const cap =
+            focus === GenerateNotesFocus.UNIFIED
+                ? AI_MAX_OUTPUT_TOKENS.unifiedNotesGeneration
+                : AI_MAX_OUTPUT_TOKENS.lectureNotesGeneration;
         const { tokenCount: inputTokens } = await this.tokenCounterService.countTokens(prompt);
         const exerciseCount = exerciseData.length;
-        const maxOutputTokens = exerciseCount * AI_MAX_OUTPUT_TOKENS.lectureNotesGeneration;
+        const maxOutputTokens = exerciseCount * cap;
         const credits = this.calculateCredits(inputTokens, maxOutputTokens);
 
         return {

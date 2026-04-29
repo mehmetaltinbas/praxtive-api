@@ -1,0 +1,1 @@
+export const MAX_SOURCE_TITLE_LENGTH = 50;

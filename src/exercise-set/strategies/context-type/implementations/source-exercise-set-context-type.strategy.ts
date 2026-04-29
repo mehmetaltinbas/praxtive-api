@@ -24,7 +24,10 @@ export class SourceExerciseSetContextTypeStrategy implements ExerciseSetContextT
         };
     }
 
-    async resolveAdditionalExercisesContext(userId: string, contextId: string): Promise<AdditionalExercisesContextResult> {
+    async resolveAdditionalExercisesContext(
+        userId: string,
+        contextId: string
+    ): Promise<AdditionalExercisesContextResult> {
         const { source } = await this.sourceService.readById(userId, contextId);
 
         return { sourceText: source.rawText };

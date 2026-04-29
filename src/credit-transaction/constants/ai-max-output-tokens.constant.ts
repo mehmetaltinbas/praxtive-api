@@ -3,4 +3,5 @@ export const AI_MAX_OUTPUT_TOKENS: Record<string, number> = {
     additionalExerciseGeneration: 500,
     paperVisionExtraction: 80,
     lectureNotesGeneration: 300,
+    unifiedNotesGeneration: 200,
 };

@@ -1,6 +1,10 @@
 import { ExerciseType } from 'src/exercise/enums/exercise-type.enum';
 
-export function buildEvaluateAnswerPrompt(exerciseType: ExerciseType, exercisePrompt: string, customPrompt: string): string {
+export function buildEvaluateAnswerPrompt(
+    exerciseType: ExerciseType,
+    exercisePrompt: string,
+    customPrompt: string
+): string {
     return `Evaluate the user's answer and provide brief feedback in simple English for this ${exerciseType} exercise.
             ### Evaluation Rules:
             - **Scoring:** Assign a score from 0-100.

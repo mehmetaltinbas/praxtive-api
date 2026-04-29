@@ -5,7 +5,7 @@ import {
     MessageBody,
     OnGatewayConnection,
     SubscribeMessage,
-    WebSocketGateway
+    WebSocketGateway,
 } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 import { AuthGuard } from 'src/auth/auth.guard';
