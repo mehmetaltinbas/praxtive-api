@@ -4,6 +4,7 @@ import { MAX_SOURCE_LENGTH } from 'src/source/constants/max-source-length.consta
 import { MIN_SOURCE_LENGTH } from 'src/source/constants/min-source-length.constant';
 import { SourceType } from 'src/source/enums/source-type.enum';
 import { SourceVisibility } from 'src/source/enums/source-visibility.enum';
+import { Type } from 'class-transformer';
 
 export class CreateSourceDto {
     @IsEnum(SourceType)
@@ -29,6 +30,7 @@ export class CreateSourceDto {
     @ValidateIf((dto: CreateSourceDto) => dto.type === SourceType.YOUTUBE_VIDEO)
     readonly url?: string;
 
+    @Type(() => Number)
     @IsNumber()
     @Max(AUDIO_MAX_DURATION_SECONDS)
     @IsOptional()
