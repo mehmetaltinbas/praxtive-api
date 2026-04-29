@@ -86,7 +86,7 @@ export class AuthService {
         await this.subscriptionService.createInitialFreeSubscription(user._id.toString());
         await this.generateAndSendVerificationCode(user);
 
-        return { isSuccess: true, message: 'user created, verification email sent' };
+        return { isSuccess: true, message: `Account created, verification email sent to ${email}` };
     }
 
     private async createGoogleUser(

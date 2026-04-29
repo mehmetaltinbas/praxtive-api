@@ -21,6 +21,7 @@ const schema = new mongoose.Schema(
         verificationCodeExpiresAt: { type: Date, default: null },
         paymentProviderCustomerId: { type: String, sparse: true, default: null },
         allowsMarketing: { type: Boolean, required: true },
+        occupation: { type: String, required: true },
     },
     { timestamps: true }
 );

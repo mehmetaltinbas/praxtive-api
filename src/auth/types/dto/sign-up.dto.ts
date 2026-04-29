@@ -1,4 +1,5 @@
-import { IsBoolean, IsEmail, IsNotEmpty, IsString, Matches, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsNotEmpty, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { MAX_OCCUPATION_LENGTH } from 'src/user/constants/max-occupation-length.constant';
 import { MIN_PASSWORD_LENGTH } from 'src/user/constants/min-password-length.constant';
 import { MIN_USER_NAME_LENGTH } from 'src/user/constants/min-user-name-length.constant';
 
@@ -21,4 +22,9 @@ export class SignUpDto {
     @IsBoolean()
     @IsNotEmpty()
     readonly allowsMarketing!: boolean;
+
+    @MaxLength(MAX_OCCUPATION_LENGTH)
+    @IsString()
+    @IsNotEmpty()
+    readonly occupation!: string;
 }

@@ -1,0 +1,1 @@
+export const MAX_OCCUPATION_LENGTH = 50;

@@ -34,7 +34,9 @@ export class UserService {
 
     async readById(id: string): Promise<ReadSingleUserResponse> {
         const user = await this.db.User.findById(id)
-            .select('-passwordHash -pendingEmail -verificationCode -verificationCodeExpiresAt')
+            .select(
+                '-passwordHash -googleId -pendingEmail -verificationCode -verificationCodeExpiresAt -paymentProviderCustomerId -allowsMarketing'
+            )
             .exec();
 
         if (!user) {
@@ -46,7 +48,7 @@ export class UserService {
 
     async readByUserName(userName: string): Promise<ReadSingleUserResponse> {
         const user = await this.db.User.findOne({ userName }).select(
-            '-passwordHash -pendingEmail -verificationCode -verificationCodeExpiresAt'
+            '-passwordHash -googleId -pendingEmail -verificationCode -verificationCodeExpiresAt -paymentProviderCustomerId -allowsMarketing'
         );
 
         if (!user) {
